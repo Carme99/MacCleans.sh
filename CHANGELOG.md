@@ -1,0 +1,1 @@
+$(cat /Users/jacklee/Scripts/CHANGELOG.md)
