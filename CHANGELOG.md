@@ -2,6 +2,64 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [2.5.0] - 2026-02-01
+
+### Added
+
+**Configuration File Support**
+- Load persistent settings from configuration files
+- Config file locations (checked in order):
+  - `~/.maccleans.conf`
+  - `~/.config/maccleans/config`
+  - `${XDG_CONFIG_HOME}/maccleans/config`
+- Command line arguments override config file settings
+- Example configuration file (`maccleans.conf.example`)
+- Support for all existing flags in config format
+
+**Colored Output**
+- Visual feedback with color-coded messages:
+  - Green (✓) for success messages
+  - Yellow (⚠) for warnings
+  - Red (✗) for errors
+  - Magenta for section headers
+  - Cyan for highlighted values
+  - Dimmed timestamps for better readability
+- Automatically disabled when output is not a terminal
+- Manual override with `--no-color` flag
+- Enhanced log functions: `log_success()`, `log_warning()`, `log_error()`
+
+**Documentation**
+- New `INSTALL.md` - Comprehensive installation guide with:
+  - Multiple installation methods (curl download, git clone)
+  - Configuration file setup instructions
+  - Automated cleanup setup (cron, launchd examples)
+  - Troubleshooting section
+- Updated README with:
+  - Installation section linking to INSTALL.md
+  - Configuration file documentation
+  - New `--no-color` flag documentation
+  - Updated feature list
+
+**New Command-Line Options**
+- `--no-color` - Disable colored output
+
+### Improved
+
+- Better user experience with visual feedback
+- Reduced need for repetitive command-line flags
+- Easier automation setup with config files
+- More professional output formatting
+
+### Details
+
+- Config file parser supports comments and blank lines
+- Safe config loading with validation
+- Color support respects terminal capabilities
+- All existing functionality preserved
+- No breaking changes
+
+---
+
 ## [2.0.0] - 2026-01-31
 
 ### Added
@@ -145,9 +203,10 @@ sudo ./clean-mac-space.sh \
 ## Future Considerations
 
 Potential features for future releases:
-- Language-specific caches (Rust, Go, Ruby)
+- Language-specific caches (Rust, Go, Ruby, Gradle, Maven, Composer)
 - Docker/container cleanup
-- Additional browser support (Brave, Opera)
-- Configuration file support
-- Detailed recovery statistics
-- launchd integration for scheduled cleanup
+- Additional browser support (Brave, Opera, Arc)
+- Interactive mode with menu selection
+- Detailed recovery statistics per category
+- Progress indicators for long operations
+- Notification support (macOS notifications when complete)

@@ -14,6 +14,15 @@ A comprehensive macOS cleanup utility that safely frees up disk space by removin
 - **Preview Mode**: Use `--dry-run` to see what would be deleted before confirming
 - **Detailed Reporting**: Shows exact space freed for each category
 - **Interactive Warnings**: Special alerts for risky operations like XCode cache deletion
+- **Configuration File Support**: Save your preferred settings in `~/.maccleans.conf`
+- **Colored Output**: Visual feedback with color-coded success, warnings, and errors
+
+## Installation
+
+See [INSTALL.md](INSTALL.md) for detailed installation instructions including:
+- Quick installation methods (curl download or git clone)
+- Setting up configuration files
+- Automated cleanup with cron or launchd
 
 ## What Gets Cleaned
 
@@ -99,6 +108,7 @@ sudo ./clean-mac-space.sh --dry-run --skip-browsers --skip-npm
 | `--dry-run` | `-n` | Preview what would be cleaned without deleting |
 | `--yes` | `-y` | Skip confirmation prompt and proceed |
 | `--quiet` | `-q` | Minimal output (useful for cron) |
+| `--no-color` | | Disable colored output |
 | `--threshold N` | | Only run if disk usage is above N% |
 | `--skip-snapshots` | | Skip Time Machine snapshot deletion |
 | `--skip-homebrew` | | Skip Homebrew cache cleanup |
@@ -145,6 +155,40 @@ This script requires `sudo` privileges to:
 - Access system cache locations
 
 Running with `sudo` is necessary but safe - the script only operates on system cache and temporary directories.
+
+## Configuration Files
+
+You can save your preferred settings in a configuration file to avoid repeating command line flags. The script checks for config files in this order:
+
+1. `~/.maccleans.conf`
+2. `~/.config/maccleans/config`
+3. `${XDG_CONFIG_HOME}/maccleans/config`
+
+### Example Configuration
+
+Create `~/.maccleans.conf`:
+
+```bash
+# Conservative cleanup - skip development caches
+SKIP_XCODE=true
+SKIP_NPM=true
+SKIP_PIP=true
+SKIP_BROWSERS=true
+```
+
+Or for automated cron usage:
+
+```bash
+# Automated cleanup settings
+QUIET=true
+AUTO_YES=true
+THRESHOLD=80
+SKIP_XCODE=true
+```
+
+See `maccleans.conf.example` for a complete list of configurable options.
+
+**Note**: Command line arguments always override config file settings.
 
 ## Examples
 

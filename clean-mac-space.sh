@@ -14,10 +14,15 @@
 #   sudo ~/Scripts/clean-mac-space.sh --skip-spotify     # Skip Spotify cache
 #   sudo ~/Scripts/clean-mac-space.sh --skip-homebrew    # Skip Homebrew cleanup
 #
+# Configuration:
+#   Settings can be saved in ~/.maccleans.conf or ~/.config/maccleans/config
+#   Command line arguments will override config file settings
+#
 # Options:
 #   --dry-run, -n       Preview what would be cleaned without deleting
 #   --yes, -y           Skip confirmation prompt
 #   --quiet, -q         Minimal output (useful for cron)
+#   --no-color          Disable colored output
 #   --threshold N       Only run if disk usage is above N% (default: 0)
 #   --skip-snapshots    Skip Time Machine snapshot deletion
 #   --skip-homebrew     Skip Homebrew cache cleanup
@@ -35,6 +40,7 @@
 DRY_RUN=false
 AUTO_YES=false
 QUIET=false
+NO_COLOR=false
 THRESHOLD=0
 SKIP_SNAPSHOTS=false
 SKIP_HOMEBREW=false
@@ -46,6 +52,43 @@ SKIP_NPM=false
 SKIP_PIP=false
 SKIP_TRASH=false
 SKIP_DSSTORE=false
+
+# Configuration file locations (checked in order)
+CONFIG_FILES=(
+    "$HOME/.maccleans.conf"
+    "$HOME/.config/maccleans/config"
+    "${XDG_CONFIG_HOME:-$HOME/.config}/maccleans/config"
+)
+
+# Load configuration file if it exists
+for config_file in "${CONFIG_FILES[@]}"; do
+    if [ -f "$config_file" ]; then
+        while IFS='=' read -r key value 2>/dev/null; do
+            [[ "$key" =~ ^[[:space:]]*# ]] && continue
+            [[ -z "$key" ]] && continue
+            key=$(echo "$key" | xargs)
+            value=$(echo "$value" | xargs)
+            case "$key" in
+                DRY_RUN) DRY_RUN="$value" ;;
+                AUTO_YES) AUTO_YES="$value" ;;
+                QUIET) QUIET="$value" ;;
+                NO_COLOR) NO_COLOR="$value" ;;
+                THRESHOLD) THRESHOLD="$value" ;;
+                SKIP_SNAPSHOTS) SKIP_SNAPSHOTS="$value" ;;
+                SKIP_HOMEBREW) SKIP_HOMEBREW="$value" ;;
+                SKIP_SPOTIFY) SKIP_SPOTIFY="$value" ;;
+                SKIP_CLAUDE) SKIP_CLAUDE="$value" ;;
+                SKIP_XCODE) SKIP_XCODE="$value" ;;
+                SKIP_BROWSERS) SKIP_BROWSERS="$value" ;;
+                SKIP_NPM) SKIP_NPM="$value" ;;
+                SKIP_PIP) SKIP_PIP="$value" ;;
+                SKIP_TRASH) SKIP_TRASH="$value" ;;
+                SKIP_DSSTORE) SKIP_DSSTORE="$value" ;;
+            esac
+        done < "$config_file"
+        break
+    fi
+done
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -60,6 +103,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --quiet|-q)
             QUIET=true
+            shift
+            ;;
+        --no-color)
+            NO_COLOR=true
             shift
             ;;
         --threshold)
@@ -118,23 +165,51 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Color definitions
+if [ "$NO_COLOR" = true ] || [ ! -t 1 ]; then
+    RED="" GREEN="" YELLOW="" BLUE="" MAGENTA="" CYAN="" BOLD="" DIM="" NC=""
+else
+    RED='\033[0;31m' GREEN='\033[0;32m' YELLOW='\033[1;33m'
+    BLUE='\033[0;34m' MAGENTA='\033[0;35m' CYAN='\033[0;36m'
+    BOLD='\033[1m' DIM='\033[2m' NC='\033[0m'
+fi
+
 # Function to log with timestamp
 log() {
     if [ "$QUIET" = false ]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+        echo -e "${DIM}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"
     fi
 }
 
 # Function to log without timestamp
 log_plain() {
     if [ "$QUIET" = false ]; then
-        echo "$1"
+        echo -e "$1"
     fi
 }
 
 # Function to always log (even in quiet mode)
 log_always() {
-    echo "$1"
+    echo -e "$1"
+}
+
+# Function to log success
+log_success() {
+    if [ "$QUIET" = false ]; then
+        echo -e "${GREEN}✓${NC} $1"
+    fi
+}
+
+# Function to log warning
+log_warning() {
+    if [ "$QUIET" = false ]; then
+        echo -e "${YELLOW}⚠${NC} $1"
+    fi
+}
+
+# Function to log error
+log_error() {
+    echo -e "${RED}✗${NC} $1" >&2
 }
 
 # Function to convert human-readable size to bytes (approximate)
