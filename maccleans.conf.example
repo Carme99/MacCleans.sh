@@ -1,0 +1,56 @@
+# MacCleans Configuration File
+# Copy this file to one of these locations:
+#   ~/.maccleans.conf
+#   ~/.config/maccleans.conf
+#   ${XDG_CONFIG_HOME}/maccleans/config
+#
+# Format: KEY=value (no spaces around =)
+# Boolean values: true or false
+# Command line arguments will override these settings
+
+# General Options
+# ---------------
+# DRY_RUN=false              # Preview mode without deleting files
+# AUTO_YES=false             # Skip confirmation prompts
+# QUIET=false                # Minimal output (useful for cron jobs)
+# THRESHOLD=0                # Only run if disk usage is above this % (0 = always run)
+
+# Skip Categories
+# ---------------
+# Set any category to "true" to skip it during cleanup
+# All categories are enabled by default (set to "false")
+
+# SKIP_SNAPSHOTS=false       # Skip Time Machine local snapshots
+# SKIP_HOMEBREW=false        # Skip Homebrew cache cleanup
+# SKIP_SPOTIFY=false         # Skip Spotify cache
+# SKIP_CLAUDE=false          # Skip Claude Desktop cache
+# SKIP_XCODE=false           # Skip XCode derived data (usually largest!)
+# SKIP_BROWSERS=false        # Skip browser caches (Chrome, Firefox, Edge)
+# SKIP_NPM=false             # Skip npm/yarn caches
+# SKIP_PIP=false             # Skip Python pip cache
+# SKIP_TRASH=false           # Skip emptying trash
+# SKIP_DSSTORE=false         # Skip .DS_Store file cleanup
+
+# Example Configurations
+# ----------------------
+# Conservative cleanup (skip development caches):
+#   SKIP_XCODE=true
+#   SKIP_NPM=true
+#   SKIP_PIP=true
+#   SKIP_BROWSERS=true
+#
+# Developer-friendly (skip only XCode to avoid rebuild times):
+#   SKIP_XCODE=true
+#
+# Automated cron job (threshold-based, quiet mode):
+#   QUIET=true
+#   AUTO_YES=true
+#   THRESHOLD=80
+#
+# Quick cleanup (only safe system caches):
+#   SKIP_XCODE=true
+#   SKIP_NPM=true
+#   SKIP_PIP=true
+#   SKIP_BROWSERS=true
+#   SKIP_SPOTIFY=true
+#   SKIP_CLAUDE=true
