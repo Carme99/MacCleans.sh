@@ -106,16 +106,19 @@ sudo ./clean-mac-space.sh --yes
 
 ### Interactive Mode 🆕
 
-Select exactly which categories to clean:
+Select exactly which categories to clean with an intuitive, keyboard-driven interface:
 
 ```bash
 sudo ./clean-mac-space.sh --interactive
 ```
 
 Interactive mode provides a menu where you can:
-- Toggle individual categories on/off
-- Select all or none with quick commands
-- See real-time status of your selections
+- **Navigate** with ↑↓ arrow keys
+- **Toggle** categories with Space or Enter
+- **Quick actions**: `a`=all, `n`=none, `d`=done, `q`=cancel
+- **Number shortcuts**: 1-13 for instant toggle
+- **Visual cursor** shows current selection
+- **Real-time status** with color-coded checkmarks
 
 ### Configuration Profiles 🆕
 

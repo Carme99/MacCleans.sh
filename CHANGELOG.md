@@ -8,9 +8,12 @@ All notable changes to MacCleans.sh are documented in this file.
 
 **Interactive Mode** 🎯
 - New `--interactive` or `-i` flag for visual category selection
-- Toggle categories on/off with numbered menu
-- Quick commands: 'all', 'none', 'done'
-- Real-time status display with color-coded checkmarks
+- **Arrow key navigation**: Use ↑↓ to move through categories
+- **Keyboard-driven**: Space/Enter to toggle, no typing required
+- **Quick commands**: `a`=all, `n`=none, `d`=done, `q`=cancel
+- **Number shortcuts**: 1-13 for instant toggle
+- **Visual cursor**: `>` indicator shows current selection
+- Real-time status display with color-coded checkmarks [✓]
 - Perfect for users who want full control over what gets cleaned
 
 **Configuration Profiles** 📋

@@ -748,6 +748,7 @@ if [ "$SKIP_SNAPSHOTS" = false ]; then
 
     # Check if Time Machine backup is currently running
     TM_RUNNING=$(tmutil status 2>/dev/null | grep -c "Running = 1" || echo "0")
+    TM_RUNNING=$(echo "$TM_RUNNING" | tr -d '\n' | head -n 1)
     if [ "$TM_RUNNING" -gt 0 ]; then
         log_warning "Time Machine backup is currently running"
         log "Skipping snapshot deletion for safety"
