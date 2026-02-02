@@ -2,6 +2,199 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [3.0.0] - 2026-02-02
+
+### Added
+
+**Interactive Mode** 🎯
+- New `--interactive` or `-i` flag for visual category selection
+- Toggle categories on/off with numbered menu
+- Quick commands: 'all', 'none', 'done'
+- Real-time status display with color-coded checkmarks
+- Perfect for users who want full control over what gets cleaned
+
+**Configuration Profiles** 📋
+- New `--profile` flag with 4 preset modes:
+  - `conservative` - Skip all development caches (safe for all users)
+  - `developer` - Skip only XCode (avoid rebuild times)
+  - `aggressive` - Clean everything (maximum space recovery)
+  - `minimal` - Only safe system caches (quickest, safest)
+- Profiles can be combined with individual skip flags
+- Perfect for quick, consistent cleanups
+
+**New Cleanup Categories**
+- **Docker Cache** 🐳 - Clean Docker images, containers, volumes, and build cache
+  - Uses `docker system prune -af --volumes`
+  - Shows disk usage before cleanup
+  - Can recover 1-20GB+ depending on usage
+- **iOS Simulator Data** 📱 - Clear iOS simulator caches and data
+  - Deletes unavailable simulators
+  - Erases all simulator data
+  - Can recover 1-10GB+ for iOS developers
+- **Mail App Cache** 📧 - Clean Mail application caches
+  - Removes `~/Library/Caches/com.apple.mail`
+  - Safe to delete (regenerates automatically)
+  - Can recover 100MB-1GB
+
+**Enhanced Validation & Security** 🔒
+- Config file validation:
+  - Boolean value validation (must be true/false)
+  - Numeric threshold validation (must be 0-100)
+  - Clear error messages for invalid configurations
+- User validation improvements:
+  - Validates SUDO_USER and USER_HOME
+  - Prevents running as root directly
+  - Verifies home directory exists and is in standard location
+  - Better error messages when validation fails
+- System health checks:
+  - Warns if system load is high (>10)
+  - Detects running Time Machine backups
+  - Allows user to proceed or abort based on warnings
+
+**Enhanced Summary Report** 📊
+- Detailed "Categories Processed" section with ✓ indicators
+- "Categories Skipped" section with ⊘ indicators
+- Improved formatting with bold headers
+- Before/after disk usage comparison
+- Total space freed calculation
+- Safety guarantees reminder at the end
+
+**Additional Features**
+- `--version` or `-v` flag to display version number
+- `--skip-docker` flag for Docker cache
+- `--skip-simulator` flag for iOS Simulator data
+- `--skip-mail` flag for Mail app cache
+- Better error messages throughout script
+- ShellCheck compliance with `set -euo pipefail`
+- Improved safety with bash parameter expansion (${VAR:?})
+
+### Improved
+
+**Error Handling**
+- Strict error handling with `set -euo pipefail`
+- Better error messages with context
+- Graceful handling of missing commands
+- Proper exit codes for all error conditions
+- Validation before destructive operations
+
+**Code Quality**
+- ShellCheck compliant bash code
+- Eliminated dependency on `bc` (pure bash arithmetic)
+- Better function organization and naming
+- Improved variable scoping with `local`
+- Consistent error handling patterns
+- Protected against word splitting and glob expansion
+
+**User Experience**
+- More informative log messages
+- Better visual hierarchy in output
+- Contextual warnings (high load, active backups)
+- Clearer indication of what was processed vs skipped
+- Improved dry-run output with better formatting
+
+### Changed
+
+- Bumped version from 2.5.0 to 3.0.0 (major release)
+- Size conversion now uses pure bash instead of `bc`
+- Float calculations for GB/TB display now use `awk`
+- Configuration validation runs after argument parsing
+- Home directory validation is more comprehensive
+
+### Documentation
+
+- Updated README.md with all v3.0.0 features
+- Added detailed profiles explanation
+- Added interactive mode documentation
+- Added system health checks section
+- Enhanced FAQ with profile and interactive mode questions
+- Updated examples to showcase new features
+- Added CONTRIBUTING.md reference
+- New badge for version 3.0.0
+
+- Updated INSTALL.md with new flags and features
+- Updated maccleans.conf.example with new options
+- Added pro tips section in config file
+- Added profile usage examples
+
+### Details
+
+- Script size increased from 855 to 1,384 lines (+529 lines)
+- Now 15 cleanup categories (was 12 in v2.5.0)
+- Three new skip flags added
+- Two new command-line flags (--interactive, --profile)
+- Enhanced validation adds ~150 lines of safety checks
+- Interactive mode adds ~100 lines of UI code
+
+### Potential Space Recovery
+
+V3.0.0 can now recover even more space:
+
+**New in 3.0.0:**
+- **Docker Cache**: 1-20GB+ (Docker users)
+- **iOS Simulator Data**: 1-10GB+ (iOS developers)
+- **Mail App Cache**: 100MB-1GB (all users)
+
+**From previous versions:**
+- **XCode Derived Data**: 5-50GB+ (XCode developers)
+- **Browser Caches**: 1-5GB
+- **npm/Yarn Cache**: 500MB-5GB (Node developers)
+- **pip Cache**: 100MB-2GB (Python developers)
+- **Homebrew Cache**: 500MB-2GB
+- **Trash Bin**: Variable
+- **Other categories**: 500MB-2GB
+
+**Total potential recovery with V3.0.0: 15-100GB+** depending on system usage
+
+### Breaking Changes
+
+None! V3.0.0 is fully backward compatible:
+- All existing flags work identically
+- Existing config files continue to work (just add new options if desired)
+- Existing scripts and cron jobs continue to work
+- Only additions and improvements, no removals
+
+### Upgrade Notes
+
+**From v2.5.0 to v3.0.0:**
+
+All existing functionality preserved. New features are opt-in:
+
+```bash
+# Your old commands work exactly the same
+sudo ./clean-mac-space.sh --yes --quiet
+
+# New: Try interactive mode
+sudo ./clean-mac-space.sh --interactive
+
+# New: Use profiles for quick cleanup
+sudo ./clean-mac-space.sh --profile developer
+```
+
+To skip new categories in automated scripts:
+
+```bash
+# Skip new v3.0.0 categories
+sudo ./clean-mac-space.sh \
+  --skip-docker \
+  --skip-simulator \
+  --skip-mail
+```
+
+**Configuration File Updates:**
+
+If you have a `~/.maccleans.conf`, you can optionally add:
+
+```bash
+# New in v3.0.0
+SKIP_DOCKER=false
+SKIP_SIMULATOR=false
+SKIP_MAIL=false
+```
+
+But this is optional - the script works fine without these additions.
+
+---
+
 ## [2.5.0] - 2026-02-01
 
 ### Added

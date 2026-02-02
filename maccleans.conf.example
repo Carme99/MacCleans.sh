@@ -1,7 +1,7 @@
-# MacCleans Configuration File
+# MacCleans Configuration File (v3.0.0)
 # Copy this file to one of these locations:
-#   ~/.maccleans.conf
-#   ~/.config/maccleans.conf
+#   ~/.maccleans.conf (recommended)
+#   ~/.config/maccleans/config
 #   ${XDG_CONFIG_HOME}/maccleans/config
 #
 # Format: KEY=value (no spaces around =)
@@ -13,6 +13,7 @@
 # DRY_RUN=false              # Preview mode without deleting files
 # AUTO_YES=false             # Skip confirmation prompts
 # QUIET=false                # Minimal output (useful for cron jobs)
+# NO_COLOR=false             # Disable colored output
 # THRESHOLD=0                # Only run if disk usage is above this % (0 = always run)
 
 # Skip Categories
@@ -30,6 +31,9 @@
 # SKIP_PIP=false             # Skip Python pip cache
 # SKIP_TRASH=false           # Skip emptying trash
 # SKIP_DSSTORE=false         # Skip .DS_Store file cleanup
+# SKIP_DOCKER=false          # Skip Docker cache cleanup (NEW in v3.0)
+# SKIP_SIMULATOR=false       # Skip iOS Simulator data cleanup (NEW in v3.0)
+# SKIP_MAIL=false            # Skip Mail app cache cleanup (NEW in v3.0)
 
 # Example Configurations
 # ----------------------
@@ -38,19 +42,43 @@
 #   SKIP_NPM=true
 #   SKIP_PIP=true
 #   SKIP_BROWSERS=true
+#   SKIP_DOCKER=true
+#   SKIP_SIMULATOR=true
 #
 # Developer-friendly (skip only XCode to avoid rebuild times):
 #   SKIP_XCODE=true
+#
+# Aggressive cleanup (clean everything):
+#   # Leave all SKIP_* options as false (default)
+#
+# Minimal cleanup (only safe system caches):
+#   SKIP_XCODE=true
+#   SKIP_NPM=true
+#   SKIP_PIP=true
+#   SKIP_BROWSERS=true
+#   SKIP_DOCKER=true
+#   SKIP_SPOTIFY=true
+#   SKIP_CLAUDE=true
+#   SKIP_SIMULATOR=true
+#   SKIP_MAIL=true
 #
 # Automated cron job (threshold-based, quiet mode):
 #   QUIET=true
 #   AUTO_YES=true
 #   THRESHOLD=80
+#   SKIP_XCODE=true
 #
-# Quick cleanup (only safe system caches):
+# Quick cleanup (skip development tools):
 #   SKIP_XCODE=true
 #   SKIP_NPM=true
 #   SKIP_PIP=true
-#   SKIP_BROWSERS=true
-#   SKIP_SPOTIFY=true
-#   SKIP_CLAUDE=true
+#   SKIP_DOCKER=true
+#   SKIP_SIMULATOR=true
+
+# Pro Tips
+# --------
+# 1. Use profiles via command line instead: --profile conservative
+# 2. Profiles: conservative, developer, aggressive, minimal
+# 3. Interactive mode: Use --interactive or -i to select categories
+# 4. Always test with --dry-run first to preview changes
+# 5. Command line flags override config file settings
