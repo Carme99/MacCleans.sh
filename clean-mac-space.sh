@@ -509,96 +509,164 @@ interactive_selection() {
     log_plain "${BOLD}Interactive Category Selection${NC}"
     log_plain "================================================"
     log_plain ""
-    log_plain "Select categories to clean (toggle with number):"
-    log_plain ""
 
-    while true; do
-        # Display menu with current state
-        local status
+    # Category data: "display_name|skip_var"
+    local -a categories=(
+        "Time Machine Snapshots|SKIP_SNAPSHOTS"
+        "Homebrew Cache|SKIP_HOMEBREW"
+        "Spotify Cache|SKIP_SPOTIFY"
+        "Claude Desktop Cache|SKIP_CLAUDE"
+        "XCode Derived Data|SKIP_XCODE"
+        "Browser Caches (Chrome, Firefox, Edge)|SKIP_BROWSERS"
+        "npm/Yarn Cache|SKIP_NPM"
+        "Python pip Cache|SKIP_PIP"
+        "Trash Bin|SKIP_TRASH"
+        ".DS_Store Files|SKIP_DSSTORE"
+        "Docker Cache|SKIP_DOCKER"
+        "iOS Simulator Data|SKIP_SIMULATOR"
+        "Mail App Cache|SKIP_MAIL"
+    )
 
-        status="[${GREEN}✓${NC}]"; [ "$SKIP_SNAPSHOTS" = true ] && status="[ ]"
-        log_plain "  $status  1. Time Machine Snapshots"
+    local cursor=0
+    local total=${#categories[@]}
 
-        status="[${GREEN}✓${NC}]"; [ "$SKIP_HOMEBREW" = true ] && status="[ ]"
-        log_plain "  $status  2. Homebrew Cache"
+    # Function to toggle category
+    toggle_category() {
+        local idx=$1
+        local var=$(echo "${categories[$idx]}" | cut -d'|' -f2)
+        local current_val="${!var}"
+        if [ "$current_val" = "true" ]; then
+            eval "$var=false"
+        else
+            eval "$var=true"
+        fi
+    }
 
-        status="[${GREEN}✓${NC}]"; [ "$SKIP_SPOTIFY" = true ] && status="[ ]"
-        log_plain "  $status  3. Spotify Cache"
+    # Function to draw menu
+    draw_menu() {
+        # Clear screen
+        clear
+        log_plain ""
+        log_plain "${BOLD}Interactive Category Selection${NC}"
+        log_plain "================================================"
+        log_plain ""
+        log_plain "Use ${CYAN}↑↓${NC} arrow keys to navigate, ${CYAN}Space/Enter${NC} to toggle"
+        log_plain "Press ${CYAN}a${NC}=all, ${CYAN}n${NC}=none, ${CYAN}d${NC}=done, ${CYAN}q${NC}=cancel"
+        log_plain ""
 
-        status="[${GREEN}✓${NC}]"; [ "$SKIP_CLAUDE" = true ] && status="[ ]"
-        log_plain "  $status  4. Claude Desktop Cache"
+        for i in "${!categories[@]}"; do
+            local display=$(echo "${categories[$i]}" | cut -d'|' -f1)
+            local var=$(echo "${categories[$i]}" | cut -d'|' -f2)
+            local enabled="${!var}"
 
-        status="[${GREEN}✓${NC}]"; [ "$SKIP_XCODE" = true ] && status="[ ]"
-        log_plain "  $status  5. XCode Derived Data"
+            # Status indicator
+            local status
+            if [ "$enabled" = "false" ]; then
+                status="${GREEN}[✓]${NC}"
+            else
+                status="[ ]"
+            fi
 
-        status="[${GREEN}✓${NC}]"; [ "$SKIP_BROWSERS" = true ] && status="[ ]"
-        log_plain "  $status  6. Browser Caches (Chrome, Firefox, Edge)"
+            # Cursor indicator
+            local cursor_mark="  "
+            if [ $i -eq $cursor ]; then
+                cursor_mark="${CYAN}>${NC} "
+            fi
 
-        status="[${GREEN}✓${NC}]"; [ "$SKIP_NPM" = true ] && status="[ ]"
-        log_plain "  $status  7. npm/Yarn Cache"
-
-        status="[${GREEN}✓${NC}]"; [ "$SKIP_PIP" = true ] && status="[ ]"
-        log_plain "  $status  8. Python pip Cache"
-
-        status="[${GREEN}✓${NC}]"; [ "$SKIP_TRASH" = true ] && status="[ ]"
-        log_plain "  $status  9. Trash Bin"
-
-        status="[${GREEN}✓${NC}]"; [ "$SKIP_DSSTORE" = true ] && status="[ ]"
-        log_plain "  $status 10. .DS_Store Files"
-
-        status="[${GREEN}✓${NC}]"; [ "$SKIP_DOCKER" = true ] && status="[ ]"
-        log_plain "  $status 11. Docker Cache"
-
-        status="[${GREEN}✓${NC}]"; [ "$SKIP_SIMULATOR" = true ] && status="[ ]"
-        log_plain "  $status 12. iOS Simulator Data"
-
-        status="[${GREEN}✓${NC}]"; [ "$SKIP_MAIL" = true ] && status="[ ]"
-        log_plain "  $status 13. Mail App Cache"
+            printf "%b%b %s\n" "$cursor_mark" "$status" "$display"
+        done
 
         log_plain ""
-        log_plain "Enter number to toggle, 'all' to select all, 'none' to deselect all, 'done' to continue:"
-        read -r selection
+        log_plain "${DIM}Tip: Numbers 1-13 also work for quick toggle${NC}"
+    }
 
-        case "$selection" in
-            1) [ "$SKIP_SNAPSHOTS" = true ] && SKIP_SNAPSHOTS=false || SKIP_SNAPSHOTS=true ;;
-            2) [ "$SKIP_HOMEBREW" = true ] && SKIP_HOMEBREW=false || SKIP_HOMEBREW=true ;;
-            3) [ "$SKIP_SPOTIFY" = true ] && SKIP_SPOTIFY=false || SKIP_SPOTIFY=true ;;
-            4) [ "$SKIP_CLAUDE" = true ] && SKIP_CLAUDE=false || SKIP_CLAUDE=true ;;
-            5) [ "$SKIP_XCODE" = true ] && SKIP_XCODE=false || SKIP_XCODE=true ;;
-            6) [ "$SKIP_BROWSERS" = true ] && SKIP_BROWSERS=false || SKIP_BROWSERS=true ;;
-            7) [ "$SKIP_NPM" = true ] && SKIP_NPM=false || SKIP_NPM=true ;;
-            8) [ "$SKIP_PIP" = true ] && SKIP_PIP=false || SKIP_PIP=true ;;
-            9) [ "$SKIP_TRASH" = true ] && SKIP_TRASH=false || SKIP_TRASH=true ;;
-            10) [ "$SKIP_DSSTORE" = true ] && SKIP_DSSTORE=false || SKIP_DSSTORE=true ;;
-            11) [ "$SKIP_DOCKER" = true ] && SKIP_DOCKER=false || SKIP_DOCKER=true ;;
-            12) [ "$SKIP_SIMULATOR" = true ] && SKIP_SIMULATOR=false || SKIP_SIMULATOR=true ;;
-            13) [ "$SKIP_MAIL" = true ] && SKIP_MAIL=false || SKIP_MAIL=true ;;
-            all)
-                SKIP_SNAPSHOTS=false SKIP_HOMEBREW=false SKIP_SPOTIFY=false SKIP_CLAUDE=false
-                SKIP_XCODE=false SKIP_BROWSERS=false SKIP_NPM=false SKIP_PIP=false
-                SKIP_TRASH=false SKIP_DSSTORE=false SKIP_DOCKER=false SKIP_SIMULATOR=false
-                SKIP_MAIL=false
-                ;;
-            none)
-                SKIP_SNAPSHOTS=true SKIP_HOMEBREW=true SKIP_SPOTIFY=true SKIP_CLAUDE=true
-                SKIP_XCODE=true SKIP_BROWSERS=true SKIP_NPM=true SKIP_PIP=true
-                SKIP_TRASH=true SKIP_DSSTORE=true SKIP_DOCKER=true SKIP_SIMULATOR=true
-                SKIP_MAIL=true
-                ;;
-            done)
-                break
-                ;;
-            *)
-                log_warning "Invalid selection: $selection"
-                ;;
-        esac
+    # Initial draw
+    draw_menu
 
-        # Clear screen for next iteration (optional)
-        echo ""
-        echo "----------------------------------------"
-        echo ""
+    # Main loop
+    while true; do
+        # Read single character including escape sequences
+        local key
+        IFS= read -rsn1 key
+
+        # Handle escape sequences (arrow keys)
+        if [[ $key == $'\x1b' ]]; then
+            read -rsn2 key
+            case $key in
+                '[A') # Up arrow
+                    ((cursor--))
+                    if [ $cursor -lt 0 ]; then
+                        cursor=$((total - 1))
+                    fi
+                    draw_menu
+                    ;;
+                '[B') # Down arrow
+                    ((cursor++))
+                    if [ $cursor -ge $total ]; then
+                        cursor=0
+                    fi
+                    draw_menu
+                    ;;
+            esac
+        else
+            case $key in
+                ' '|'') # Space or Enter - toggle current selection
+                    toggle_category $cursor
+                    draw_menu
+                    ;;
+                a|A) # Select all
+                    SKIP_SNAPSHOTS=false SKIP_HOMEBREW=false SKIP_SPOTIFY=false SKIP_CLAUDE=false
+                    SKIP_XCODE=false SKIP_BROWSERS=false SKIP_NPM=false SKIP_PIP=false
+                    SKIP_TRASH=false SKIP_DSSTORE=false SKIP_DOCKER=false SKIP_SIMULATOR=false
+                    SKIP_MAIL=false
+                    draw_menu
+                    ;;
+                n|N) # Deselect all
+                    SKIP_SNAPSHOTS=true SKIP_HOMEBREW=true SKIP_SPOTIFY=true SKIP_CLAUDE=true
+                    SKIP_XCODE=true SKIP_BROWSERS=true SKIP_NPM=true SKIP_PIP=true
+                    SKIP_TRASH=true SKIP_DSSTORE=true SKIP_DOCKER=true SKIP_SIMULATOR=true
+                    SKIP_MAIL=true
+                    draw_menu
+                    ;;
+                d|D) # Done
+                    break
+                    ;;
+                q|Q) # Quit/Cancel
+                    log_plain ""
+                    log_always "Selection cancelled."
+                    exit 0
+                    ;;
+                1)
+                    # Check if this is part of 10-13
+                    IFS= read -rsn1 -t 0.3 next_key
+                    if [[ -n "$next_key" ]]; then
+                        case "$next_key" in
+                            0) toggle_category 9; draw_menu ;; # 10
+                            1) toggle_category 10; draw_menu ;; # 11
+                            2) toggle_category 11; draw_menu ;; # 12
+                            3) toggle_category 12; draw_menu ;; # 13
+                            *) toggle_category 0; draw_menu ;; # Just 1
+                        esac
+                    else
+                        toggle_category 0; draw_menu # Just 1
+                    fi
+                    ;;
+                2) toggle_category 1; draw_menu ;;
+                3) toggle_category 2; draw_menu ;;
+                4) toggle_category 3; draw_menu ;;
+                5) toggle_category 4; draw_menu ;;
+                6) toggle_category 5; draw_menu ;;
+                7) toggle_category 6; draw_menu ;;
+                8) toggle_category 7; draw_menu ;;
+                9) toggle_category 8; draw_menu ;;
+                *) # Ignore other input
+                    ;;
+            esac
+        fi
     done
 
+    log_plain ""
+    log_success "Categories selected!"
     log_plain ""
 }
 
