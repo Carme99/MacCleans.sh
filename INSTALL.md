@@ -1,6 +1,16 @@
 # Installation Guide
 
-This guide covers different methods to install and set up MacCleans on your macOS system.
+This guide covers different methods to install and set up MacCleans v3.0.0 on your macOS system.
+
+## What's New in v3.0.0
+
+- 🎯 Interactive mode (`--interactive`) - Choose what to clean with a visual menu
+- 📋 Configuration profiles (`--profile`) - Quick presets for common use cases
+- 🐳 Docker cache cleanup
+- 📱 iOS Simulator data cleanup
+- 📧 Mail app cache cleanup
+- ✅ Enhanced validation and system health checks
+- 📊 Improved summary reporting
 
 ## Quick Installation
 
@@ -29,6 +39,12 @@ chmod +x ~/Scripts/clean-mac-space.sh
 
 # Run the script
 sudo ~/Scripts/clean-mac-space.sh --dry-run
+
+# Try interactive mode
+sudo ~/Scripts/clean-mac-space.sh --interactive
+
+# Or use a preset profile
+sudo ~/Scripts/clean-mac-space.sh --profile developer
 ```
 
 ### Method 2: Git Clone
