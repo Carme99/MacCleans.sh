@@ -296,7 +296,7 @@ validate_config
 
 # Color definitions
 if [ "$NO_COLOR" = true ] || [ ! -t 1 ]; then
-    RED="" GREEN="" YELLOW="" BLUE="" MAGENTA="" CYAN="" BOLD="" DIM="" NC=""
+    RED="" GREEN="" YELLOW="" CYAN="" BOLD="" DIM="" NC=""
 else
     RED='\033[0;31m' GREEN='\033[0;32m' YELLOW='\033[1;33m'
     CYAN='\033[0;36m'
