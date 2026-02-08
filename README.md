@@ -2,7 +2,7 @@
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![Shell](https://img.shields.io/badge/Shell-Bash-black.svg)](https://www.gnu.org/software/bash/)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Carme99/MacCleans.sh/graphs/commit-activity)
-[![Version](https://img.shields.io/badge/Version-3.0.0-brightgreen.svg)](https://github.com/Carme99/MacCleans.sh/releases)
+[![Documentation](https://img.shields.io/badge/Docs-Comprehensive-brightgreen.svg)](docs/)
 
 # Mac Space Cleanup Script
 
@@ -438,6 +438,40 @@ You can proceed anyway or wait for a better time.
 
 ### Disk usage hasn't changed much
 Some caches are small. XCode and Docker (if present) are typically the largest. Run in dry-run mode to see actual sizes before cleanup.
+
+## Documentation
+
+### 📚 Core Documentation
+
+- **[Installation Guide](INSTALL.md)** - Complete installation instructions, configuration setup, and automation
+- **[FAQ](FAQ.md)** - Frequently asked questions covering safety, features, troubleshooting, and comparisons
+- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Solutions to common errors, permission issues, and recovery procedures
+- **[Advanced Usage](ADVANCED.md)** - Multi-profile configs, CI/CD integration, monitoring, and enterprise deployment
+- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute, code style, testing, and adding cleanup categories
+- **[Changelog](CHANGELOG.md)** - Version history and release notes
+
+### 📖 In-Depth Guides
+
+Explore [docs/](docs/) for comprehensive educational guides:
+
+- **[Understanding macOS Caches](docs/understanding-macos-caches.md)** - Deep dive into cache types, how they work, and when to clean them
+- **[When to Clean XCode Derived Data](docs/xcode-derived-data-guide.md)** - Comprehensive guide for iOS/Mac developers on managing XCode caches
+- **[Docker Cache Management](docs/docker-cache-guide.md)** - Best practices for Docker cleanup without breaking workflows
+- **[Automating macOS Maintenance](docs/automating-macos-maintenance.md)** - Complete automation guide with cron, LaunchD, and custom scripts
+
+### 🎯 Quick Links
+
+| I want to... | Read this |
+|--------------|-----------|
+| Install MacCleans | [Installation Guide](INSTALL.md) |
+| Understand what's safe to delete | [Understanding Caches](docs/understanding-macos-caches.md) |
+| Automate cleanup | [Automation Guide](docs/automating-macos-maintenance.md) |
+| Fix an error | [Troubleshooting](TROUBLESHOOTING.md) |
+| Use advanced features | [Advanced Usage](ADVANCED.md) |
+| Manage XCode caches | [XCode Guide](docs/xcode-derived-data-guide.md) |
+| Clean Docker | [Docker Guide](docs/docker-cache-guide.md) |
+| Contribute code | [Contributing](CONTRIBUTING.md) |
+| Ask questions | [FAQ](FAQ.md) |
 
 ## Version History
 
