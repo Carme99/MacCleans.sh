@@ -912,17 +912,17 @@ for CACHE_DIR in "${SAFE_CACHES[@]}"; do
 done
 
 if [ "$OLD_CACHE_COUNT" -gt 0 ]; then
-    OLD_CACHE_SIZE="0B"
+    CACHE_BYTES=0
     for CACHE_DIR in "${SAFE_CACHES[@]}"; do
         CACHE_PATH="$USER_HOME/Library/Caches/$CACHE_DIR"
         if [ -d "$CACHE_PATH" ]; then
             PARTIAL_SIZE=$(find "$CACHE_PATH" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
             if [ -n "$PARTIAL_SIZE" ] && [ "$PARTIAL_SIZE" != "0B" ]; then
-                OLD_CACHE_SIZE="$PARTIAL_SIZE"
+                CACHE_BYTES=$((CACHE_BYTES + $(size_to_bytes "$PARTIAL_SIZE")))
             fi
         fi
     done
-    CACHE_BYTES=$(size_to_bytes "$OLD_CACHE_SIZE")
+    OLD_CACHE_SIZE=$(echo "$CACHE_BYTES" | awk '{if ($1>=1073741824) printf "%.1fG", $1/1073741824; else if ($1>=1048576) printf "%.1fM", $1/1048576; else if ($1>=1024) printf "%.1fK", $1/1024; else printf "%dB", $1}')
     log "Found $OLD_CACHE_COUNT old cache file(s) (>30 days): $OLD_CACHE_SIZE"
 
     if [ "$DRY_RUN" = true ]; then
@@ -1312,9 +1312,13 @@ if [ "$SKIP_DOCKER" = false ]; then
                 log "  $line"
             done
 
-            # Estimate reclaimable space from docker system df
-            DOCKER_RECLAIM=$(docker system df 2>/dev/null | awk 'NR>1 {gsub(/[^0-9.]/, "", $NF); sum+=$NF} END {printf "%.0f\n", sum*1024*1024}' || echo "0")
-            if [ -z "$DOCKER_RECLAIM" ] || [ "$DOCKER_RECLAIM" = "0" ]; then
+            # Estimate reclaimable space using docker's format option
+            DOCKER_RECLAIM_SIZE=$(docker system df --format '{{.Reclaimable}}' 2>/dev/null | head -1 || echo "0B")
+            if [ -n "$DOCKER_RECLAIM_SIZE" ] && [ "$DOCKER_RECLAIM_SIZE" != "0B" ]; then
+                # Strip any trailing parenthetical percentage e.g. "3.2GB (45%)" -> "3.2GB"
+                DOCKER_RECLAIM_SIZE=$(echo "$DOCKER_RECLAIM_SIZE" | awk '{print $1}')
+                DOCKER_RECLAIM=$(size_to_bytes "$DOCKER_RECLAIM_SIZE")
+            else
                 DOCKER_RECLAIM=0
             fi
 
@@ -1353,21 +1357,23 @@ if [ "$SKIP_SIMULATOR" = false ]; then
         SIM_SIZE=$(du -sh "$SIMULATOR_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
 
         if [ -n "$SIM_SIZE" ] && [ "$SIM_SIZE" != "0B" ]; then
-            log "iOS Simulator data: $SIM_SIZE"
-            SIM_BYTES=$(size_to_bytes "$SIM_SIZE")
+            log "iOS Simulator data: $SIM_SIZE (total)"
 
             if [ "$DRY_RUN" = true ]; then
-                log "Would clean iOS Simulator data: $SIM_SIZE"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SIM_BYTES))
+                log "Would remove unavailable iOS Simulators"
             else
-                log "Cleaning iOS Simulator data..."
+                log "Cleaning unavailable iOS Simulators..."
                 if command -v xcrun &> /dev/null; then
+                    SIM_BEFORE=$(du -sk "$SIMULATOR_DIR" 2>/dev/null | awk '{print $1}' || echo "0")
                     xcrun simctl delete unavailable 2>/dev/null || log_warning "Could not delete unavailable simulators"
+                    SIM_AFTER=$(du -sk "$SIMULATOR_DIR" 2>/dev/null | awk '{print $1}' || echo "0")
+                    SIM_FREED=$(( (SIM_BEFORE - SIM_AFTER) * 1024 ))
+                    if [ "$SIM_FREED" -lt 0 ]; then SIM_FREED=0; fi
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SIM_FREED))
                     log_success "Unavailable iOS Simulators removed"
                 else
                     log_warning "xcrun command not found, skipping"
                 fi
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SIM_BYTES))
             fi
         else
             log "iOS Simulator data is empty"
