@@ -1,25 +1,42 @@
+[![Version](https://img.shields.io/badge/Version-3.1.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![Shell](https://img.shields.io/badge/Shell-Bash-black.svg)](https://www.gnu.org/software/bash/)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Carme99/MacCleans.sh/graphs/commit-activity)
 [![Documentation](https://img.shields.io/badge/Docs-Comprehensive-brightgreen.svg)](docs/)
+[![Vibe Coded](https://img.shields.io/badge/Vibe%20Coded-with%20Claude-blueviolet.svg)](https://claude.ai)
 
 # Mac Space Cleanup Script
 
 A comprehensive macOS disk cleanup utility that safely frees up disk space by removing cache files, temporary files, and other safe-to-delete items.
 
-## ✨ What's New in v3.0.0
+## Table of Contents
 
-- 🎯 **Interactive Mode**: Select exactly what to clean with `--interactive`
-- 📋 **Configuration Profiles**: Preset cleanup modes (conservative, developer, aggressive, minimal)
-- ✅ **Enhanced Validation**: Config validation and system health checks
-- 🔒 **Security Improvements**: User validation and better error handling
-- 🐳 **Docker Cache Cleanup**: Clean Docker images, containers, and volumes
-- 📱 **iOS Simulator Cleanup**: Clear simulator data and caches
-- 📧 **Mail App Cache**: Clean Mail application caches
-- 📊 **Enhanced Summary Report**: Detailed breakdown of what was cleaned vs skipped
-- 🛡️ **ShellCheck Compliant**: Strict error handling with `set -euo pipefail`
-- ℹ️ **Version Flag**: Check version with `--version` or `-v`
+- [What's New](#-whats-new-in-v310)
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [What Gets Cleaned](#what-gets-cleaned)
+- [Usage](#usage)
+- [All Available Flags](#all-available-flags)
+- [Configuration Profiles](#configuration-profiles-explained)
+- [Safety Guarantees](#safety-guarantees)
+- [Typical Space Recovery](#typical-space-recovery)
+- [Configuration Files](#configuration-files)
+- [Documentation](#documentation)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Built With](#built-with)
+- [License](#license)
+
+## ✨ What's New in v3.1.0
+
+- 📚 **Comprehensive Documentation Suite**: Contributing guide, advanced usage, FAQ, troubleshooting, and educational guides
+- 🛡️ **Docker Safety**: Removed dangerous `--volumes` flag from Docker cleanup to protect database data
+- 📱 **Simulator Safety**: Removed destructive `erase all` command, now only removes unavailable simulators
+- 📊 **Space Tracking**: Added byte-accurate tracking to System Cache, Temp Files, .DS_Store, and Docker sections
+- 📝 **GitHub Templates**: Issue and PR templates for better contributor experience
+- 🔒 **Security Policy**: Added SECURITY.md with responsible disclosure guidelines
 
 ## Features
 
@@ -395,49 +412,14 @@ Running with `sudo` is necessary but safe - the script only operates on system c
 
 ## Troubleshooting
 
-### "This script requires sudo privileges"
-Run with `sudo`:
-```bash
-sudo ./clean-mac-space.sh
-```
+**Common issues**:
 
-### "Cannot determine actual user"
-Don't run as root directly. Use sudo from your regular user account:
-```bash
-# DON'T: sudo su, then ./clean-mac-space.sh
-# DO: sudo ./clean-mac-space.sh
-```
+- **"This script requires sudo privileges"** - Run with `sudo ./clean-mac-space.sh`
+- **"Cannot determine actual user"** - Don't run as root directly, use `sudo` from your regular account
+- **Preview before deleting** - Use `--dry-run` to see what would be cleaned
+- **Skip XCode rebuilds** - Use `--skip-xcode` or `--profile developer`
 
-### XCode cleanup warning appears but I want to skip it
-Use `--skip-xcode` flag or profile:
-```bash
-sudo ./clean-mac-space.sh --skip-xcode
-# OR
-sudo ./clean-mac-space.sh --profile developer
-```
-
-### I want to see what would be deleted first
-Use `--dry-run` flag:
-```bash
-sudo ./clean-mac-space.sh --dry-run
-```
-
-### Configuration file not being loaded
-Check file location and format:
-```bash
-ls -la ~/.maccleans.conf
-# Format should be KEY=value (no spaces around =)
-```
-
-### System warnings about high load or active backups
-The script will warn you if:
-- System load is high (>10)
-- Time Machine backup is running
-
-You can proceed anyway or wait for a better time.
-
-### Disk usage hasn't changed much
-Some caches are small. XCode and Docker (if present) are typically the largest. Run in dry-run mode to see actual sizes before cleanup.
+For comprehensive troubleshooting, see **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**.
 
 ## Documentation
 
@@ -448,6 +430,7 @@ Some caches are small. XCode and Docker (if present) are typically the largest. 
 - **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Solutions to common errors, permission issues, and recovery procedures
 - **[Advanced Usage](ADVANCED.md)** - Multi-profile configs, CI/CD integration, monitoring, and enterprise deployment
 - **[Contributing Guide](CONTRIBUTING.md)** - How to contribute, code style, testing, and adding cleanup categories
+- **[Security Policy](SECURITY.md)** - Vulnerability reporting and security considerations
 - **[Changelog](CHANGELOG.md)** - Version history and release notes
 
 ### 📖 In-Depth Guides
@@ -471,47 +454,19 @@ Explore [docs/](docs/) for comprehensive educational guides:
 | Manage XCode caches | [XCode Guide](docs/xcode-derived-data-guide.md) |
 | Clean Docker | [Docker Guide](docs/docker-cache-guide.md) |
 | Contribute code | [Contributing](CONTRIBUTING.md) |
+| Report a bug | [Bug Template](.github/ISSUE_TEMPLATE/bug_report.md) |
+| Report a vulnerability | [Security Policy](SECURITY.md) |
 | Ask questions | [FAQ](FAQ.md) |
 
 ## Version History
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history and what changed in each release.
 
-**Latest**: v3.0.0 (2026-02-02)
-- Interactive mode and configuration profiles
-- Docker, iOS Simulator, and Mail cache cleanup
-- Enhanced validation and system health checks
-- Improved error handling and summary reporting
-
-## FAQ
-
-### Q: Is it safe to run this script?
-A: Yes. The script only removes cache and temporary files that macOS can regenerate. It never touches user documents, application settings, or system critical files.
-
-### Q: How often should I run this?
-A: Depends on your usage:
-- Heavy developers: Weekly
-- Regular users: Monthly
-- Light users: Quarterly
-- Automated with `--threshold`: Let it decide
-
-### Q: Will this break my applications?
-A: No. Applications may need to rebuild caches (slower first launch) but won't break. XCode projects will need to rebuild (5-30 min).
-
-### Q: Can I undo the cleanup?
-A: No. Deleted files cannot be recovered. Always use `--dry-run` first to preview.
-
-### Q: Why does it need sudo?
-A: To access system cache directories and Time Machine snapshots that require elevated privileges.
-
-### Q: Does this work on Apple Silicon Macs?
-A: Yes, fully compatible with both Intel and Apple Silicon Macs running macOS 10.15+.
-
-### Q: What's the difference between profiles and skip flags?
-A: Profiles are convenient presets. Skip flags give you granular control. You can combine them: `--profile developer --skip-npm`.
-
-### Q: Is interactive mode available in quiet mode?
-A: No. Interactive mode requires user input, so it's disabled when `--quiet` is used.
+**Latest**: v3.1.0 (2026-02-08)
+- Comprehensive documentation suite
+- Safety improvements for Docker and Simulator cleanup
+- Space tracking improvements across all categories
+- GitHub issue/PR templates and security policy
 
 ## Contributing
 
@@ -520,6 +475,14 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 ## License
 
 MIT - Feel free to modify and distribute.
+
+## Built With
+
+This project is **vibe coded** with the help of [Claude](https://claude.ai) (Anthropic's AI). The idea, direction, and decisions are all human - Claude helps with the heavy lifting of writing code, docs, and catching things I'd miss.
+
+**Why be transparent about it?** Because honesty is cool, and this is a free tool that does what other apps charge money for. No dodgy data collection, no subscriptions, no "premium tier" - just a bash script that cleans your Mac.
+
+AI-assisted doesn't mean AI-generated-and-forgotten. Every change is reviewed, tested, and intentional. If you're curious about vibe coding or want to contribute (with or without AI help), you're welcome here.
 
 ## Support
 

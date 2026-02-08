@@ -3,8 +3,11 @@
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/Carme99/MacCleans.sh/pulls)
 [![Code Style](https://img.shields.io/badge/code%20style-shellcheck-blue.svg)](https://www.shellcheck.net/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Vibe Coded](https://img.shields.io/badge/Vibe%20Coded-with%20Claude-blueviolet.svg)](https://claude.ai)
 
 Thank you for considering contributing to MacCleans.sh! This document provides guidelines and instructions for contributing to the project.
+
+> **AI-Assisted Contributions Welcome**: This project is vibe coded with AI assistance, and we welcome contributions made the same way. Whether you write every line by hand, pair with an AI, or anything in between - if the code works and passes ShellCheck, it's all good. Just make sure you understand and review what you're submitting.
 
 ## Table of Contents
 

@@ -47,12 +47,34 @@ All notable changes to MacCleans.sh are documented in this file.
 - Cross-referenced navigation between all docs
 - Shield badges throughout all documentation
 
+**Safety Improvements**
+- Removed `--volumes` flag from Docker cleanup to protect database data
+- Removed destructive `xcrun simctl erase all` from Simulator cleanup
+- Docker cleanup now only removes dangling images, stopped containers, and unused networks
+- Simulator cleanup now only removes unavailable simulators
+
+**Space Tracking**
+- Added byte-accurate space tracking to System Cache section
+- Added byte-accurate space tracking to Temp Files section
+- Added byte-accurate space tracking to .DS_Store section
+- Added estimated reclaimable space tracking to Docker section
+
+**Project Infrastructure**
+- New `SECURITY.md` - Security policy with responsible disclosure guidelines
+- New `.github/ISSUE_TEMPLATE/bug_report.md` - Structured bug report template
+- New `.github/ISSUE_TEMPLATE/feature_request.md` - Feature request template
+- New `.github/pull_request_template.md` - PR template with checklist
+- Added table of contents to README
+- Streamlined README by removing duplicate FAQ/Troubleshooting sections
+
 ### Improved
 
 - Better documentation discoverability from main README
 - Comprehensive resources for users at all skill levels
 - Clear guidance for contributors
 - Real-world examples and use cases throughout
+- More accurate space freed reporting in summary
+- Safer default behavior for Docker and Simulator cleanup
 
 ## [3.0.0] - 2026-02-02
 

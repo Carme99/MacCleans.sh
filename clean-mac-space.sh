@@ -3,7 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="3.0.0"
+VERSION="3.1.0"
 
 ###############################################################################
 # Mac Space Cleanup Script
@@ -912,10 +912,22 @@ for CACHE_DIR in "${SAFE_CACHES[@]}"; do
 done
 
 if [ "$OLD_CACHE_COUNT" -gt 0 ]; then
-    log "Found $OLD_CACHE_COUNT old cache file(s) (>30 days)"
+    OLD_CACHE_SIZE="0B"
+    for CACHE_DIR in "${SAFE_CACHES[@]}"; do
+        CACHE_PATH="$USER_HOME/Library/Caches/$CACHE_DIR"
+        if [ -d "$CACHE_PATH" ]; then
+            PARTIAL_SIZE=$(find "$CACHE_PATH" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+            if [ -n "$PARTIAL_SIZE" ] && [ "$PARTIAL_SIZE" != "0B" ]; then
+                OLD_CACHE_SIZE="$PARTIAL_SIZE"
+            fi
+        fi
+    done
+    CACHE_BYTES=$(size_to_bytes "$OLD_CACHE_SIZE")
+    log "Found $OLD_CACHE_COUNT old cache file(s) (>30 days): $OLD_CACHE_SIZE"
 
     if [ "$DRY_RUN" = true ]; then
         log "Would delete $OLD_CACHE_COUNT old cache file(s)"
+        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + CACHE_BYTES))
     else
         log "Cleaning cache files older than 30 days..."
         for CACHE_DIR in "${SAFE_CACHES[@]}"; do
@@ -925,6 +937,7 @@ if [ "$OLD_CACHE_COUNT" -gt 0 ]; then
             fi
         done
         log_success "Old cache files cleaned"
+        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + CACHE_BYTES))
     fi
 else
     log "No old cache files found (>30 days)"
@@ -971,15 +984,19 @@ log_plain "================================================"
 TMP_COUNT=$(find /private/var/tmp /private/tmp -type f 2>/dev/null | wc -l | tr -d ' ')
 
 if [ "$TMP_COUNT" -gt 0 ]; then
-    log "Found $TMP_COUNT temporary file(s)"
+    TMP_SIZE=$(find /private/var/tmp /private/tmp -type f -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+    TMP_BYTES=$(size_to_bytes "$TMP_SIZE")
+    log "Found $TMP_COUNT temporary file(s): $TMP_SIZE"
 
     if [ "$DRY_RUN" = true ]; then
         log "Would clean $TMP_COUNT temporary file(s)"
+        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TMP_BYTES))
     else
         log "Cleaning system temporary files..."
         rm -rf /private/var/tmp/* 2>/dev/null
         rm -rf /private/tmp/* 2>/dev/null
         log_success "Temporary files cleaned"
+        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TMP_BYTES))
     fi
 else
     log "No temporary files found"
@@ -1255,14 +1272,18 @@ if [ "$SKIP_DSSTORE" = false ]; then
     DSSTORE_COUNT=$(find "$USER_HOME" -name ".DS_Store" -type f 2>/dev/null | wc -l | tr -d ' ')
 
     if [ "$DSSTORE_COUNT" -gt 0 ]; then
-        log "Found $DSSTORE_COUNT .DS_Store file(s)"
+        DSSTORE_SIZE=$(find "$USER_HOME" -name ".DS_Store" -type f -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+        DSSTORE_BYTES=$(size_to_bytes "$DSSTORE_SIZE")
+        log "Found $DSSTORE_COUNT .DS_Store file(s): $DSSTORE_SIZE"
 
         if [ "$DRY_RUN" = true ]; then
             log "Would delete $DSSTORE_COUNT .DS_Store file(s)"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DSSTORE_BYTES))
         else
             log "Deleting .DS_Store files..."
             find "$USER_HOME" -name ".DS_Store" -type f -delete 2>/dev/null
             log_success ".DS_Store files deleted"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DSSTORE_BYTES))
         fi
     else
         log "No .DS_Store files found"
@@ -1291,12 +1312,21 @@ if [ "$SKIP_DOCKER" = false ]; then
                 log "  $line"
             done
 
+            # Estimate reclaimable space from docker system df
+            DOCKER_RECLAIM=$(docker system df 2>/dev/null | awk 'NR>1 {gsub(/[^0-9.]/, "", $NF); sum+=$NF} END {printf "%.0f\n", sum*1024*1024}' || echo "0")
+            if [ -z "$DOCKER_RECLAIM" ] || [ "$DOCKER_RECLAIM" = "0" ]; then
+                DOCKER_RECLAIM=0
+            fi
+
             if [ "$DRY_RUN" = true ]; then
                 log "Would clean Docker cache (dangling images, stopped containers, unused networks)"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
             else
                 log "Cleaning Docker cache..."
-                docker system prune -af --volumes 2>/dev/null || log_warning "Docker cleanup encountered issues"
+                log_warning "Note: Named volumes are preserved. Use 'docker volume prune' manually if needed."
+                docker system prune -af 2>/dev/null || log_warning "Docker cleanup encountered issues"
                 log_success "Docker cache cleared"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
             fi
         else
             log "Docker is not running or has no data"
@@ -1333,8 +1363,7 @@ if [ "$SKIP_SIMULATOR" = false ]; then
                 log "Cleaning iOS Simulator data..."
                 if command -v xcrun &> /dev/null; then
                     xcrun simctl delete unavailable 2>/dev/null || log_warning "Could not delete unavailable simulators"
-                    xcrun simctl erase all 2>/dev/null || log_warning "Could not erase all simulators"
-                    log_success "iOS Simulator data cleared"
+                    log_success "Unavailable iOS Simulators removed"
                 else
                     log_warning "xcrun command not found, skipping"
                 fi
