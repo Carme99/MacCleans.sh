@@ -2,6 +2,62 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [3.1.0] - 2026-02-08
+
+### Added
+
+**Comprehensive Documentation Suite**
+- New `CONTRIBUTING.md` - Complete contribution guide with:
+  - Testing guidelines and code style standards
+  - Step-by-step instructions for adding cleanup categories
+  - Pull request submission process
+  - ShellCheck compliance requirements
+- New `ADVANCED.md` - Advanced usage guide covering:
+  - Multi-profile configurations
+  - CI/CD integration (GitHub Actions, GitLab, Jenkins, CircleCI)
+  - Monitoring and alerting (Slack, Prometheus, macOS notifications)
+  - Custom cleanup categories
+  - Enterprise deployment strategies
+  - Performance optimization
+- New `FAQ.md` - Comprehensive FAQ with 50+ questions covering:
+  - General questions and safety concerns
+  - Features and usage
+  - Troubleshooting
+  - Performance and results
+  - Technical details
+- New `TROUBLESHOOTING.md` - Detailed troubleshooting guide with:
+  - Solutions to common errors
+  - Permission issue fixes
+  - Installation and execution problems
+  - Configuration troubleshooting
+  - Recovery and rollback procedures
+  - Debug mode instructions
+
+**Educational Guides (docs/)**
+- `docs/understanding-macos-caches.md` - Deep dive into cache types, how they work, and when to clean them
+- `docs/xcode-derived-data-guide.md` - Comprehensive guide for iOS/Mac developers on managing XCode caches with real-world examples
+- `docs/docker-cache-guide.md` - Docker cache management best practices and cleanup strategies
+- `docs/automating-macos-maintenance.md` - Complete automation guide with cron, LaunchD, and custom scripts
+- `docs/README.md` - Navigation hub for all documentation
+
+**Documentation Improvements**
+- Updated main README with comprehensive documentation section
+- Added quick reference table for common use cases
+- New documentation badge in README header
+- Cross-referenced navigation between all docs
+- Shield badges throughout all documentation
+
+### Improved
+
+- Better documentation discoverability from main README
+- Comprehensive resources for users at all skill levels
+- Clear guidance for contributors
+- Real-world examples and use cases throughout
+
+## [3.0.0] - 2026-02-02
+
+See main branch for v3.0.0 release notes.
+
 ## [2.5.0] - 2026-02-01
 
 ### Added
