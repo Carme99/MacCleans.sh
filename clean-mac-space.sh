@@ -344,8 +344,10 @@ log_error() {
 # Function to convert human-readable size to bytes
 size_to_bytes() {
     local size=$1
-    local number=$(echo "$size" | grep -oE '[0-9.]+' || echo "0")
-    local unit=$(echo "$size" | grep -oE '[A-Za-z]+' || echo "B")
+    local number
+    number=$(echo "$size" | grep -oE '[0-9.]+' || echo "0")
+    local unit
+    unit=$(echo "$size" | grep -oE '[A-Za-z]+' || echo "B")
 
     # Convert to integer (bash doesn't handle floats)
     number=${number%.*}
