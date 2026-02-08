@@ -299,7 +299,7 @@ if [ "$NO_COLOR" = true ] || [ ! -t 1 ]; then
     RED="" GREEN="" YELLOW="" BLUE="" MAGENTA="" CYAN="" BOLD="" DIM="" NC=""
 else
     RED='\033[0;31m' GREEN='\033[0;32m' YELLOW='\033[1;33m'
-    BLUE='\033[0;34m' MAGENTA='\033[0;35m' CYAN='\033[0;36m'
+    CYAN='\033[0;36m'
     BOLD='\033[1m' DIM='\033[2m' NC='\033[0m'
 fi
 
@@ -429,7 +429,8 @@ perform_health_checks() {
 
     # Check system load (if uptime available)
     if command -v uptime &> /dev/null; then
-        local load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d. -f1 || echo "0")
+        local load_avg
+        load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d. -f1 || echo "0")
         if [ "$load_avg" -gt 10 ]; then
             log_warning "System load is high ($load_avg). Performance may be impacted."
             warnings=$((warnings + 1))
@@ -535,7 +536,8 @@ interactive_selection() {
     # Function to toggle category
     toggle_category() {
         local idx=$1
-        local var=$(echo "${categories[$idx]}" | cut -d'|' -f2)
+        local var
+        var=$(echo "${categories[$idx]}" | cut -d'|' -f2)
         local current_val="${!var}"
         if [ "$current_val" = "true" ]; then
             eval "$var=false"
@@ -557,8 +559,10 @@ interactive_selection() {
         log_plain ""
 
         for i in "${!categories[@]}"; do
-            local display=$(echo "${categories[$i]}" | cut -d'|' -f1)
-            local var=$(echo "${categories[$i]}" | cut -d'|' -f2)
+            local display
+            display=$(echo "${categories[$i]}" | cut -d'|' -f1)
+            local var
+            var=$(echo "${categories[$i]}" | cut -d'|' -f2)
             local enabled="${!var}"
 
             # Status indicator
