@@ -854,3 +854,5 @@ sudo ./clean-mac-space.sh --dry-run --no-color
 - [Contributing](CONTRIBUTING.md) - Help improve MacCleans
 
 **Community**: We're here to help! Don't hesitate to ask questions.
+
+<!-- 🥚 Achievement unlocked: You read the entire troubleshooting guide! You are now a MacCleans wizard 🧙‍♂️ -->

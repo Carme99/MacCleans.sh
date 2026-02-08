@@ -571,3 +571,5 @@ By contributing, you agree that your contributions will be licensed under the MI
 ---
 
 **Thank you for contributing to MacCleans.sh!** 🎉
+
+<!-- Easter egg: You found the secret! Add "🧹 Clean code, clean disk" to your PR for bonus points -->

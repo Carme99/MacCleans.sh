@@ -575,3 +575,5 @@ MacCleans **automatically cleans known safe-to-delete locations**.
 ---
 
 **Didn't find your answer?** [Open an issue](https://github.com/Carme99/MacCleans.sh/issues/new) and we'll add it to this FAQ!
+
+<!-- 🥚 Easter egg #2: The answer to life, the universe, and disk space is 42GB -->

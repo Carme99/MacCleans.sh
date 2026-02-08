@@ -633,3 +633,5 @@ docker system prune -a
 - [XCode Derived Data Guide](xcode-derived-data-guide.md)
 - [Automating macOS Maintenance](automating-macos-maintenance.md)
 - [Back to Main README](../README.md)
+
+<!-- 🐳 Easter egg: Docker isn't actually a whale. It's a really fat container ship. Mind = blown. -->
