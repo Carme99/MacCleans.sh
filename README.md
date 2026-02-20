@@ -1,4 +1,4 @@
-[![Version](https://img.shields.io/badge/Version-3.1.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-3.2.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![Shell](https://img.shields.io/badge/Shell-Bash-black.svg)](https://www.gnu.org/software/bash/)
@@ -12,7 +12,7 @@ A comprehensive macOS disk cleanup utility that safely frees up disk space by re
 
 ## Table of Contents
 
-- [What's New](#-whats-new-in-v310)
+- [What's New](#-whats-new-in-v320)
 - [Features](#features)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
@@ -29,7 +29,15 @@ A comprehensive macOS disk cleanup utility that safely frees up disk space by re
 - [Built With](#built-with)
 - [License](#license)
 
-## ✨ What's New in v3.1.0
+## ✨ What's New in v3.2.0
+
+- 📱 **iOS/iPadOS Update File Detection**: Scans for stale `.ipsw` firmware files left behind by iTunes in `~/Library/iTunes/{iPhone,iPad,iPod} Software Updates/` — typically 3–7 GB each!
+- 🆕 **New Flag**: `--skip-ios-updates` to opt out of the new category
+- ⚙️ **Profile Updates**: `conservative` and `minimal` profiles now skip iOS update files by default
+- 📝 **Config Support**: New `SKIP_IOS_UPDATES` key in `~/.maccleans.conf`
+
+<details>
+<summary>Previous: v3.1.0</summary>
 
 - 📚 **Comprehensive Documentation Suite**: Contributing guide, advanced usage, FAQ, troubleshooting, and educational guides
 - 🛡️ **Docker Safety**: Removed dangerous `--volumes` flag from Docker cleanup to protect database data
@@ -37,6 +45,8 @@ A comprehensive macOS disk cleanup utility that safely frees up disk space by re
 - 📊 **Space Tracking**: Added byte-accurate tracking to System Cache, Temp Files, .DS_Store, and Docker sections
 - 📝 **GitHub Templates**: Issue and PR templates for better contributor experience
 - 🔒 **Security Policy**: Added SECURITY.md with responsible disclosure guidelines
+
+</details>
 
 ## Features
 
@@ -101,7 +111,13 @@ sudo ./clean-mac-space.sh --yes
 
 13. **Trash Bin** - Empties user trash directory (variable)
 14. **.DS_Store Files** - macOS system metadata files (100MB-2GB)
-15. **Mail App Cache** 🆕 - Mail application caches (100MB-1GB)
+15. **Mail App Cache** - Mail application caches (100MB-1GB)
+16. **Siri TTS Cache** - Siri text-to-speech cache files
+17. **iCloud Mail Cache** - iCloud Mail agent cache files
+18. **QuickLook Thumbnails** - Regenerable thumbnail cache
+19. **Diagnostic Reports** - System crash/diagnostic logs older than 30 days
+20. **iOS Device Backups** - Local iTunes/Finder device backups ⚠️
+21. **iOS/iPadOS Update Files** 🆕 - Stale `.ipsw` firmware files from iTunes (3–7 GB each!)
 
 ## Usage
 
@@ -196,9 +212,15 @@ sudo ./clean-mac-space.sh --dry-run --skip-browsers --skip-npm --profile develop
 | `--skip-pip` | | Skip Python pip cache cleanup |
 | `--skip-trash` | | Skip emptying trash bin |
 | `--skip-dsstore` | | Skip .DS_Store file cleanup |
-| `--skip-docker` | | Skip Docker cache cleanup 🆕 |
-| `--skip-simulator` | | Skip iOS Simulator data cleanup 🆕 |
-| `--skip-mail` | | Skip Mail app cache cleanup 🆕 |
+| `--skip-docker` | | Skip Docker cache cleanup |
+| `--skip-simulator` | | Skip iOS Simulator data cleanup |
+| `--skip-mail` | | Skip Mail app cache cleanup |
+| `--skip-siri-tts` | | Skip Siri TTS cache cleanup |
+| `--skip-icloud-mail` | | Skip iCloud Mail cache cleanup |
+| `--skip-quicklook` | | Skip QuickLook thumbnails cleanup |
+| `--skip-diagnostics` | | Skip diagnostic reports cleanup |
+| `--skip-ios-backups` | | Skip iOS device backups cleanup |
+| `--skip-ios-updates` | | Skip iOS/iPadOS update files (.ipsw) cleanup 🆕 |
 | `--help` | `-h` | Show usage information |
 
 ## Configuration Profiles Explained
@@ -263,17 +285,18 @@ The script now performs health checks before cleaning:
 Depending on your usage, you can typically recover:
 
 - **XCode Derived Data**: 5-50GB+ (if you develop with XCode)
-- **Docker Cache**: 1-20GB+ (if you use Docker) 🆕
+- **Docker Cache**: 1-20GB+ (if you use Docker)
+- **iOS/iPadOS Update Files**: 3-7GB per firmware file 🆕
 - **Browser Caches**: 1-5GB
 - **npm/Yarn Cache**: 500MB-5GB (if you develop with Node.js)
-- **iOS Simulator Data**: 1-10GB+ (if you develop iOS apps) 🆕
+- **iOS Simulator Data**: 1-10GB+ (if you develop iOS apps)
 - **pip Cache**: 100MB-2GB (if you code in Python)
 - **Homebrew Cache**: 500MB-2GB
-- **Mail Cache**: 100MB-1GB 🆕
+- **Mail Cache**: 100MB-1GB
 - **Trash Bin**: Variable (whatever you've deleted)
 - **Old Logs & Temps**: 100MB-1GB
 
-**Total potential recovery: 15-100GB** depending on your system usage.
+**Total potential recovery: 15-100GB+** depending on your system usage.
 
 ## Configuration Files
 
@@ -462,11 +485,11 @@ Explore [docs/](docs/) for comprehensive educational guides:
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history and what changed in each release.
 
-**Latest**: v3.1.0 (2026-02-08)
-- Comprehensive documentation suite
-- Safety improvements for Docker and Simulator cleanup
-- Space tracking improvements across all categories
-- GitHub issue/PR templates and security policy
+**Latest**: v3.2.0 (2026-02-20)
+- iOS/iPadOS update file (.ipsw) detection and cleanup
+- New `--skip-ios-updates` flag and `SKIP_IOS_UPDATES` config key
+- Conservative and minimal profiles updated
+- 21 cleanup categories total
 
 ## Contributing
 
