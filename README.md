@@ -381,8 +381,8 @@ $ sudo ./clean-mac-space.sh --interactive
 Mac Space Cleanup Script v3.2.0
 ================================================
 
-[2026-02-20 14:34:47] Running as user: jacklee
-[2026-02-20 14:34:47] Home directory: /Users/jacklee
+[2026-02-20 14:34:47] Running as user: yourname
+[2026-02-20 14:34:47] Home directory: /Users/yourname
 
 [2026-02-20 14:34:47] Current disk usage: 32% (11Gi used, 25Gi available)
 
