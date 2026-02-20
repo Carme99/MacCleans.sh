@@ -1,4 +1,4 @@
-# MacCleans Configuration File (v3.1.0)
+# MacCleans Configuration File (v3.2.0)
 # Copy this file to one of these locations:
 #   ~/.maccleans.conf (recommended)
 #   ~/.config/maccleans/config
@@ -34,6 +34,12 @@
 # SKIP_DOCKER=false          # Skip Docker cache cleanup (NEW in v3.0)
 # SKIP_SIMULATOR=false       # Skip iOS Simulator data cleanup (NEW in v3.0)
 # SKIP_MAIL=false            # Skip Mail app cache cleanup (NEW in v3.0)
+# SKIP_SIRI_TTS=false        # Skip Siri TTS cache cleanup
+# SKIP_ICLOUD_MAIL=false     # Skip iCloud Mail cache cleanup
+# SKIP_QUICKLOOK=false       # Skip QuickLook thumbnails cleanup
+# SKIP_DIAGNOSTICS=false     # Skip diagnostic reports (>30 days)
+# SKIP_IOS_BACKUPS=false     # Skip iOS device backups (⚠️  irreversible without iCloud!)
+# SKIP_IOS_UPDATES=false     # Skip iOS/iPadOS update files (.ipsw) - NEW in v3.2
 
 # Example Configurations
 # ----------------------
@@ -44,6 +50,7 @@
 #   SKIP_BROWSERS=true
 #   SKIP_DOCKER=true
 #   SKIP_SIMULATOR=true
+#   SKIP_IOS_UPDATES=true
 #
 # Developer-friendly (skip only XCode to avoid rebuild times):
 #   SKIP_XCODE=true
@@ -61,6 +68,7 @@
 #   SKIP_CLAUDE=true
 #   SKIP_SIMULATOR=true
 #   SKIP_MAIL=true
+#   SKIP_IOS_UPDATES=true
 #
 # Automated cron job (threshold-based, quiet mode):
 #   QUIET=true
