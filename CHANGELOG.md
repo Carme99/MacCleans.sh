@@ -2,6 +2,48 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [3.2.0] - 2026-02-20
+
+### Added
+
+**iOS/iPadOS Update File Detection (Section 21)**
+- New cleanup category: detects and removes stale `.ipsw` firmware files left behind by iTunes after device updates
+- Scans all three iTunes update directories:
+  - `~/Library/iTunes/iPhone Software Updates`
+  - `~/Library/iTunes/iPad Software Updates`
+  - `~/Library/iTunes/iPod Software Updates`
+- Lists each discovered `.ipsw` file by name and size before acting
+- Reports total count and combined size of all found files
+- Files are safe to delete — Apple can re-download them on demand
+- Full dry-run support: previews files and estimated space without deleting
+- New `--skip-ios-updates` flag to opt out of this category
+
+**New Command-Line Option**
+- `--skip-ios-updates` — Skip iOS/iPadOS update files (.ipsw) cleanup
+
+**Profile Updates**
+- `conservative` profile now skips iOS update files by default
+- `minimal` profile now skips iOS update files by default
+
+**Configuration**
+- New `SKIP_IOS_UPDATES` key supported in config files (`~/.maccleans.conf`)
+- Updated `maccleans.conf.example` with new option and documentation
+
+**Interactive Mode**
+- "iOS/iPadOS Update Files (.ipsw)" added as a selectable category (item 19)
+- Included in select-all and deselect-all shortcuts (`a` / `n`)
+
+### Improved
+
+- `validate_config` now validates `SKIP_IOS_UPDATES` boolean
+- Version bumped to `3.2.0`
+
+### Potential Space Recovery
+
+iOS firmware files are typically **3–7 GB each**. Users who have used iTunes to update or restore an iPhone or iPad may find one or more stale `.ipsw` files occupying significant space with no ongoing benefit.
+
+---
+
 ## [3.1.0] - 2026-02-08
 
 ### Added
