@@ -18,8 +18,19 @@ All notable changes to MacCleans.sh are documented in this file.
 - Renamed variable `SKIP_ICLOUD_PHOTOS` → `SKIP_PHOTOS_LIBRARY`
 - Updated category name: "iCloud Photos Cache" → "Photos Library Cache"
 
-### Bug Fixes
+### Bug Fixes (v4.0.x)
 
+#### Critical Fixes
+- **Disk Space Calculation**: Fixed broken calculation using `df -h` multiplied by 512. Now uses `df -k` for accurate kilobyte-based calculation
+- **iCloud Drive Scope**: Fixed deletion targeting ALL cloud providers (OneDrive, Google Drive, Box). Now only targets iCloud Drive folders using glob filter `iCloud Drive*`
+
+#### High Severity Fixes
+- **iOS Backups Safety**: Added `--force` requirement for iOS backup deletion (like iCloud Drive). Prevents accidental data loss
+- **iCloud Drive Safety**: Added `--force` requirement with prominent warnings about data loss risk
+- **Photos iCloud Detection**: Fixed `$HOME` → `$USER_HOME` for CloudDocs path (correct when running under sudo)
+- **Summary Double-Counting**: Fixed Photos Library and iCloud Drive appearing in both processed AND skipped lists
+
+#### Medium/Low Fixes
 - **POSIX Compatibility**: Fixed `mapfile` command not found error on macOS (Bash 3.2). Replaced with POSIX-compatible `while IFS= read` loop
 - **Dry-Run Photos Check**: Photos app running check now logs warning in dry-run mode without blocking space calculation
 - **Photos App Auto-Close**: When `--yes` flag is used, script now auto-closes Photos app for safe cleanup
@@ -27,15 +38,16 @@ All notable changes to MacCleans.sh are documented in this file.
 
 ### Security & Stability
 
-- **Eval vulnerability fix**: Replaced unsafe `eval` with safer alternatives (carried from v3.2.1)
-- **Symlink attack prevention**: Fixed trash deletion to prevent following malicious symlinks (carried from v3.2.1)
-- **Signal handling**: Graceful interruption handling (carried from v3.2.1)
+- **Eval vulnerability fix**: Replaced unsafe `eval` with safer alternatives
+- **Symlink attack prevention**: Fixed trash deletion to prevent following malicious symlinks
+- **Signal handling**: Graceful interruption handling
 
 ### Documentation
 
 - **Complete README overhaul**: Modernized with badges, quick reference cards, categories grid
 - **Added**: Quick Reference section, Command Reference tables, Why MacCleans comparison
 - **Updated**: All documentation to reference v4.0
+- **Danger Zone**: Added iCloud Drive to list of operations requiring `--force`
 
 ### Dependencies
 

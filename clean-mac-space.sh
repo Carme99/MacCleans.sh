@@ -817,8 +817,7 @@ fi
 DISK_USAGE=$(df -h / | tail -1 | awk '{print $5}' | sed 's/%//')
 DISK_AVAIL=$(df -h / | tail -1 | awk '{print $4}')
 DISK_USED=$(df -h / | tail -1 | awk '{print $3}')
-DISK_AVAIL_BYTES=$(df / | tail -1 | awk '{print $4}')
-DISK_AVAIL_BYTES=$((DISK_AVAIL_BYTES * 512))  # Convert 512-byte blocks to bytes
+DISK_AVAIL_BYTES=$(df -k / | tail -1 | awk '{print $4 * 1024}')  # Get KB and convert to bytes
 
 log "Running as user: $ACTUAL_USER"
 log "Home directory: $USER_HOME"
@@ -1764,46 +1763,69 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
     log "18. iCloud Drive Offline Files"
     log_plain "================================================"
 
-    ICLOUD_DRIVE_DIR="$USER_HOME/Library/CloudStorage"
-    ICLOUD_DRIVE_SIZE=0
+    CLOUD_STORAGE_DIR="$USER_HOME/Library/CloudStorage"
     ICLOUD_DRIVE_BYTES=0
 
-    # Check if iCloud Drive is available
-    if [ -d "$ICLOUD_DRIVE_DIR" ]; then
-        ICLOUD_DRIVE_SIZE=$(du -sh "$ICLOUD_DRIVE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+    # Check if CloudStorage directory exists
+    if [ -d "$CLOUD_STORAGE_DIR" ]; then
+        # Find only iCloud Drive folders (not OneDrive, Google Drive, Box, etc.)
+        ICLOUD_FOLDERS=()
+        for dir in "$CLOUD_STORAGE_DIR"/*; do
+            if [ -d "$dir" ]; then
+                dirname=$(basename "$dir")
+                # Match iCloud Drive folders (various language versions)
+                if [[ "$dirname" == iCloud\ Drive* ]] || [[ "$dirname" == "iCloud Drive" ]]; then
+                    ICLOUD_FOLDERS+=("$dir")
+                fi
+            fi
+        done
 
-        if [ -n "$ICLOUD_DRIVE_SIZE" ] && [ "$ICLOUD_DRIVE_SIZE" != "0B" ]; then
-            log "iCloud Drive offline files: $ICLOUD_DRIVE_SIZE"
-            log "${YELLOW}Warning: This bypasses iCloud sync and may cause data loss!${NC}"
-            log "${YELLOW}Files pending upload or in conflict state may be permanently lost.${NC}"
-            
-            # Require --force flag for this dangerous operation
-            if [ "$FORCE" = true ]; then
-                log "${YELLOW}Running with --force: proceeding with deletion${NC}"
-                PROCESSED_CATEGORIES+=("iCloud Drive Offline Files")
-                ICLOUD_DRIVE_BYTES=$(size_to_bytes "$ICLOUD_DRIVE_SIZE")
+        if [ ${#ICLOUD_FOLDERS[@]} -gt 0 ]; then
+            # Calculate total size of only iCloud Drive folders
+            ICLOUD_DRIVE_SIZE_KB=0
+            for folder in "${ICLOUD_FOLDERS[@]}"; do
+                folder_kb=$(du -sk "$folder" 2>/dev/null | awk '{print $1}' || echo "0")
+                ICLOUD_DRIVE_SIZE_KB=$((ICLOUD_DRIVE_SIZE_KB + folder_kb))
+            done
 
-                if [ "$DRY_RUN" = true ]; then
-                    log "Would remove iCloud Drive files: $ICLOUD_DRIVE_SIZE"
-                    log "${DIM}(Files will be DELETED from iCloud, recoverable via Recently Deleted)${NC}"
-                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
+            if [ "$ICLOUD_DRIVE_SIZE_KB" -gt 0 ]; then
+                ICLOUD_DRIVE_SIZE=$(bytes_to_human $((ICLOUD_DRIVE_SIZE_KB * 1024)))
+                log "iCloud Drive offline files: $ICLOUD_DRIVE_SIZE"
+                log "${YELLOW}Warning: This bypasses iCloud sync and may cause data loss!${NC}"
+                log "${YELLOW}Files pending upload or in conflict state may be permanently lost.${NC}"
+                
+                # Require --force flag for this dangerous operation
+                if [ "$FORCE" = true ]; then
+                    log "${YELLOW}Running with --force: proceeding with deletion${NC}"
+                    PROCESSED_CATEGORIES+=("iCloud Drive Offline Files")
+                    ICLOUD_DRIVE_BYTES=$((ICLOUD_DRIVE_SIZE_KB * 1024))
+
+                    if [ "$DRY_RUN" = true ]; then
+                        log "Would remove iCloud Drive files: $ICLOUD_DRIVE_SIZE"
+                        log "${DIM}(Files will be DELETED from iCloud, recoverable via Recently Deleted)${NC}"
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
+                    else
+                        log "Removing iCloud Drive files (DELETED from iCloud, not just local cache)..."
+                        for folder in "${ICLOUD_FOLDERS[@]}"; do
+                            find "$folder" -type f -mindepth 1 -delete 2>/dev/null
+                            find "$folder" -type d -mindepth 1 -empty -delete 2>/dev/null
+                        done
+                        log_success "iCloud Drive files removed (check Recently Deleted in iCloud to recover)"
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
+                    fi
                 else
-                    log "Removing iCloud Drive files (DELETED from iCloud, not just local cache)..."
-                    find "$ICLOUD_DRIVE_DIR" -type f -mindepth 1 -delete 2>/dev/null
-                    find "$ICLOUD_DRIVE_DIR" -type d -mindepth 1 -empty -delete 2>/dev/null
-                    log_success "iCloud Drive files removed (check Recently Deleted in iCloud to recover)"
-                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
+                    log "${RED}Skipping: Use --force to enable iCloud Drive cleanup${NC}"
+                    log "${RED}This operation bypasses iCloud sync and can cause data loss.${NC}"
+                    SKIPPED_CATEGORIES+=("iCloud Drive Offline Files (requires --force)")
                 fi
             else
-                log "${RED}Skipping: Use --force to enable iCloud Drive cleanup${NC}"
-                log "${RED}This operation bypasses iCloud sync and can cause data loss.${NC}"
-                SKIPPED_CATEGORIES+=("iCloud Drive Offline Files (requires --force)")
+                log "iCloud Drive has no offline files"
             fi
         else
-            log "iCloud Drive has no offline files"
+            log "iCloud Drive not configured or no iCloud Drive folder found"
         fi
     else
-        log "iCloud Drive not configured"
+        log "CloudStorage directory not found (iCloud Drive not configured)"
     fi
     log_plain ""
 else
@@ -1912,7 +1934,6 @@ fi
 # 21. iOS Device Backups
 ###############################################################################
 if [ "$SKIP_IOS_BACKUPS" = false ]; then
-    PROCESSED_CATEGORIES+=("iOS Device Backups")
     log_plain "================================================"
     log "21. iOS Device Backups"
     log_plain "================================================"
@@ -1927,37 +1948,27 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
 
             log "Found $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
             log_warning "These are local iTunes/Finder device backups"
-
-            if [ "$DRY_RUN" = true ]; then
-                log "${YELLOW}Would delete $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE${NC}"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
-            else
-                # WARNING for non-dry-run, non-auto-yes mode
-                if [ "$AUTO_YES" = false ]; then
-                    log_always ""
-                    log_warning "${RED}CRITICAL WARNING: This will delete ALL local iOS device backups!${NC}"
-                    log_always "   Only proceed if:"
-                    log_always "   1. Your devices are backed up to iCloud, OR"
-                    log_always "   2. You have recent backups stored elsewhere"
-                    log_always ""
-                    read -p "Delete iOS device backups? Type 'DELETE' to confirm: " -r
-                    echo
-                    if [ "$REPLY" = "DELETE" ]; then
-                        log "Deleting iOS device backups..."
-                        rm -rf "${IOS_BACKUP_DIR:?}"/* 2>/dev/null
-                        log_success "iOS device backups deleted"
-                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
-                    else
-                        log "iOS backup deletion cancelled by user"
-                        log_plain ""
-                    fi
+            log "${YELLOW}Warning: Deleting backups without iCloud backup may cause data loss!${NC}"
+            
+            # Require --force for this dangerous operation
+            if [ "$FORCE" = true ]; then
+                log "${YELLOW}Running with --force: proceeding with deletion${NC}"
+                PROCESSED_CATEGORIES+=("iOS Device Backups")
+                
+                if [ "$DRY_RUN" = true ]; then
+                    log "Would delete $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
                 else
-                    # Auto-yes mode - still delete
                     log "Deleting iOS device backups..."
                     rm -rf "${IOS_BACKUP_DIR:?}"/* 2>/dev/null
                     log_success "iOS device backups deleted"
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
                 fi
+            else
+                # Not --force: require manual confirmation
+                log "${RED}Skipping: Use --force to enable iOS backup deletion${NC}"
+                log "${RED}This operation can cause data loss without iCloud backup.${NC}"
+                SKIPPED_CATEGORIES+=("iOS Device Backups (requires --force)")
             fi
         else
             log "No iOS device backups found"
@@ -2106,8 +2117,7 @@ else
     DISK_USAGE_AFTER=$(df -h / | tail -1 | awk '{print $5}' | sed 's/%//')
     DISK_AVAIL_AFTER=$(df -h / | tail -1 | awk '{print $4}')
     DISK_USED_AFTER=$(df -h / | tail -1 | awk '{print $3}')
-    DISK_AVAIL_BYTES_AFTER=$(df / | tail -1 | awk '{print $4}')
-    DISK_AVAIL_BYTES_AFTER=$((DISK_AVAIL_BYTES_AFTER * 512))  # Convert 512-byte blocks to bytes
+    DISK_AVAIL_BYTES_AFTER=$(df -k / | tail -1 | awk '{print $4 * 1024}')  # Get KB and convert to bytes
 
     log "Initial disk usage: ${DISK_USAGE}% (${DISK_USED} used, ${DISK_AVAIL} available)"
     log "Final disk usage:   ${DISK_USAGE_AFTER}% (${DISK_USED_AFTER} used, ${DISK_AVAIL_AFTER} available)"
