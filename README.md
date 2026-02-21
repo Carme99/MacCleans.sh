@@ -1,4 +1,4 @@
-[![Version](https://img.shields.io/badge/Version-3.2.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-3.2.1-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![Shell](https://img.shields.io/badge/Shell-Bash-black.svg)](https://www.gnu.org/software/bash/)
@@ -12,7 +12,7 @@ A comprehensive macOS disk cleanup utility that safely frees up disk space by re
 
 ## Table of Contents
 
-- [What's New](#-whats-new-in-v320)
+- [What's New](#-whats-new-in-v321)
 - [Features](#features)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
@@ -30,15 +30,16 @@ A comprehensive macOS disk cleanup utility that safely frees up disk space by re
 - [Built With](#built-with)
 - [License](#license)
 
-## ✨ What's New in v3.2.0
+## ✨ What's New in v3.2.1
 
-- 📱 **iOS/iPadOS Update File Detection**: Scans for stale `.ipsw` firmware files left behind by iTunes in `~/Library/iTunes/{iPhone,iPad,iPod} Software Updates/` — typically 3–7 GB each!
-- 🆕 **New Flag**: `--skip-ios-updates` to opt out of the new category
-- ⚙️ **Profile Updates**: `conservative` and `minimal` profiles now skip iOS update files by default
-- 📝 **Config Support**: New `SKIP_IOS_UPDATES` key in `~/.maccleans.conf`
+### Security & Stability
+- 🔒 **Security Fixes**: Patched eval vulnerability and symlink attack prevention in trash deletion
+- 🛡️ **Signal Handling**: Script now handles interrupts gracefully
 
-<details>
-<summary>Previous: v3.1.0</summary>
+### New Features
+- ⚡ **--force/-f Flag**: Skip ALL confirmation prompts for fully unattended automation
+
+## ✨ What's New in v3.1.0
 
 - 📚 **Comprehensive Documentation Suite**: Contributing guide, advanced usage, FAQ, troubleshooting, and educational guides
 - 🛡️ **Docker Safety**: Removed dangerous `--volumes` flag from Docker cleanup to protect database data
@@ -86,6 +87,9 @@ sudo ./clean-mac-space.sh
 
 # Automated cleanup (no prompts)
 sudo ./clean-mac-space.sh --yes
+
+# Fully unattended (skip all prompts including XCode warning)
+sudo ./clean-mac-space.sh --force
 ```
 
 ## What Gets Cleaned
@@ -229,6 +233,7 @@ sudo ./clean-mac-space.sh --dry-run --skip-browsers --skip-npm --profile develop
 |------|-------|-------------|
 | `--dry-run` | `-n` | Preview what would be cleaned without deleting |
 | `--yes` | `-y` | Skip confirmation prompt and proceed |
+| `--force` | `-f` | Skip ALL prompts (includes XCode warning) 🆕 |
 | `--quiet` | `-q` | Minimal output (useful for cron) |
 | `--no-color` | | Disable colored output |
 | `--version` | `-v` | Display version information 🆕 |

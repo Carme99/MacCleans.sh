@@ -1,4 +1,4 @@
-# MacCleans Configuration File (v3.2.0)
+# MacCleans Configuration File (v3.2.1)
 # Copy this file to one of these locations:
 #   ~/.maccleans.conf (recommended)
 #   ~/.config/maccleans/config
@@ -11,7 +11,8 @@
 # General Options
 # ---------------
 # DRY_RUN=false              # Preview mode without deleting files
-# AUTO_YES=false             # Skip confirmation prompts
+# AUTO_YES=false             # Skip main confirmation prompt
+# FORCE=false                # Skip ALL prompts (including XCode warning)
 # QUIET=false                # Minimal output (useful for cron jobs)
 # NO_COLOR=false             # Disable colored output
 # THRESHOLD=0                # Only run if disk usage is above this % (0 = always run)
