@@ -1638,12 +1638,12 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
             log "${YELLOW}Warning: Photos app is currently running${NC}"
             if [ "$AUTO_YES" = true ]; then
                 log "Auto-closing Photos app for safe cleanup..."
-                osascript -e 'quit app "Photos"' 2>/dev/null || pkill -9 "Photos" 2>/dev/null
+                osascript -e 'quit app "Photos"' 2>/dev/null || pkill -9 -x Photos 2>/dev/null
                 sleep 1
             else
                 read -p "Close Photos app for safe cleanup? (y/n): " -r
                 if [[ $REPLY =~ ^[Yy]$ ]]; then
-                    osascript -e 'quit app "Photos"' 2>/dev/null || pkill -9 "Photos" 2>/dev/null
+                    osascript -e 'quit app "Photos"' 2>/dev/null || pkill -9 -x Photos 2>/dev/null
                     sleep 1
                 else
                     log "Skipping Photos Library - close Photos and retry"
@@ -1730,7 +1730,10 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
                         if [ "$DRY_RUN" = true ]; then
                             log "  Would clear: $LIB_HUMAN"
                         else
-                            find "$RESOURCES_DIR" -mindepth 1 -delete 2>/dev/null || true
+                            # Check for symlink before deleting (security)
+                            if [ -d "$RESOURCES_DIR" ] && [ ! -L "$RESOURCES_DIR" ]; then
+                                find "$RESOURCES_DIR" -mindepth 1 -delete 2>/dev/null || true
+                            fi
                             log_success "  Cleared: $LIB_HUMAN"
                         fi
                     else
@@ -1810,7 +1813,7 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
                         log "Removing iCloud Drive files (DELETED from iCloud, not just local cache)..."
                         for folder in "${ICLOUD_FOLDERS[@]}"; do
                             find "$folder" -type f -mindepth 1 -delete 2>/dev/null
-                            find "$folder" -type d -mindepth 1 -empty -delete 2>/dev/null
+                            find "$folder" -type d -mindepth 1 -depth -empty -delete 2>/dev/null
                         done
                         log_success "iCloud Drive files removed (check Recently Deleted in iCloud to recover)"
                         TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
