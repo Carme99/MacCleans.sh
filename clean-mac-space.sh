@@ -3,7 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="3.3.0"
+VERSION="4.0.0"
 
 ###############################################################################
 # Mac Space Cleanup Script
@@ -1631,21 +1631,25 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
     log "17. Photos Library Cache"
     log_plain "================================================"
 
-    # Check if Photos app is running
+    # Check if Photos app is running (only in real run mode, not dry-run)
     if pgrep -x "Photos" > /dev/null 2>&1; then
-        log "${YELLOW}Warning: Photos app is currently running${NC}"
-        if [ "$AUTO_YES" = true ]; then
-            log "Auto-closing Photos app for safe cleanup..."
-            osascript -e 'quit app "Photos"' 2>/dev/null || pkill -9 "Photos" 2>/dev/null
-            sleep 1
+        if [ "$DRY_RUN" = true ]; then
+            log "${YELLOW}Warning: Photos app is currently running (dry-run mode - no action taken)${NC}"
         else
-            read -p "Close Photos app for safe cleanup? (y/n): " -r
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
+            log "${YELLOW}Warning: Photos app is currently running${NC}"
+            if [ "$AUTO_YES" = true ]; then
+                log "Auto-closing Photos app for safe cleanup..."
                 osascript -e 'quit app "Photos"' 2>/dev/null || pkill -9 "Photos" 2>/dev/null
                 sleep 1
             else
-                log "Skipping Photos Library - close Photos and retry"
-                SKIPPED_CATEGORIES+=("Photos Library Cache")
+                read -p "Close Photos app for safe cleanup? (y/n): " -r
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    osascript -e 'quit app "Photos"' 2>/dev/null || pkill -9 "Photos" 2>/dev/null
+                    sleep 1
+                else
+                    log "Skipping Photos Library - close Photos and retry"
+                    SKIPPED_CATEGORIES+=("Photos Library Cache")
+                fi
             fi
         fi
     fi
@@ -1654,8 +1658,11 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
     if [ "$SKIP_PHOTOS_LIBRARY" = true ]; then
         log_plain ""
     else
-        # Find all Photos libraries in Pictures folder
-        mapfile -t PHOTOS_LIBS < <(find "$USER_HOME/Pictures" -maxdepth 1 -name "*.photoslibrary" -type d 2>/dev/null)
+        # Find all Photos libraries in Pictures folder (POSIX-compatible)
+        PHOTOS_LIBS=()
+        while IFS= read -r -d '' lib; do
+            PHOTOS_LIBS+=("$lib")
+        done < <(find "$USER_HOME/Pictures" -maxdepth 1 -name "*.photoslibrary" -type d -print0 2>/dev/null)
 
         if [ ${#PHOTOS_LIBS[@]} -eq 0 ]; then
             log "No Photos libraries found"

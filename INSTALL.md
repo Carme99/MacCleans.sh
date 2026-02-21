@@ -1,16 +1,14 @@
 # Installation Guide
 
-This guide covers different methods to install and set up MacCleans v3.0.0 on your macOS system.
+This guide covers different methods to install and set up MacCleans v4.0.0 on your macOS system.
 
-## What's New in v3.0.0
+## What's New in v4.0
 
-- 🎯 Interactive mode (`--interactive`) - Choose what to clean with a visual menu
-- 📋 Configuration profiles (`--profile`) - Quick presets for common use cases
-- 🐳 Docker cache cleanup
-- 📱 iOS Simulator data cleanup
-- 📧 Mail app cache cleanup
-- ✅ Enhanced validation and system health checks
-- 📊 Improved summary reporting
+- **Photos Library Multi-Library Support** - Clean specific or all Photos libraries
+- **Enhanced iCloud Integration** - Improved iCloud Photos, Drive, and Mail cleanup
+- **POSIX Compatibility** - Fixed for macOS Bash 3.2
+- **Dry-Run Improvements** - Better UX when Photos app is running
+- **Complete Documentation Overhaul** - Modernized README and new guides
 
 ## Quick Installation
 
