@@ -50,12 +50,13 @@ VERSION="3.3.0"
 #   --skip-mail         Skip Mail app cache cleanup
 #   --skip-siri-tts     Skip Siri TTS cache cleanup
 #   --skip-icloud-mail  Skip iCloud Mail cache cleanup
-#   --skip-icloud-photos Skip iCloud Photos cache cleanup
+#   --skip-photos-library Skip Photos Library cache cleanup
 #   --skip-icloud-drive Skip iCloud Drive offline files cleanup
 #   --skip-quicklook    Skip QuickLook thumbnails cleanup
 #   --skip-diagnostics  Skip diagnostic reports cleanup
 #   --skip-ios-backups  Skip iOS device backups cleanup
 #   --skip-ios-updates  Skip iOS/iPadOS update files (.ipsw) cleanup
+#   --photos-library    Specify Photos library name or "all" to clean all libraries
 ###############################################################################
 
 # Default options
@@ -82,8 +83,9 @@ SKIP_SIMULATOR=false
 SKIP_MAIL=false
 SKIP_SIRI_TTS=false
 SKIP_ICLOUD_MAIL=false
-SKIP_ICLOUD_PHOTOS=false
+SKIP_PHOTOS_LIBRARY=false
 SKIP_ICLOUD_DRIVE=false
+PHOTOS_LIBRARY_NAME=""
 SKIP_QUICKLOOK=false
 SKIP_DIAGNOSTICS=false
 SKIP_IOS_BACKUPS=false
@@ -134,7 +136,7 @@ validate_config() {
     for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR SKIP_SNAPSHOTS SKIP_HOMEBREW \
                SKIP_SPOTIFY SKIP_CLAUDE SKIP_XCODE SKIP_BROWSERS SKIP_NPM \
                SKIP_PIP SKIP_TRASH SKIP_DSSTORE SKIP_DOCKER SKIP_SIMULATOR SKIP_MAIL \
-               SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_ICLOUD_PHOTOS SKIP_ICLOUD_DRIVE SKIP_QUICKLOOK SKIP_DIAGNOSTICS SKIP_IOS_BACKUPS \
+               SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_PHOTOS_LIBRARY SKIP_ICLOUD_DRIVE SKIP_QUICKLOOK SKIP_DIAGNOSTICS SKIP_IOS_BACKUPS \
                SKIP_IOS_UPDATES; do
         local value="${!var}"
         if ! validate_boolean "$value"; then
@@ -192,7 +194,7 @@ load_config_file() {
                     SKIP_MAIL) SKIP_MAIL="$value" ;;
                     SKIP_SIRI_TTS) SKIP_SIRI_TTS="$value" ;;
                     SKIP_ICLOUD_MAIL) SKIP_ICLOUD_MAIL="$value" ;;
-                    SKIP_ICLOUD_PHOTOS) SKIP_ICLOUD_PHOTOS="$value" ;;
+                    SKIP_PHOTOS_LIBRARY) SKIP_PHOTOS_LIBRARY="$value" ;;
                     SKIP_ICLOUD_DRIVE) SKIP_ICLOUD_DRIVE="$value" ;;
                     SKIP_QUICKLOOK) SKIP_QUICKLOOK="$value" ;;
                     SKIP_DIAGNOSTICS) SKIP_DIAGNOSTICS="$value" ;;
@@ -317,8 +319,8 @@ parse_arguments() {
                 SKIP_ICLOUD_MAIL=true
                 shift
                 ;;
-            --skip-icloud-photos)
-                SKIP_ICLOUD_PHOTOS=true
+            --skip-photos-library)
+                SKIP_PHOTOS_LIBRARY=true
                 shift
                 ;;
             --skip-icloud-drive)
@@ -341,8 +343,16 @@ parse_arguments() {
                 SKIP_IOS_UPDATES=true
                 shift
                 ;;
+            --photos-library)
+                if [ -z "${2:-}" ]; then
+                    echo "ERROR: --photos-library requires an argument (library name or 'all')" >&2
+                    exit 1
+                fi
+                PHOTOS_LIBRARY_NAME="$2"
+                shift 2
+                ;;
             --help|-h)
-                head -n 50 "$0" | tail -n +3 | sed 's/^# //'
+                head -n 62 "$0" | tail -n +3 | sed 's/^# //'
                 exit 0
                 ;;
             *)
@@ -619,7 +629,7 @@ interactive_selection() {
         "Mail App Cache|SKIP_MAIL"
         "Siri TTS Cache|SKIP_SIRI_TTS"
         "iCloud Mail Cache|SKIP_ICLOUD_MAIL"
-        "iCloud Photos Cache|SKIP_ICLOUD_PHOTOS"
+        "Photos Library Cache|SKIP_PHOTOS_LIBRARY"
         "iCloud Drive Offline Files|SKIP_ICLOUD_DRIVE"
         "QuickLook Thumbnails|SKIP_QUICKLOOK"
         "Diagnostic Reports (>30 days)|SKIP_DIAGNOSTICS"
@@ -1613,43 +1623,122 @@ else
 fi
 
 ###############################################################################
-# 17. iCloud Photos Cache
+# 17. Photos Library Cache
 ###############################################################################
-if [ "$SKIP_ICLOUD_PHOTOS" = false ]; then
-    PROCESSED_CATEGORIES+=("iCloud Photos Cache")
+if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
+    PROCESSED_CATEGORIES+=("Photos Library Cache")
     log_plain "================================================"
-    log "17. iCloud Photos Cache"
+    log "17. Photos Library Cache"
     log_plain "================================================"
 
-    ICLOUD_PHOTOS_DIR="$USER_HOME/Library/Application Support/CloudDocs/session/containers/data"
-    ICLOUD_PHOTOS_SIZE=0
-    ICLOUD_PHOTOS_BYTES=0
-
-    if [ -d "$ICLOUD_PHOTOS_DIR" ]; then
-        ICLOUD_PHOTOS_SIZE=$(du -sh "$ICLOUD_PHOTOS_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
-
-        if [ -n "$ICLOUD_PHOTOS_SIZE" ] && [ "$ICLOUD_PHOTOS_SIZE" != "0B" ]; then
-            log "iCloud Photos local cache: $ICLOUD_PHOTOS_SIZE"
-            ICLOUD_PHOTOS_BYTES=$(size_to_bytes "$ICLOUD_PHOTOS_SIZE")
-
-            if [ "$DRY_RUN" = true ]; then
-                log "Would clear iCloud Photos cache: $ICLOUD_PHOTOS_SIZE"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_PHOTOS_BYTES))
-            else
-                log "Cleaning iCloud Photos cache..."
-                rm -rf "${ICLOUD_PHOTOS_DIR:?}"/* 2>/dev/null
-                log_success "iCloud Photos cache cleared"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_PHOTOS_BYTES))
-            fi
+    # Check if Photos app is running
+    if pgrep -x "Photos" > /dev/null 2>&1; then
+        log "${YELLOW}Warning: Photos app is currently running${NC}"
+        if [ "$AUTO_YES" = true ]; then
+            log "Auto-closing Photos app for safe cleanup..."
+            osascript -e 'quit app "Photos"' 2>/dev/null || pkill -9 "Photos" 2>/dev/null
+            sleep 1
         else
-            log "iCloud Photos cache is empty"
+            read -p "Close Photos app for safe cleanup? (y/n): " -r
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                osascript -e 'quit app "Photos"' 2>/dev/null || pkill -9 "Photos" 2>/dev/null
+                sleep 1
+            else
+                log "Skipping Photos Library - close Photos and retry"
+                SKIPPED_CATEGORIES+=("Photos Library Cache")
+            fi
         fi
+    fi
+
+    # Skip if already skipped due to Photos running
+    if [ "$SKIP_PHOTOS_LIBRARY" = true ]; then
+        log_plain ""
     else
-        log "iCloud Photos cache not found"
+        # Find all Photos libraries in Pictures folder
+        mapfile -t PHOTOS_LIBS < <(find "$USER_HOME/Pictures" -maxdepth 1 -name "*.photoslibrary" -type d 2>/dev/null)
+
+        if [ ${#PHOTOS_LIBS[@]} -eq 0 ]; then
+            log "No Photos libraries found"
+        else
+            # Determine which libraries to clean
+            declare -a SELECTED_LIBS=()
+            
+            if [ -n "$PHOTOS_LIBRARY_NAME" ]; then
+                if [ "$PHOTOS_LIBRARY_NAME" = "all" ]; then
+                    SELECTED_LIBS=("${PHOTOS_LIBS[@]}")
+                else
+                    LIB_PATH="$USER_HOME/Pictures/${PHOTOS_LIBRARY_NAME}.photoslibrary"
+                    if [ -d "$LIB_PATH" ]; then
+                        SELECTED_LIBS=("$LIB_PATH")
+                    else
+                        log "Photos library '${PHOTOS_LIBRARY_NAME}' not found"
+                        log "Available libraries: ${PHOTOS_LIBS[*]}"
+                        SKIPPED_CATEGORIES+=("Photos Library Cache")
+                    fi
+                fi
+            else
+                # Default: clean first library only
+                SELECTED_LIBS=("${PHOTOS_LIBS[0]}")
+            fi
+
+            # Process each selected library
+            TOTAL_PHOTOS_BYTES=0
+            
+            for LIB_PATH in "${SELECTED_LIBS[@]}"; do
+                LIB_NAME=$(basename "$LIB_PATH" .photoslibrary)
+                RESOURCES_DIR="$LIB_PATH/resources"
+
+                # Check if it's an iCloud Photos library
+                CLOUDDOCS="$HOME/Library/Application Support/CloudDocs/session/containers"
+                IS_ICLOUD=false
+                if [ -d "$CLOUDDOCS" ] && ls "$CLOUDDOCS/" 2>/dev/null | grep -qi "photo"; then
+                    IS_ICLOUD=true
+                fi
+
+                LIB_TYPE="Photos"
+                if [ "$IS_ICLOUD" = true ]; then
+                    LIB_TYPE="iCloud Photos"
+                fi
+
+                if [ -d "$RESOURCES_DIR" ]; then
+                    LIB_KB=$(du -sk "$RESOURCES_DIR" 2>/dev/null | awk '{print $1}' || echo "0")
+                    
+                    if [ "$LIB_KB" -gt 0 ]; then
+                        LIB_HUMAN=$(bytes_to_human $((LIB_KB * 1024)))
+                        log "${LIB_NAME}.photoslibrary ($LIB_TYPE): $LIB_HUMAN"
+                        log "  ${DIM}Clearing thumbnails, previews, rendered edits${NC}"
+                        log "  ${DIM}Original photos remain safe - will re-render on demand${NC}"
+                        TOTAL_PHOTOS_BYTES=$((TOTAL_PHOTOS_BYTES + LIB_KB * 1024))
+
+                        if [ "$DRY_RUN" = true ]; then
+                            log "  Would clear: $LIB_HUMAN"
+                        else
+                            find "$RESOURCES_DIR" -mindepth 1 -delete 2>/dev/null || true
+                            log_success "  Cleared: $LIB_HUMAN"
+                        fi
+                    else
+                        log "${LIB_NAME}.photoslibrary: cache is empty"
+                    fi
+                else
+                    log "${LIB_NAME}.photoslibrary: resources folder not found"
+                fi
+            done
+
+            # Add to total freed
+            if [ "$TOTAL_PHOTOS_BYTES" -gt 0 ]; then
+                TOTAL_PHOTOS_HUMAN=$(bytes_to_human $TOTAL_PHOTOS_BYTES)
+                if [ "$DRY_RUN" = true ]; then
+                    log "Would clear Photos Library cache: $TOTAL_PHOTOS_HUMAN"
+                fi
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TOTAL_PHOTOS_BYTES))
+            elif [ ${#SELECTED_LIBS[@]} -gt 0 ]; then
+                log "No Photos Library cache found"
+            fi
+        fi
     fi
     log_plain ""
 else
-    SKIPPED_CATEGORIES+=("iCloud Photos Cache")
+    SKIPPED_CATEGORIES+=("Photos Library Cache")
 fi
 
 ###############################################################################
@@ -1733,7 +1822,7 @@ fi
 ###############################################################################
 # 20. Diagnostic Reports
 ###############################################################################
-if [ "$SKIP_DIAGNOSTIC" = false ]; then
+if [ "$SKIP_DIAGNOSTICS" = false ]; then
     PROCESSED_CATEGORIES+=("Diagnostic Reports")
     log_plain "================================================"
     log "20. Diagnostic Reports"
