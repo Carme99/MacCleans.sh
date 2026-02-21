@@ -1626,7 +1626,6 @@ fi
 # 17. Photos Library Cache
 ###############################################################################
 if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
-    PROCESSED_CATEGORIES+=("Photos Library Cache")
     log_plain "================================================"
     log "17. Photos Library Cache"
     log_plain "================================================"
@@ -1659,6 +1658,9 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
     if [ "$SKIP_PHOTOS_LIBRARY" = true ]; then
         log_plain ""
     else
+        # Add to processed categories only after passing all checks
+        PROCESSED_CATEGORIES+=("Photos Library Cache")
+        
         # Find all Photos libraries in Pictures folder (POSIX-compatible)
         PHOTOS_LIBS=()
         while IFS= read -r -d '' lib; do
@@ -1697,7 +1699,7 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
                 RESOURCES_DIR="$LIB_PATH/resources"
 
                 # Check if it's an iCloud Photos library
-                CLOUDDOCS="$HOME/Library/Application Support/CloudDocs/session/containers"
+                CLOUDDOCS="$USER_HOME/Library/Application Support/CloudDocs/session/containers"
                 IS_ICLOUD=false
                 if [ -d "$CLOUDDOCS" ]; then
                     for item in "$CLOUDDOCS"/*; do
@@ -1758,7 +1760,6 @@ fi
 # 18. iCloud Drive Offline Files
 ###############################################################################
 if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
-    PROCESSED_CATEGORIES+=("iCloud Drive Offline Files")
     log_plain "================================================"
     log "18. iCloud Drive Offline Files"
     log_plain "================================================"
@@ -1779,16 +1780,18 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
             # Require --force flag for this dangerous operation
             if [ "$FORCE" = true ]; then
                 log "${YELLOW}Running with --force: proceeding with deletion${NC}"
+                PROCESSED_CATEGORIES+=("iCloud Drive Offline Files")
                 ICLOUD_DRIVE_BYTES=$(size_to_bytes "$ICLOUD_DRIVE_SIZE")
 
                 if [ "$DRY_RUN" = true ]; then
-                    log "Would remove iCloud Drive offline files: $ICLOUD_DRIVE_SIZE"
+                    log "Would remove iCloud Drive files: $ICLOUD_DRIVE_SIZE"
+                    log "${DIM}(Files will be DELETED from iCloud, recoverable via Recently Deleted)${NC}"
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
                 else
-                    log "Removing iCloud Drive offline files (files will re-download from iCloud)..."
+                    log "Removing iCloud Drive files (DELETED from iCloud, not just local cache)..."
                     find "$ICLOUD_DRIVE_DIR" -type f -mindepth 1 -delete 2>/dev/null
                     find "$ICLOUD_DRIVE_DIR" -type d -mindepth 1 -empty -delete 2>/dev/null
-                    log_success "iCloud Drive offline files removed"
+                    log_success "iCloud Drive files removed (check Recently Deleted in iCloud to recover)"
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
                 fi
             else
