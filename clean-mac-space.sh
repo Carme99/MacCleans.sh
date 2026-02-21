@@ -817,7 +817,8 @@ fi
 DISK_USAGE=$(df -h / | tail -1 | awk '{print $5}' | sed 's/%//')
 DISK_AVAIL=$(df -h / | tail -1 | awk '{print $4}')
 DISK_USED=$(df -h / | tail -1 | awk '{print $3}')
-DISK_AVAIL_BYTES=$(df -k / | tail -1 | awk '{print $4 * 1024}')  # Get KB and convert to bytes
+DISK_AVAIL_BYTES=$(df -k / | tail -1 | awk '{print $4}')  # Get KB
+DISK_AVAIL_BYTES=$((DISK_AVAIL_BYTES * 1024))  # Convert KB to bytes
 
 log "Running as user: $ACTUAL_USER"
 log "Home directory: $USER_HOME"
@@ -1657,9 +1658,6 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
     if [ "$SKIP_PHOTOS_LIBRARY" = true ]; then
         log_plain ""
     else
-        # Add to processed categories only after passing all checks
-        PROCESSED_CATEGORIES+=("Photos Library Cache")
-        
         # Find all Photos libraries in Pictures folder (POSIX-compatible)
         PHOTOS_LIBS=()
         while IFS= read -r -d '' lib; do
@@ -1688,6 +1686,11 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
             else
                 # Default: clean first library only
                 SELECTED_LIBS=("${PHOTOS_LIBS[0]}")
+            fi
+
+            # Only add to processed if we have libraries to clean
+            if [ ${#SELECTED_LIBS[@]} -gt 0 ]; then
+                PROCESSED_CATEGORIES+=("Photos Library Cache")
             fi
 
             # Process each selected library
@@ -1750,9 +1753,8 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
             fi
         fi
     fi
+    
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Photos Library Cache")
 fi
 
 ###############################################################################
@@ -2117,7 +2119,8 @@ else
     DISK_USAGE_AFTER=$(df -h / | tail -1 | awk '{print $5}' | sed 's/%//')
     DISK_AVAIL_AFTER=$(df -h / | tail -1 | awk '{print $4}')
     DISK_USED_AFTER=$(df -h / | tail -1 | awk '{print $3}')
-    DISK_AVAIL_BYTES_AFTER=$(df -k / | tail -1 | awk '{print $4 * 1024}')  # Get KB and convert to bytes
+    DISK_AVAIL_BYTES_AFTER=$(df -k / | tail -1 | awk '{print $4}')  # Get KB
+    DISK_AVAIL_BYTES_AFTER=$((DISK_AVAIL_BYTES_AFTER * 1024))  # Convert KB to bytes
 
     log "Initial disk usage: ${DISK_USAGE}% (${DISK_USED} used, ${DISK_AVAIL} available)"
     log "Final disk usage:   ${DISK_USAGE_AFTER}% (${DISK_USED_AFTER} used, ${DISK_AVAIL_AFTER} available)"
