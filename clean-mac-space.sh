@@ -3,7 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="3.1.0"
+VERSION="3.2.1"
 
 ###############################################################################
 # Mac Space Cleanup Script
@@ -28,6 +28,7 @@ VERSION="3.1.0"
 # Options:
 #   --dry-run, -n       Preview what would be cleaned without deleting
 #   --yes, -y           Skip confirmation prompt
+#   --force, -f         Skip ALL confirmation prompts (includes XCode, dangerous ops)
 #   --quiet, -q         Minimal output (useful for cron)
 #   --no-color          Disable colored output
 #   --version, -v       Display version information
@@ -52,6 +53,7 @@ VERSION="3.1.0"
 # Default options
 DRY_RUN=false
 AUTO_YES=false
+FORCE=false
 QUIET=false
 NO_COLOR=false
 INTERACTIVE=false
@@ -113,7 +115,7 @@ validate_config() {
     local errors=0
 
     # Validate boolean values
-    for var in DRY_RUN AUTO_YES QUIET NO_COLOR SKIP_SNAPSHOTS SKIP_HOMEBREW \
+    for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR SKIP_SNAPSHOTS SKIP_HOMEBREW \
                SKIP_SPOTIFY SKIP_CLAUDE SKIP_XCODE SKIP_BROWSERS SKIP_NPM \
                SKIP_PIP SKIP_TRASH SKIP_DSSTORE SKIP_DOCKER SKIP_SIMULATOR SKIP_MAIL; do
         local value="${!var}"
@@ -153,6 +155,7 @@ load_config_file() {
                 case "$key" in
                     DRY_RUN) DRY_RUN="$value" ;;
                     AUTO_YES) AUTO_YES="$value" ;;
+                    FORCE) FORCE="$value" ;;
                     QUIET) QUIET="$value" ;;
                     NO_COLOR) NO_COLOR="$value" ;;
                     THRESHOLD) THRESHOLD="$value" ;;
@@ -188,6 +191,11 @@ parse_arguments() {
                 shift
                 ;;
             --yes|-y)
+                AUTO_YES=true
+                shift
+                ;;
+            --force|-f)
+                FORCE=true
                 AUTO_YES=true
                 shift
                 ;;
@@ -294,6 +302,14 @@ parse_arguments "$@"
 # Validate configuration after loading and parsing
 validate_config
 
+# Set up signal handling for graceful interruption
+cleanup_on_interrupt() {
+    log_warning "Interrupted by user, cleaning up..."
+    log_always "Cleanup aborted."
+    exit 130
+}
+trap cleanup_on_interrupt INT TERM
+
 # Color definitions
 if [ "$NO_COLOR" = true ] || [ ! -t 1 ]; then
     RED="" GREEN="" YELLOW="" CYAN="" BOLD="" DIM="" NC=""
@@ -391,7 +407,13 @@ fi
 # Get and validate actual user
 if [ -n "${SUDO_USER:-}" ]; then
     ACTUAL_USER="$SUDO_USER"
-    USER_HOME=$(eval echo "~$SUDO_USER")
+    # Use getent for safer home directory lookup instead of eval
+    if command -v getent &> /dev/null; then
+        USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    else
+        # Fallback: construct home path from /Users (macOS standard)
+        USER_HOME="/Users/$SUDO_USER"
+    fi
 else
     ACTUAL_USER=$(whoami)
     USER_HOME="$HOME"
@@ -1093,7 +1115,8 @@ if [ "$SKIP_XCODE" = false ]; then
             XCODE_BYTES=$(size_to_bytes "$XCODE_SIZE")
 
             # WARNING for non-dry-run, non-auto-yes mode
-            if [ "$DRY_RUN" = false ] && [ "$AUTO_YES" = false ]; then
+            # FORCE skips all prompts including XCode warning
+            if [ "$DRY_RUN" = false ] && [ "$FORCE" = false ] && [ "$AUTO_YES" = false ]; then
                 log_always ""
                 log_warning "WARNING: This will delete XCode build cache."
                 log_always "   Active projects will need to rebuild (5-30 min first build)."
@@ -1245,8 +1268,10 @@ if [ "$SKIP_TRASH" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
             else
                 log "Emptying trash..."
-                rm -rf "${TRASH_DIR:?}"/* 2>/dev/null
-                rm -rf "${TRASH_DIR:?}"/.[!.]* 2>/dev/null
+                # Safely delete files only (not symlinks) in trash
+                find "$TRASH_DIR" -maxdepth 1 -type f -delete 2>/dev/null
+                # Delete hidden files but not symlinks
+                find "$TRASH_DIR" -maxdepth 1 -type f -name '.*' -delete 2>/dev/null
                 log_success "Trash emptied"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
             fi

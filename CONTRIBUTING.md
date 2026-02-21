@@ -555,8 +555,8 @@ We follow [Semantic Versioning](https://semver.org/):
 2. Update CHANGELOG.md
 3. Update README.md badges
 4. Test on clean macOS installation
-5. Create git tag: `git tag -a v3.1.0 -m "Version 3.1.0"`
-6. Push tag: `git push origin v3.1.0`
+5. Create git tag: `git tag -a v3.2.1 -m "Version 3.2.1"`
+6. Push tag: `git push origin v3.2.1`
 7. Create GitHub release with changelog
 8. Update documentation if needed
 

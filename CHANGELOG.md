@@ -2,6 +2,30 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [3.2.1] - 2026-02-21
+
+### Security Fixes
+
+- **Eval vulnerability fix**: Replaced unsafe `eval echo ~$SUDO_USER` with safer `getent passwd` or `/Users/$SUDO_USER` fallback. This prevents potential code injection if SUDO_USER is set to a malicious value.
+- **Symlink attack prevention**: Fixed trash bin deletion to use `find -type f -delete` instead of glob expansion, preventing potential symlink attacks that could follow links outside the trash directory.
+
+### Added
+
+- **New --force/-f flag**: Skips ALL confirmation prompts including dangerous operations like XCode cleanup. Useful for fully unattended automation. Implies --yes.
+- **Signal handling**: Added SIGINT/SIGTERM trap for graceful interruption. Script now cleanly exits with proper message when interrupted (Ctrl+C).
+
+### Improved
+
+- **XCode cleanup**: Now respects --force flag to allow fully automated XCode cleanup without prompts.
+
+## [3.2.0] - 2026-02-20
+
+### Added
+
+- iOS/iPadOS update file (.ipsw) detection and cleanup
+- New `--skip-ios-updates` flag
+- Conservative and minimal profiles updated to skip iOS updates by default
+
 ## [3.1.0] - 2026-02-08
 
 ### Added
