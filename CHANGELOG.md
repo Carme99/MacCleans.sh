@@ -2,6 +2,21 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [3.3.0] - 2026-02-21
+
+### Bug Fixes
+
+- **Trash directory deletion**: Fixed trash cleanup to also delete directories, not just files. On macOS Trash commonly contains folders, so previous implementation left content behind and reported incorrect freed-space.
+- **FORCE config propagation**: Fixed FORCE=true in config file to propagate to AUTO_YES, ensuring unattended runs don't block on prompts.
+
+### Added
+
+- **iCloud Photos cache cleanup**: New category to clear locally cached iCloud Photos (frees space while keeping photos in iCloud)
+- **iCloud Drive offline files**: New category to remove offline copies of iCloud Drive files (files will re-download on demand)
+- New `--skip-icloud-photos` flag
+- New `--skip-icloud-drive` flag
+- Added iCloud Photos and iCloud Drive to interactive mode selection
+
 ## [3.2.1] - 2026-02-21
 
 ### Security Fixes

@@ -3,7 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="3.2.1"
+VERSION="3.3.0"
 
 ###############################################################################
 # Mac Space Cleanup Script
@@ -50,6 +50,8 @@ VERSION="3.2.1"
 #   --skip-mail         Skip Mail app cache cleanup
 #   --skip-siri-tts     Skip Siri TTS cache cleanup
 #   --skip-icloud-mail  Skip iCloud Mail cache cleanup
+#   --skip-icloud-photos Skip iCloud Photos cache cleanup
+#   --skip-icloud-drive Skip iCloud Drive offline files cleanup
 #   --skip-quicklook    Skip QuickLook thumbnails cleanup
 #   --skip-diagnostics  Skip diagnostic reports cleanup
 #   --skip-ios-backups  Skip iOS device backups cleanup
@@ -80,6 +82,8 @@ SKIP_SIMULATOR=false
 SKIP_MAIL=false
 SKIP_SIRI_TTS=false
 SKIP_ICLOUD_MAIL=false
+SKIP_ICLOUD_PHOTOS=false
+SKIP_ICLOUD_DRIVE=false
 SKIP_QUICKLOOK=false
 SKIP_DIAGNOSTICS=false
 SKIP_IOS_BACKUPS=false
@@ -130,7 +134,7 @@ validate_config() {
     for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR SKIP_SNAPSHOTS SKIP_HOMEBREW \
                SKIP_SPOTIFY SKIP_CLAUDE SKIP_XCODE SKIP_BROWSERS SKIP_NPM \
                SKIP_PIP SKIP_TRASH SKIP_DSSTORE SKIP_DOCKER SKIP_SIMULATOR SKIP_MAIL \
-               SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_QUICKLOOK SKIP_DIAGNOSTICS SKIP_IOS_BACKUPS \
+               SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_ICLOUD_PHOTOS SKIP_ICLOUD_DRIVE SKIP_QUICKLOOK SKIP_DIAGNOSTICS SKIP_IOS_BACKUPS \
                SKIP_IOS_UPDATES; do
         local value="${!var}"
         if ! validate_boolean "$value"; then
@@ -188,6 +192,8 @@ load_config_file() {
                     SKIP_MAIL) SKIP_MAIL="$value" ;;
                     SKIP_SIRI_TTS) SKIP_SIRI_TTS="$value" ;;
                     SKIP_ICLOUD_MAIL) SKIP_ICLOUD_MAIL="$value" ;;
+                    SKIP_ICLOUD_PHOTOS) SKIP_ICLOUD_PHOTOS="$value" ;;
+                    SKIP_ICLOUD_DRIVE) SKIP_ICLOUD_DRIVE="$value" ;;
                     SKIP_QUICKLOOK) SKIP_QUICKLOOK="$value" ;;
                     SKIP_DIAGNOSTICS) SKIP_DIAGNOSTICS="$value" ;;
                     SKIP_IOS_BACKUPS) SKIP_IOS_BACKUPS="$value" ;;
@@ -309,6 +315,14 @@ parse_arguments() {
                 ;;
             --skip-icloud-mail)
                 SKIP_ICLOUD_MAIL=true
+                shift
+                ;;
+            --skip-icloud-photos)
+                SKIP_ICLOUD_PHOTOS=true
+                shift
+                ;;
+            --skip-icloud-drive)
+                SKIP_ICLOUD_DRIVE=true
                 shift
                 ;;
             --skip-quicklook)
@@ -605,6 +619,8 @@ interactive_selection() {
         "Mail App Cache|SKIP_MAIL"
         "Siri TTS Cache|SKIP_SIRI_TTS"
         "iCloud Mail Cache|SKIP_ICLOUD_MAIL"
+        "iCloud Photos Cache|SKIP_ICLOUD_PHOTOS"
+        "iCloud Drive Offline Files|SKIP_ICLOUD_DRIVE"
         "QuickLook Thumbnails|SKIP_QUICKLOOK"
         "Diagnostic Reports (>30 days)|SKIP_DIAGNOSTICS"
         "iOS Device Backups (⚠️  requires confirmation)|SKIP_IOS_BACKUPS"
@@ -1631,7 +1647,88 @@ else
 fi
 
 ###############################################################################
-# 18. QuickLook Thumbnails
+# 18. iCloud Photos Cache
+###############################################################################
+if [ "$SKIP_ICLOUD_PHOTOS" = false ]; then
+    PROCESSED_CATEGORIES+=("iCloud Photos Cache")
+    log_plain "================================================"
+    log "18. iCloud Photos Cache"
+    log_plain "================================================"
+
+    ICLOUD_PHOTOS_DIR="$USER_HOME/Library/Application Support/CloudDocs/session/containers/data"
+    ICLOUD_PHOTOS_SIZE=0
+    ICLOUD_PHOTOS_BYTES=0
+
+    if [ -d "$ICLOUD_PHOTOS_DIR" ]; then
+        ICLOUD_PHOTOS_SIZE=$(du -sh "$ICLOUD_PHOTOS_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+
+        if [ -n "$ICLOUD_PHOTOS_SIZE" ] && [ "$ICLOUD_PHOTOS_SIZE" != "0B" ]; then
+            log "iCloud Photos local cache: $ICLOUD_PHOTOS_SIZE"
+            ICLOUD_PHOTOS_BYTES=$(size_to_bytes "$ICLOUD_PHOTOS_SIZE")
+
+            if [ "$DRY_RUN" = true ]; then
+                log "Would clear iCloud Photos cache: $ICLOUD_PHOTOS_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_PHOTOS_BYTES))
+            else
+                log "Cleaning iCloud Photos cache..."
+                rm -rf "${ICLOUD_PHOTOS_DIR:?}"/* 2>/dev/null
+                log_success "iCloud Photos cache cleared"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_PHOTOS_BYTES))
+            fi
+        else
+            log "iCloud Photos cache is empty"
+        fi
+    else
+        log "iCloud Photos cache not found"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("iCloud Photos Cache")
+fi
+
+###############################################################################
+# 19. iCloud Drive Offline Files
+###############################################################################
+if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
+    PROCESSED_CATEGORIES+=("iCloud Drive Offline Files")
+    log_plain "================================================"
+    log "19. iCloud Drive Offline Files"
+    log_plain "================================================"
+
+    ICLOUD_DRIVE_DIR="$USER_HOME/Library/CloudStorage"
+    ICLOUD_DRIVE_SIZE=0
+    ICLOUD_DRIVE_BYTES=0
+
+    if [ -d "$ICLOUD_DRIVE_DIR" ]; then
+        ICLOUD_DRIVE_SIZE=$(du -sh "$ICLOUD_DRIVE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+
+        if [ -n "$ICLOUD_DRIVE_SIZE" ] && [ "$ICLOUD_DRIVE_SIZE" != "0B" ]; then
+            log "iCloud Drive offline files: $ICLOUD_DRIVE_SIZE"
+            ICLOUD_DRIVE_BYTES=$(size_to_bytes "$ICLOUD_DRIVE_SIZE")
+
+            if [ "$DRY_RUN" = true ]; then
+                log "Would remove iCloud Drive offline files: $ICLOUD_DRIVE_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
+            else
+                log "Removing iCloud Drive offline files (files will re-download from iCloud)..."
+                find "$ICLOUD_DRIVE_DIR" -type f -mindepth 1 -delete 2>/dev/null
+                find "$ICLOUD_DRIVE_DIR" -type d -mindepth 1 -empty -delete 2>/dev/null
+                log_success "iCloud Drive offline files removed"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
+            fi
+        else
+            log "iCloud Drive has no offline files"
+        fi
+    else
+        log "iCloud Drive not configured"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("iCloud Drive Offline Files")
+fi
+
+###############################################################################
+# 20. QuickLook Thumbnails
 ###############################################################################
 if [ "$SKIP_QUICKLOOK" = false ]; then
     PROCESSED_CATEGORIES+=("QuickLook Thumbnails")
@@ -1668,12 +1765,12 @@ else
 fi
 
 ###############################################################################
-# 19. Diagnostic Reports
+# 21. Diagnostic Reports
 ###############################################################################
 if [ "$SKIP_DIAGNOSTICS" = false ]; then
     PROCESSED_CATEGORIES+=("Diagnostic Reports")
     log_plain "================================================"
-    log "19. Diagnostic Reports"
+    log "21. Diagnostic Reports"
     log_plain "================================================"
 
     DIAG_USER="$USER_HOME/Library/Logs/DiagnosticReports"
@@ -1729,12 +1826,12 @@ else
 fi
 
 ###############################################################################
-# 20. iOS Device Backups
+# 22. iOS Device Backups
 ###############################################################################
 if [ "$SKIP_IOS_BACKUPS" = false ]; then
     PROCESSED_CATEGORIES+=("iOS Device Backups")
     log_plain "================================================"
-    log "20. iOS Device Backups"
+    log "22. iOS Device Backups"
     log_plain "================================================"
 
     IOS_BACKUP_DIR="$USER_HOME/Library/Application Support/MobileSync/Backup"
@@ -1791,12 +1888,12 @@ else
 fi
 
 ###############################################################################
-# 21. iOS/iPadOS Update Files (.ipsw)
+# 23. iOS/iPadOS Update Files (.ipsw)
 ###############################################################################
 if [ "$SKIP_IOS_UPDATES" = false ]; then
     PROCESSED_CATEGORIES+=("iOS/iPadOS Update Files")
     log_plain "================================================"
-    log "21. iOS/iPadOS Update Files (.ipsw)"
+    log "23. iOS/iPadOS Update Files (.ipsw)"
     log_plain "================================================"
 
     # iTunes stores downloaded firmware in these directories

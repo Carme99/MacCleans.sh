@@ -1,4 +1,4 @@
-[![Version](https://img.shields.io/badge/Version-3.2.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-3.3.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![Shell](https://img.shields.io/badge/Shell-Bash-black.svg)](https://www.gnu.org/software/bash/)
@@ -29,6 +29,17 @@ A comprehensive macOS disk cleanup utility that safely frees up disk space by re
 - [Contributing](#contributing)
 - [Built With](#built-with)
 - [License](#license)
+
+## ✨ What's New in v3.3.0
+
+### New Features
+- ☁️ **iCloud Photos Cache Cleanup**: Clear locally cached iCloud Photos while keeping them safely stored in iCloud
+- 📁 **iCloud Drive Offline Files**: Remove offline copies of iCloud Drive files (they'll re-download on demand)
+- 🔧 **Bug Fixes**: Fixed trash directory deletion and FORCE config propagation issues
+
+### New Flags
+- `--skip-icloud-photos` - Skip iCloud Photos cache cleanup
+- `--skip-icloud-drive` - Skip iCloud Drive offline files cleanup
 
 ## ✨ What's New in v3.2.1
 
@@ -630,10 +641,11 @@ Explore [docs/](docs/) for comprehensive educational guides:
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history and what changed in each release.
 
-**Latest**: v3.2.0 (2026-02-20)
-- iOS/iPadOS update file (.ipsw) detection and cleanup
-- New `--skip-ios-updates` flag and `SKIP_IOS_UPDATES` config key
-- Conservative and minimal profiles updated
+**Latest**: v3.3.0 (2026-02-21)
+- iCloud Photos cache cleanup
+- iCloud Drive offline files cleanup
+- Fixed trash directory deletion bug
+- Fixed FORCE config propagation bug
 - 21 cleanup categories total
 
 ## Contributing
