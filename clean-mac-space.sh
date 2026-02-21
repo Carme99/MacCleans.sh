@@ -48,6 +48,12 @@ VERSION="3.2.1"
 #   --skip-docker       Skip Docker cache cleanup
 #   --skip-simulator    Skip iOS Simulator data cleanup
 #   --skip-mail         Skip Mail app cache cleanup
+#   --skip-siri-tts     Skip Siri TTS cache cleanup
+#   --skip-icloud-mail  Skip iCloud Mail cache cleanup
+#   --skip-quicklook    Skip QuickLook thumbnails cleanup
+#   --skip-diagnostics  Skip diagnostic reports cleanup
+#   --skip-ios-backups  Skip iOS device backups cleanup
+#   --skip-ios-updates  Skip iOS/iPadOS update files (.ipsw) cleanup
 ###############################################################################
 
 # Default options
@@ -72,6 +78,12 @@ SKIP_DSSTORE=false
 SKIP_DOCKER=false
 SKIP_SIMULATOR=false
 SKIP_MAIL=false
+SKIP_SIRI_TTS=false
+SKIP_ICLOUD_MAIL=false
+SKIP_QUICKLOOK=false
+SKIP_DIAGNOSTICS=false
+SKIP_IOS_BACKUPS=false
+SKIP_IOS_UPDATES=false
 
 # Configuration file locations (checked in order)
 CONFIG_FILES=(
@@ -117,7 +129,9 @@ validate_config() {
     # Validate boolean values
     for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR SKIP_SNAPSHOTS SKIP_HOMEBREW \
                SKIP_SPOTIFY SKIP_CLAUDE SKIP_XCODE SKIP_BROWSERS SKIP_NPM \
-               SKIP_PIP SKIP_TRASH SKIP_DSSTORE SKIP_DOCKER SKIP_SIMULATOR SKIP_MAIL; do
+               SKIP_PIP SKIP_TRASH SKIP_DSSTORE SKIP_DOCKER SKIP_SIMULATOR SKIP_MAIL \
+               SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_QUICKLOOK SKIP_DIAGNOSTICS SKIP_IOS_BACKUPS \
+               SKIP_IOS_UPDATES; do
         local value="${!var}"
         if ! validate_boolean "$value"; then
             echo "ERROR: Invalid config value for $var: '$value' (must be true or false)" >&2
@@ -172,6 +186,12 @@ load_config_file() {
                     SKIP_DOCKER) SKIP_DOCKER="$value" ;;
                     SKIP_SIMULATOR) SKIP_SIMULATOR="$value" ;;
                     SKIP_MAIL) SKIP_MAIL="$value" ;;
+                    SKIP_SIRI_TTS) SKIP_SIRI_TTS="$value" ;;
+                    SKIP_ICLOUD_MAIL) SKIP_ICLOUD_MAIL="$value" ;;
+                    SKIP_QUICKLOOK) SKIP_QUICKLOOK="$value" ;;
+                    SKIP_DIAGNOSTICS) SKIP_DIAGNOSTICS="$value" ;;
+                    SKIP_IOS_BACKUPS) SKIP_IOS_BACKUPS="$value" ;;
+                    SKIP_IOS_UPDATES) SKIP_IOS_UPDATES="$value" ;;
                 esac
             done < "$config_file"
             break
@@ -283,6 +303,30 @@ parse_arguments() {
                 SKIP_MAIL=true
                 shift
                 ;;
+            --skip-siri-tts)
+                SKIP_SIRI_TTS=true
+                shift
+                ;;
+            --skip-icloud-mail)
+                SKIP_ICLOUD_MAIL=true
+                shift
+                ;;
+            --skip-quicklook)
+                SKIP_QUICKLOOK=true
+                shift
+                ;;
+            --skip-diagnostics)
+                SKIP_DIAGNOSTICS=true
+                shift
+                ;;
+            --skip-ios-backups)
+                SKIP_IOS_BACKUPS=true
+                shift
+                ;;
+            --skip-ios-updates)
+                SKIP_IOS_UPDATES=true
+                shift
+                ;;
             --help|-h)
                 head -n 50 "$0" | tail -n +3 | sed 's/^# //'
                 exit 0
@@ -387,9 +431,9 @@ bytes_to_human() {
     elif [ "$bytes" -lt 1073741824 ]; then
         echo "$((bytes / 1048576))M"
     elif [ "$bytes" -lt 1099511627776 ]; then
-        echo "$(awk "BEGIN {printf \"%.2f\", $bytes / 1073741824}")G"
+        echo "$(awk -v b="$bytes" 'BEGIN {printf "%.2f", b / 1073741824}')G"
     else
-        echo "$(awk "BEGIN {printf \"%.2f\", $bytes / 1099511627776}")T"
+        echo "$(awk -v b="$bytes" 'BEGIN {printf "%.2f", b / 1099511627776}')T"
     fi
 }
 
@@ -452,7 +496,11 @@ perform_health_checks() {
     # Check system load (if uptime available)
     if command -v uptime &> /dev/null; then
         local load_avg
-        load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d. -f1 || echo "0")
+        load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d. -f1 | tr -d ' \n' || echo "0")
+        # Ensure load_avg is not empty and is numeric
+        if [ -z "$load_avg" ] || ! [[ "$load_avg" =~ ^[0-9]+$ ]]; then
+            load_avg=0
+        fi
         if [ "$load_avg" -gt 10 ]; then
             log_warning "System load is high ($load_avg). Performance may be impacted."
             warnings=$((warnings + 1))
@@ -486,17 +534,20 @@ perform_health_checks() {
 load_profile() {
     case "$PROFILE" in
         conservative)
-            log "Loading conservative profile (skipping development caches)"
+            log "Loading conservative profile (skipping development caches and iOS backups)"
             SKIP_XCODE=true
             SKIP_NPM=true
             SKIP_PIP=true
             SKIP_BROWSERS=true
             SKIP_DOCKER=true
             SKIP_SIMULATOR=true
+            SKIP_IOS_BACKUPS=true
+            SKIP_IOS_UPDATES=true
             ;;
         developer)
-            log "Loading developer profile (skipping only XCode)"
+            log "Loading developer profile (skipping only XCode and iOS backups)"
             SKIP_XCODE=true
+            SKIP_IOS_BACKUPS=true
             ;;
         aggressive)
             log "Loading aggressive profile (cleaning everything)"
@@ -513,6 +564,8 @@ load_profile() {
             SKIP_CLAUDE=true
             SKIP_SIMULATOR=true
             SKIP_MAIL=true
+            SKIP_IOS_BACKUPS=true
+            SKIP_IOS_UPDATES=true
             ;;
         "")
             # No profile specified
@@ -550,6 +603,12 @@ interactive_selection() {
         "Docker Cache|SKIP_DOCKER"
         "iOS Simulator Data|SKIP_SIMULATOR"
         "Mail App Cache|SKIP_MAIL"
+        "Siri TTS Cache|SKIP_SIRI_TTS"
+        "iCloud Mail Cache|SKIP_ICLOUD_MAIL"
+        "QuickLook Thumbnails|SKIP_QUICKLOOK"
+        "Diagnostic Reports (>30 days)|SKIP_DIAGNOSTICS"
+        "iOS Device Backups (⚠️  requires confirmation)|SKIP_IOS_BACKUPS"
+        "iOS/iPadOS Update Files (.ipsw)|SKIP_IOS_UPDATES"
     )
 
     local cursor=0
@@ -605,7 +664,7 @@ interactive_selection() {
         done
 
         log_plain ""
-        log_plain "${DIM}Tip: Numbers 1-13 also work for quick toggle${NC}"
+        log_plain "${DIM}Tip: Numbers 1-${#categories[@]} also work for quick toggle${NC}"
     }
 
     # Initial draw
@@ -646,14 +705,16 @@ interactive_selection() {
                     SKIP_SNAPSHOTS=false SKIP_HOMEBREW=false SKIP_SPOTIFY=false SKIP_CLAUDE=false
                     SKIP_XCODE=false SKIP_BROWSERS=false SKIP_NPM=false SKIP_PIP=false
                     SKIP_TRASH=false SKIP_DSSTORE=false SKIP_DOCKER=false SKIP_SIMULATOR=false
-                    SKIP_MAIL=false
+                    SKIP_MAIL=false SKIP_SIRI_TTS=false SKIP_ICLOUD_MAIL=false SKIP_QUICKLOOK=false
+                    SKIP_DIAGNOSTICS=false SKIP_IOS_BACKUPS=false SKIP_IOS_UPDATES=false
                     draw_menu
                     ;;
                 n|N) # Deselect all
                     SKIP_SNAPSHOTS=true SKIP_HOMEBREW=true SKIP_SPOTIFY=true SKIP_CLAUDE=true
                     SKIP_XCODE=true SKIP_BROWSERS=true SKIP_NPM=true SKIP_PIP=true
                     SKIP_TRASH=true SKIP_DSSTORE=true SKIP_DOCKER=true SKIP_SIMULATOR=true
-                    SKIP_MAIL=true
+                    SKIP_MAIL=true SKIP_SIRI_TTS=true SKIP_ICLOUD_MAIL=true SKIP_QUICKLOOK=true
+                    SKIP_DIAGNOSTICS=true SKIP_IOS_BACKUPS=true SKIP_IOS_UPDATES=true
                     draw_menu
                     ;;
                 d|D) # Done
@@ -726,10 +787,12 @@ if [ "$INTERACTIVE" = true ] && [ "$QUIET" = false ]; then
     interactive_selection
 fi
 
-# Get initial disk usage
+# Get initial disk usage (capture bytes for accurate calculation)
 DISK_USAGE=$(df -h / | tail -1 | awk '{print $5}' | sed 's/%//')
 DISK_AVAIL=$(df -h / | tail -1 | awk '{print $4}')
 DISK_USED=$(df -h / | tail -1 | awk '{print $3}')
+DISK_AVAIL_BYTES=$(df / | tail -1 | awk '{print $4}')
+DISK_AVAIL_BYTES=$((DISK_AVAIL_BYTES * 512))  # Convert 512-byte blocks to bytes
 
 log "Running as user: $ACTUAL_USER"
 log "Home directory: $USER_HOME"
@@ -783,11 +846,54 @@ if [ "$SKIP_SNAPSHOTS" = false ]; then
     else
         SNAPSHOTS=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c "com.apple.TimeMachine" || echo "0")
         if [ "$SNAPSHOTS" -gt 0 ]; then
-            log "Found $SNAPSHOTS local snapshot(s)"
+            # Estimate snapshot size by checking container space allocation
+            # On APFS, snapshots share blocks with the main volume making exact size calculation complex
+            SNAPSHOT_SIZE_BYTES=0
+            SNAPSHOT_ESTIMATE=""
+
+            if command -v diskutil &> /dev/null; then
+                # Get volume root disk identifier
+                ROOT_DISK=$(df / | tail -1 | awk '{print $1}' | sed 's|/dev/||')
+
+                # Get container total and free space to estimate snapshot overhead (extract byte values)
+                CONTAINER_TOTAL=$(diskutil info "$ROOT_DISK" 2>/dev/null | grep "Container Total Space" | grep -oE '\([0-9]+ Bytes\)' | grep -oE '[0-9]+' || echo "0")
+                CONTAINER_FREE=$(diskutil info "$ROOT_DISK" 2>/dev/null | grep "Container Free Space" | grep -oE '\([0-9]+ Bytes\)' | grep -oE '[0-9]+' || echo "0")
+                VOLUME_USED=$(diskutil info "$ROOT_DISK" 2>/dev/null | grep "Volume Used Space" | grep -oE '\([0-9]+ Bytes\)' | grep -oE '[0-9]+' || echo "0")
+
+                # Ensure all values are numeric
+                if ! [[ "$CONTAINER_TOTAL" =~ ^[0-9]+$ ]]; then CONTAINER_TOTAL=0; fi
+                if ! [[ "$CONTAINER_FREE" =~ ^[0-9]+$ ]]; then CONTAINER_FREE=0; fi
+                if ! [[ "$VOLUME_USED" =~ ^[0-9]+$ ]]; then VOLUME_USED=0; fi
+
+                if [ "$CONTAINER_TOTAL" -gt 0 ] && [ "$CONTAINER_FREE" -gt 0 ] && [ "$VOLUME_USED" -gt 0 ]; then
+                    # Unaccounted space = Total - Used - Free (likely includes snapshots and purgeable)
+                    UNACCOUNTED=$((CONTAINER_TOTAL - VOLUME_USED - CONTAINER_FREE))
+
+                    # Rough estimate: assume 50-70% of unaccounted space is snapshots
+                    # This is conservative as unaccounted space includes other APFS overhead
+                    if [ "$UNACCOUNTED" -gt 0 ]; then
+                        SNAPSHOT_SIZE_BYTES=$((UNACCOUNTED * 6 / 10))  # 60% estimate
+                        SNAPSHOT_ESTIMATE=" (estimated ~$(bytes_to_human $SNAPSHOT_SIZE_BYTES))"
+                    fi
+                fi
+            fi
+
+            # Display snapshot information
+            log "Found $SNAPSHOTS local snapshot(s)${SNAPSHOT_ESTIMATE}"
+            log "${DIM}Note: Exact snapshot sizes aren't exposed by macOS; estimate shown${NC}"
+
             if [ "$DRY_RUN" = true ]; then
-                log "Would delete $SNAPSHOTS snapshot(s)"
+                if [ "$SNAPSHOT_SIZE_BYTES" -gt 0 ]; then
+                    log "Would delete $SNAPSHOTS snapshot(s) - may free up to $(bytes_to_human $SNAPSHOT_SIZE_BYTES)"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SNAPSHOT_SIZE_BYTES))
+                else
+                    log "Would delete $SNAPSHOTS snapshot(s)"
+                fi
             else
                 log "Deleting snapshots..."
+                if [ "$SNAPSHOT_SIZE_BYTES" -gt 0 ]; then
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SNAPSHOT_SIZE_BYTES))
+                fi
                 tmutil deletelocalsnapshots / 2>/dev/null || log_warning "Some snapshots could not be deleted"
                 log_success "Local snapshots deleted successfully"
             fi
@@ -1449,6 +1555,301 @@ else
 fi
 
 ###############################################################################
+# 16. Siri TTS Cache
+###############################################################################
+if [ "$SKIP_SIRI_TTS" = false ]; then
+    PROCESSED_CATEGORIES+=("Siri TTS Cache")
+    log_plain "================================================"
+    log "16. Siri TTS Cache"
+    log_plain "================================================"
+
+    SIRI_CACHE="$USER_HOME/Library/Caches/SiriTTS"
+    if [ -d "$SIRI_CACHE" ]; then
+        SIRI_SIZE=$(du -sh "$SIRI_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
+
+        if [ -n "$SIRI_SIZE" ] && [ "$SIRI_SIZE" != "0B" ]; then
+            log "Siri TTS cache: $SIRI_SIZE"
+            SIRI_BYTES=$(size_to_bytes "$SIRI_SIZE")
+
+            if [ "$DRY_RUN" = true ]; then
+                log "Would clear Siri TTS cache: $SIRI_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SIRI_BYTES))
+            else
+                log "Cleaning Siri TTS cache..."
+                rm -rf "${SIRI_CACHE:?}"/* 2>/dev/null
+                log_success "Siri TTS cache cleared"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SIRI_BYTES))
+            fi
+        else
+            log "Siri TTS cache is empty"
+        fi
+    else
+        log "Siri TTS cache not found"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("Siri TTS Cache")
+fi
+
+###############################################################################
+# 17. iCloud Mail Cache
+###############################################################################
+if [ "$SKIP_ICLOUD_MAIL" = false ]; then
+    PROCESSED_CATEGORIES+=("iCloud Mail Cache")
+    log_plain "================================================"
+    log "17. iCloud Mail Cache"
+    log_plain "================================================"
+
+    ICLOUD_MAIL_CACHE="$USER_HOME/Library/Caches/icloudmailagent"
+    if [ -d "$ICLOUD_MAIL_CACHE" ]; then
+        ICLOUD_MAIL_SIZE=$(du -sh "$ICLOUD_MAIL_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
+
+        if [ -n "$ICLOUD_MAIL_SIZE" ] && [ "$ICLOUD_MAIL_SIZE" != "0B" ]; then
+            log "iCloud Mail cache: $ICLOUD_MAIL_SIZE"
+            ICLOUD_MAIL_BYTES=$(size_to_bytes "$ICLOUD_MAIL_SIZE")
+
+            if [ "$DRY_RUN" = true ]; then
+                log "Would clear iCloud Mail cache: $ICLOUD_MAIL_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_MAIL_BYTES))
+            else
+                log "Cleaning iCloud Mail cache..."
+                rm -rf "${ICLOUD_MAIL_CACHE:?}"/* 2>/dev/null
+                log_success "iCloud Mail cache cleared"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_MAIL_BYTES))
+            fi
+        else
+            log "iCloud Mail cache is empty"
+        fi
+    else
+        log "iCloud Mail cache not found"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("iCloud Mail Cache")
+fi
+
+###############################################################################
+# 18. QuickLook Thumbnails
+###############################################################################
+if [ "$SKIP_QUICKLOOK" = false ]; then
+    PROCESSED_CATEGORIES+=("QuickLook Thumbnails")
+    log_plain "================================================"
+    log "18. QuickLook Thumbnails"
+    log_plain "================================================"
+
+    QUICKLOOK_CACHE="$USER_HOME/Library/Caches/com.apple.QuickLook.thumbnailcache"
+    if [ -d "$QUICKLOOK_CACHE" ]; then
+        QUICKLOOK_SIZE=$(du -sh "$QUICKLOOK_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
+
+        if [ -n "$QUICKLOOK_SIZE" ] && [ "$QUICKLOOK_SIZE" != "0B" ]; then
+            log "QuickLook thumbnails: $QUICKLOOK_SIZE"
+            QUICKLOOK_BYTES=$(size_to_bytes "$QUICKLOOK_SIZE")
+
+            if [ "$DRY_RUN" = true ]; then
+                log "Would clear QuickLook thumbnails: $QUICKLOOK_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + QUICKLOOK_BYTES))
+            else
+                log "Cleaning QuickLook thumbnails..."
+                rm -rf "${QUICKLOOK_CACHE:?}"/* 2>/dev/null
+                log_success "QuickLook thumbnails cleared"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + QUICKLOOK_BYTES))
+            fi
+        else
+            log "QuickLook cache is empty"
+        fi
+    else
+        log "QuickLook cache not found"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("QuickLook Thumbnails")
+fi
+
+###############################################################################
+# 19. Diagnostic Reports
+###############################################################################
+if [ "$SKIP_DIAGNOSTICS" = false ]; then
+    PROCESSED_CATEGORIES+=("Diagnostic Reports")
+    log_plain "================================================"
+    log "19. Diagnostic Reports"
+    log_plain "================================================"
+
+    DIAG_USER="$USER_HOME/Library/Logs/DiagnosticReports"
+    DIAG_SYSTEM="/Library/Logs/DiagnosticReports"
+
+    DIAG_COUNT=0
+    DIAG_SIZE_BYTES=0
+
+    # Count user diagnostic reports older than 30 days
+    if [ -d "$DIAG_USER" ]; then
+        USER_COUNT=$(find "$DIAG_USER" -type f -mtime +30 2>/dev/null | wc -l | tr -d ' ')
+        DIAG_COUNT=$((DIAG_COUNT + USER_COUNT))
+        if [ "$USER_COUNT" -gt 0 ]; then
+            USER_SIZE=$(find "$DIAG_USER" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+            if [ -n "$USER_SIZE" ] && [ "$USER_SIZE" != "0B" ]; then
+                DIAG_SIZE_BYTES=$((DIAG_SIZE_BYTES + $(size_to_bytes "$USER_SIZE")))
+            fi
+        fi
+    fi
+
+    # Count system diagnostic reports older than 30 days (requires sudo)
+    if [ -d "$DIAG_SYSTEM" ]; then
+        SYS_COUNT=$(find "$DIAG_SYSTEM" -type f -mtime +30 2>/dev/null | wc -l | tr -d ' ')
+        DIAG_COUNT=$((DIAG_COUNT + SYS_COUNT))
+        if [ "$SYS_COUNT" -gt 0 ]; then
+            SYS_SIZE=$(find "$DIAG_SYSTEM" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+            if [ -n "$SYS_SIZE" ] && [ "$SYS_SIZE" != "0B" ]; then
+                DIAG_SIZE_BYTES=$((DIAG_SIZE_BYTES + $(size_to_bytes "$SYS_SIZE")))
+            fi
+        fi
+    fi
+
+    if [ "$DIAG_COUNT" -gt 0 ]; then
+        DIAG_SIZE_HUMAN=$(bytes_to_human "$DIAG_SIZE_BYTES")
+        log "Found $DIAG_COUNT old diagnostic report(s) (>30 days): $DIAG_SIZE_HUMAN"
+
+        if [ "$DRY_RUN" = true ]; then
+            log "Would delete $DIAG_COUNT diagnostic report(s)"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DIAG_SIZE_BYTES))
+        else
+            log "Cleaning old diagnostic reports..."
+            [ -d "$DIAG_USER" ] && find "$DIAG_USER" -type f -mtime +30 -delete 2>/dev/null
+            [ -d "$DIAG_SYSTEM" ] && find "$DIAG_SYSTEM" -type f -mtime +30 -delete 2>/dev/null
+            log_success "Old diagnostic reports cleaned"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DIAG_SIZE_BYTES))
+        fi
+    else
+        log "No old diagnostic reports found (>30 days)"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("Diagnostic Reports")
+fi
+
+###############################################################################
+# 20. iOS Device Backups
+###############################################################################
+if [ "$SKIP_IOS_BACKUPS" = false ]; then
+    PROCESSED_CATEGORIES+=("iOS Device Backups")
+    log_plain "================================================"
+    log "20. iOS Device Backups"
+    log_plain "================================================"
+
+    IOS_BACKUP_DIR="$USER_HOME/Library/Application Support/MobileSync/Backup"
+    if [ -d "$IOS_BACKUP_DIR" ]; then
+        IOS_BACKUP_COUNT=$(find "$IOS_BACKUP_DIR" -maxdepth 1 -type d -not -path "$IOS_BACKUP_DIR" 2>/dev/null | wc -l | tr -d ' ')
+
+        if [ "$IOS_BACKUP_COUNT" -gt 0 ]; then
+            IOS_BACKUP_SIZE=$(du -sh "$IOS_BACKUP_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+            IOS_BACKUP_BYTES=$(size_to_bytes "$IOS_BACKUP_SIZE")
+
+            log "Found $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
+            log_warning "These are local iTunes/Finder device backups"
+
+            if [ "$DRY_RUN" = true ]; then
+                log "${YELLOW}Would delete $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE${NC}"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
+            else
+                # WARNING for non-dry-run, non-auto-yes mode
+                if [ "$AUTO_YES" = false ]; then
+                    log_always ""
+                    log_warning "${RED}CRITICAL WARNING: This will delete ALL local iOS device backups!${NC}"
+                    log_always "   Only proceed if:"
+                    log_always "   1. Your devices are backed up to iCloud, OR"
+                    log_always "   2. You have recent backups stored elsewhere"
+                    log_always ""
+                    read -p "Delete iOS device backups? Type 'DELETE' to confirm: " -r
+                    echo
+                    if [ "$REPLY" = "DELETE" ]; then
+                        log "Deleting iOS device backups..."
+                        rm -rf "${IOS_BACKUP_DIR:?}"/* 2>/dev/null
+                        log_success "iOS device backups deleted"
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
+                    else
+                        log "iOS backup deletion cancelled by user"
+                        log_plain ""
+                    fi
+                else
+                    # Auto-yes mode - still delete
+                    log "Deleting iOS device backups..."
+                    rm -rf "${IOS_BACKUP_DIR:?}"/* 2>/dev/null
+                    log_success "iOS device backups deleted"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
+                fi
+            fi
+        else
+            log "No iOS device backups found"
+        fi
+    else
+        log "iOS backup directory not found"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("iOS Device Backups")
+fi
+
+###############################################################################
+# 21. iOS/iPadOS Update Files (.ipsw)
+###############################################################################
+if [ "$SKIP_IOS_UPDATES" = false ]; then
+    PROCESSED_CATEGORIES+=("iOS/iPadOS Update Files")
+    log_plain "================================================"
+    log "21. iOS/iPadOS Update Files (.ipsw)"
+    log_plain "================================================"
+
+    # iTunes stores downloaded firmware in these directories
+    IOS_UPDATE_DIRS=(
+        "$USER_HOME/Library/iTunes/iPhone Software Updates"
+        "$USER_HOME/Library/iTunes/iPad Software Updates"
+        "$USER_HOME/Library/iTunes/iPod Software Updates"
+    )
+
+    IPSW_TOTAL_BYTES=0
+    IPSW_TOTAL_COUNT=0
+
+    for UPDATE_DIR in "${IOS_UPDATE_DIRS[@]}"; do
+        if [ -d "$UPDATE_DIR" ]; then
+            while IFS= read -r -d '' ipsw_file; do
+                IPSW_SIZE=$(du -sk "$ipsw_file" 2>/dev/null | awk '{print $1}')
+                IPSW_SIZE=${IPSW_SIZE:-0}
+                IPSW_BYTES=$((IPSW_SIZE * 1024))
+                IPSW_HUMAN=$(bytes_to_human "$IPSW_BYTES")
+                IPSW_NAME=$(basename "$ipsw_file")
+                log "Found: $IPSW_NAME ($IPSW_HUMAN)"
+                IPSW_TOTAL_BYTES=$((IPSW_TOTAL_BYTES + IPSW_BYTES))
+                IPSW_TOTAL_COUNT=$((IPSW_TOTAL_COUNT + 1))
+            done < <(find "$UPDATE_DIR" -name "*.ipsw" -type f -print0 2>/dev/null)
+        fi
+    done
+
+    if [ "$IPSW_TOTAL_COUNT" -gt 0 ]; then
+        IPSW_TOTAL_HUMAN=$(bytes_to_human "$IPSW_TOTAL_BYTES")
+        log "Total: $IPSW_TOTAL_COUNT file(s), $IPSW_TOTAL_HUMAN"
+        log "${DIM}Note: These are iOS/iPadOS firmware files used for device restores/updates.${NC}"
+        log "${DIM}They can be re-downloaded from Apple if needed.${NC}"
+
+        if [ "$DRY_RUN" = true ]; then
+            log "Would delete $IPSW_TOTAL_COUNT iOS update file(s): $IPSW_TOTAL_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IPSW_TOTAL_BYTES))
+        else
+            log "Deleting iOS/iPadOS update files..."
+            for UPDATE_DIR in "${IOS_UPDATE_DIRS[@]}"; do
+                if [ -d "$UPDATE_DIR" ]; then
+                    find "$UPDATE_DIR" -name "*.ipsw" -type f -delete 2>/dev/null
+                fi
+            done
+            log_success "iOS/iPadOS update files deleted ($IPSW_TOTAL_HUMAN freed)"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IPSW_TOTAL_BYTES))
+        fi
+    else
+        log "No iOS/iPadOS update files (.ipsw) found"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("iOS/iPadOS Update Files")
+fi
+
+###############################################################################
 # Enhanced Summary Report
 ###############################################################################
 log_plain "================================================"
@@ -1464,6 +1865,20 @@ if [ "$DRY_RUN" = true ]; then
         log_plain ""
     fi
 
+    # Special warning for iOS backups if they would be deleted
+    if [ "$SKIP_IOS_BACKUPS" = false ]; then
+        IOS_BACKUP_DIR="$USER_HOME/Library/Application Support/MobileSync/Backup"
+        if [ -d "$IOS_BACKUP_DIR" ]; then
+            IOS_BACKUP_COUNT=$(find "$IOS_BACKUP_DIR" -maxdepth 1 -type d -not -path "$IOS_BACKUP_DIR" 2>/dev/null | wc -l | tr -d ' ')
+            if [ "$IOS_BACKUP_COUNT" -gt 0 ]; then
+                log_always "${RED}${BOLD}⚠️  CRITICAL: iOS Device Backups Will Be Deleted!${NC}"
+                log_always "${YELLOW}   Found $IOS_BACKUP_COUNT backup(s) that will require 'DELETE' confirmation${NC}"
+                log_always "${YELLOW}   Ensure your devices are backed up to iCloud before proceeding${NC}"
+                log_plain ""
+            fi
+        fi
+    fi
+
     log_plain "To actually clean these files, run:"
     log_plain "  sudo $0"
 else
@@ -1475,14 +1890,40 @@ else
     DISK_USAGE_AFTER=$(df -h / | tail -1 | awk '{print $5}' | sed 's/%//')
     DISK_AVAIL_AFTER=$(df -h / | tail -1 | awk '{print $4}')
     DISK_USED_AFTER=$(df -h / | tail -1 | awk '{print $3}')
+    DISK_AVAIL_BYTES_AFTER=$(df / | tail -1 | awk '{print $4}')
+    DISK_AVAIL_BYTES_AFTER=$((DISK_AVAIL_BYTES_AFTER * 512))  # Convert 512-byte blocks to bytes
 
     log "Initial disk usage: ${DISK_USAGE}% (${DISK_USED} used, ${DISK_AVAIL} available)"
     log "Final disk usage:   ${DISK_USAGE_AFTER}% (${DISK_USED_AFTER} used, ${DISK_AVAIL_AFTER} available)"
 
-    if [ "$TOTAL_BYTES_FREED" -gt 0 ]; then
-        HUMAN_FREED=$(bytes_to_human "$TOTAL_BYTES_FREED")
+    # Calculate actual space freed (difference in available space)
+    ACTUAL_BYTES_FREED=$((DISK_AVAIL_BYTES_AFTER - DISK_AVAIL_BYTES))
+    if [ "$ACTUAL_BYTES_FREED" -gt 0 ]; then
+        ACTUAL_FREED=$(bytes_to_human "$ACTUAL_BYTES_FREED")
         log_always ""
-        log_always "${GREEN}✓ Approximate space freed: $HUMAN_FREED${NC}"
+        log_always "${GREEN}✓ Actual space freed: $ACTUAL_FREED${NC}"
+
+        # Show estimate vs actual if significantly different
+        if [ "$TOTAL_BYTES_FREED" -gt 0 ]; then
+            ESTIMATED_FREED=$(bytes_to_human "$TOTAL_BYTES_FREED")
+            DIFFERENCE=$((ACTUAL_BYTES_FREED - TOTAL_BYTES_FREED))
+            DIFF_ABS=${DIFFERENCE#-}  # Absolute value
+
+            # Only show comparison if difference is significant (>1GB or >10%)
+            if [ "$DIFF_ABS" -gt 1073741824 ]; then
+                DIFF_HUMAN=$(bytes_to_human "$DIFF_ABS")
+                if [ "$ACTUAL_BYTES_FREED" -gt "$TOTAL_BYTES_FREED" ]; then
+                    log "${DIM}(Estimated: $ESTIMATED_FREED, freed $DIFF_HUMAN more than expected)${NC}"
+                else
+                    log "${DIM}(Estimated: $ESTIMATED_FREED, actual freed $DIFF_HUMAN less due to APFS snapshot sharing)${NC}"
+                fi
+            fi
+        fi
+    elif [ "$ACTUAL_BYTES_FREED" -lt 0 ]; then
+        # Available space decreased (shouldn't happen, but handle it)
+        log_warning "Available space decreased - this may be due to system activity during cleanup"
+    else
+        log "No measurable space freed"
     fi
 fi
 

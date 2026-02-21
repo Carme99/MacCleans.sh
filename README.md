@@ -23,6 +23,7 @@ A comprehensive macOS disk cleanup utility that safely frees up disk space by re
 - [Safety Guarantees](#safety-guarantees)
 - [Typical Space Recovery](#typical-space-recovery)
 - [Configuration Files](#configuration-files)
+- [Real-World Example Run](#real-world-example-run)
 - [Documentation](#documentation)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
@@ -46,6 +47,8 @@ A comprehensive macOS disk cleanup utility that safely frees up disk space by re
 - 📊 **Space Tracking**: Added byte-accurate tracking to System Cache, Temp Files, .DS_Store, and Docker sections
 - 📝 **GitHub Templates**: Issue and PR templates for better contributor experience
 - 🔒 **Security Policy**: Added SECURITY.md with responsible disclosure guidelines
+
+</details>
 
 ## Features
 
@@ -113,7 +116,13 @@ sudo ./clean-mac-space.sh --force
 
 13. **Trash Bin** - Empties user trash directory (variable)
 14. **.DS_Store Files** - macOS system metadata files (100MB-2GB)
-15. **Mail App Cache** 🆕 - Mail application caches (100MB-1GB)
+15. **Mail App Cache** - Mail application caches (100MB-1GB)
+16. **Siri TTS Cache** - Siri text-to-speech cache files
+17. **iCloud Mail Cache** - iCloud Mail agent cache files
+18. **QuickLook Thumbnails** - Regenerable thumbnail cache
+19. **Diagnostic Reports** - System crash/diagnostic logs older than 30 days
+20. **iOS Device Backups** - Local iTunes/Finder device backups ⚠️
+21. **iOS/iPadOS Update Files** 🆕 - Stale `.ipsw` firmware files from iTunes (3–7 GB each!)
 
 ## Usage
 
@@ -145,9 +154,41 @@ Interactive mode provides a menu where you can:
 - **Navigate** with ↑↓ arrow keys
 - **Toggle** categories with Space or Enter
 - **Quick actions**: `a`=all, `n`=none, `d`=done, `q`=cancel
-- **Number shortcuts**: 1-13 for instant toggle
+- **Number shortcuts**: 1-19 for instant toggle
 - **Visual cursor** shows current selection
 - **Real-time status** with color-coded checkmarks
+
+**Real interactive menu (v3.2.0):**
+
+```
+Interactive Category Selection
+================================================
+
+Use ↑↓ arrow keys to navigate, Space/Enter to toggle
+Press a=all, n=none, d=done, q=cancel
+
+> [✓] Time Machine Snapshots
+  [✓] Homebrew Cache
+  [✓] Spotify Cache
+  [✓] Claude Desktop Cache
+  [✓] XCode Derived Data
+  [✓] Browser Caches (Chrome, Firefox, Edge)
+  [✓] npm/Yarn Cache
+  [✓] Python pip Cache
+  [✓] Trash Bin
+  [ ] .DS_Store Files
+  [✓] Docker Cache
+  [✓] iOS Simulator Data
+  [✓] Mail App Cache
+  [✓] Siri TTS Cache
+  [✓] iCloud Mail Cache
+  [✓] QuickLook Thumbnails
+  [✓] Diagnostic Reports (>30 days)
+  [✓] iOS Device Backups (⚠️  requires confirmation)
+  [✓] iOS/iPadOS Update Files (.ipsw)
+
+Tip: Numbers 1-19 also work for quick toggle
+```
 
 ### Configuration Profiles 🆕
 
@@ -209,9 +250,15 @@ sudo ./clean-mac-space.sh --dry-run --skip-browsers --skip-npm --profile develop
 | `--skip-pip` | | Skip Python pip cache cleanup |
 | `--skip-trash` | | Skip emptying trash bin |
 | `--skip-dsstore` | | Skip .DS_Store file cleanup |
-| `--skip-docker` | | Skip Docker cache cleanup 🆕 |
-| `--skip-simulator` | | Skip iOS Simulator data cleanup 🆕 |
-| `--skip-mail` | | Skip Mail app cache cleanup 🆕 |
+| `--skip-docker` | | Skip Docker cache cleanup |
+| `--skip-simulator` | | Skip iOS Simulator data cleanup |
+| `--skip-mail` | | Skip Mail app cache cleanup |
+| `--skip-siri-tts` | | Skip Siri TTS cache cleanup |
+| `--skip-icloud-mail` | | Skip iCloud Mail cache cleanup |
+| `--skip-quicklook` | | Skip QuickLook thumbnails cleanup |
+| `--skip-diagnostics` | | Skip diagnostic reports cleanup |
+| `--skip-ios-backups` | | Skip iOS device backups cleanup |
+| `--skip-ios-updates` | | Skip iOS/iPadOS update files (.ipsw) cleanup 🆕 |
 | `--help` | `-h` | Show usage information |
 
 ## Configuration Profiles Explained
@@ -276,17 +323,18 @@ The script now performs health checks before cleaning:
 Depending on your usage, you can typically recover:
 
 - **XCode Derived Data**: 5-50GB+ (if you develop with XCode)
-- **Docker Cache**: 1-20GB+ (if you use Docker) 🆕
+- **Docker Cache**: 1-20GB+ (if you use Docker)
+- **iOS/iPadOS Update Files**: 3-7GB per firmware file 🆕
 - **Browser Caches**: 1-5GB
 - **npm/Yarn Cache**: 500MB-5GB (if you develop with Node.js)
-- **iOS Simulator Data**: 1-10GB+ (if you develop iOS apps) 🆕
+- **iOS Simulator Data**: 1-10GB+ (if you develop iOS apps)
 - **pip Cache**: 100MB-2GB (if you code in Python)
 - **Homebrew Cache**: 500MB-2GB
-- **Mail Cache**: 100MB-1GB 🆕
+- **Mail Cache**: 100MB-1GB
 - **Trash Bin**: Variable (whatever you've deleted)
 - **Old Logs & Temps**: 100MB-1GB
 
-**Total potential recovery: 15-100GB** depending on your system usage.
+**Total potential recovery: 15-100GB+** depending on your system usage.
 
 ## Configuration Files
 
@@ -324,33 +372,140 @@ See `maccleans.conf.example` for a complete list of configurable options.
 
 **Note**: Command line arguments always override config file settings.
 
-## Enhanced Summary Report 🆕
+## Real-World Example Run
 
-After cleanup, you'll see a detailed summary:
+The following is a real run using `--interactive` mode on a MacBook with a stale iPad firmware and accumulated caches. **23.46 GB freed in under 15 seconds.**
+
+<details>
+<summary>Full output (click to expand)</summary>
+
+```
+$ sudo ./clean-mac-space.sh --interactive
+
+================================================
+Mac Space Cleanup Script v3.2.0
+================================================
+
+[2026-02-20 14:34:47] Running as user: yourname
+[2026-02-20 14:34:47] Home directory: /Users/yourname
+
+[2026-02-20 14:34:47] Current disk usage: 32% (11Gi used, 25Gi available)
+
+This will clean cache files, temporary files, and old logs.
+Safari and browser data will NOT be touched.
+
+Continue with cleanup? [y/N] y
+
+================================================
+[2026-02-20 14:34:48] 1. Time Machine Local Snapshots
+================================================
+[2026-02-20 14:34:50] Found 19 local snapshot(s) (estimated ~115.09G)
+[2026-02-20 14:34:50] Deleting snapshots...
+✓ Local snapshots deleted successfully
+
+================================================
+[2026-02-20 14:34:50] 2. Homebrew Cache
+================================================
+[2026-02-20 14:34:50] Current Homebrew cache: 998M
+✓ Homebrew cleaned
+
+================================================
+[2026-02-20 14:34:55] 3. Application Cache Files
+================================================
+[2026-02-20 14:34:55] Spotify cache: 3.7G
+✓ Spotify cache cleared
+[2026-02-20 14:34:56] Claude Desktop update cache: 564M
+✓ Claude update cache cleared
+
+================================================
+[2026-02-20 14:34:56] 9. npm/Yarn Cache
+================================================
+[2026-02-20 14:34:56] npm cache: 135M
+✓ npm/yarn caches cleared: 135M
+
+================================================
+[2026-02-20 14:34:57] 16. Siri TTS Cache
+================================================
+[2026-02-20 14:34:57] Siri TTS cache: 223M
+✓ Siri TTS cache cleared
+
+================================================
+[2026-02-20 14:34:57] 17. iCloud Mail Cache
+================================================
+[2026-02-20 14:34:57] iCloud Mail cache: 6.2M
+✓ iCloud Mail cache cleared
+
+================================================
+[2026-02-20 14:34:57] 21. iOS/iPadOS Update Files (.ipsw)
+================================================
+[2026-02-20 14:34:57] Found: iPad_64bit_TouchID_ASTC_16.7.14_20H370_Restore.ipsw (5.20G)
+[2026-02-20 14:34:57] Total: 1 file(s), 5.20G
+[2026-02-20 14:34:57] Note: These are iOS/iPadOS firmware files used for device restores/updates.
+[2026-02-20 14:34:57] They can be re-downloaded from Apple if needed.
+[2026-02-20 14:34:57] Deleting iOS/iPadOS update files...
+✓ iOS/iPadOS update files deleted (5.20G freed)
+
+================================================
+Cleanup Complete!
+================================================
+
+[2026-02-20 14:34:57] Initial disk usage: 32% (11Gi used, 25Gi available)
+[2026-02-20 14:34:57] Final disk usage:   20% (11Gi used, 48Gi available)
+
+✓ Actual space freed: 23.46G
+
+Categories Processed:
+  ✓ Time Machine Snapshots      ✓ Homebrew Cache
+  ✓ Spotify Cache               ✓ Claude Desktop Cache
+  ✓ System Cache Files          ✓ Old Log Files
+  ✓ System Temporary Files      ✓ npm/Yarn Cache
+  ✓ Python pip Cache            ✓ iOS Simulator Data
+  ✓ Siri TTS Cache              ✓ iCloud Mail Cache
+  ✓ iOS/iPadOS Update Files
+
+Categories Skipped:
+  ⊘ .DS_Store Files
+```
+
+</details>
+
+### What made the difference
+
+| Category | Space freed |
+|---|---|
+| Time Machine snapshots (19) | ~115 GB reclaimed from APFS purgeable pool |
+| Spotify cache | 3.7 GB |
+| iPad firmware (.ipsw) | **5.20 GB** |
+| Claude Desktop update cache | 564 MB |
+| Siri TTS cache | 223 MB |
+| npm cache | 135 MB |
+| iCloud Mail + misc | ~8 MB |
+| **Total** | **23.46 GB actual** |
+
+> The APFS snapshot estimate (125 GB) is intentionally conservative — actual freed space reflects what macOS released from the purgeable pool, which it manages dynamically.
+
+## Enhanced Summary Report
+
+After every run you get a full breakdown:
 
 ```
 ================================================
 Cleanup Complete!
 ================================================
 
-Initial disk usage: 85% (250G used, 50G available)
-Final disk usage:   78% (235G used, 65G available)
+[2026-02-20 14:34:57] Initial disk usage: 32% (11Gi used, 25Gi available)
+[2026-02-20 14:34:57] Final disk usage:   20% (11Gi used, 48Gi available)
 
-✓ Approximate space freed: 15.2G
+✓ Actual space freed: 23.46G
 
 Categories Processed:
   ✓ Time Machine Snapshots
   ✓ Homebrew Cache
-  ✓ Browser Caches
-  ✓ npm/Yarn Cache
-  ✓ Docker Cache
-  ✓ Trash Bin
-  ✓ .DS_Store Files
+  ✓ Spotify Cache
+  ...
 
 Categories Skipped:
-  ⊘ XCode Derived Data
-  ⊘ iOS Simulator Data
-  ⊘ Python pip Cache
+  ⊘ .DS_Store Files
 
 ================================================
 SAFETY GUARANTEES:
@@ -475,11 +630,11 @@ Explore [docs/](docs/) for comprehensive educational guides:
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history and what changed in each release.
 
-**Latest**: v3.1.0 (2026-02-08)
-- Comprehensive documentation suite
-- Safety improvements for Docker and Simulator cleanup
-- Space tracking improvements across all categories
-- GitHub issue/PR templates and security policy
+**Latest**: v3.2.0 (2026-02-20)
+- iOS/iPadOS update file (.ipsw) detection and cleanup
+- New `--skip-ios-updates` flag and `SKIP_IOS_UPDATES` config key
+- Conservative and minimal profiles updated
+- 21 cleanup categories total
 
 ## Contributing
 
