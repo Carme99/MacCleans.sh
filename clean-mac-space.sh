@@ -169,7 +169,7 @@ load_config_file() {
                 case "$key" in
                     DRY_RUN) DRY_RUN="$value" ;;
                     AUTO_YES) AUTO_YES="$value" ;;
-                    FORCE) FORCE="$value" ;;
+                    FORCE) FORCE="$value"; [ "$value" = "true" ] && AUTO_YES="true" ;;
                     QUIET) QUIET="$value" ;;
                     NO_COLOR) NO_COLOR="$value" ;;
                     THRESHOLD) THRESHOLD="$value" ;;
@@ -1378,6 +1378,8 @@ if [ "$SKIP_TRASH" = false ]; then
                 find "$TRASH_DIR" -maxdepth 1 -type f -delete 2>/dev/null
                 # Delete hidden files but not symlinks
                 find "$TRASH_DIR" -maxdepth 1 -type f -name '.*' -delete 2>/dev/null
+                # Delete directories (but not .Trash or ..)
+                find "$TRASH_DIR" -maxdepth 1 -type d -not -name '.Trash' -not -name '..' -delete 2>/dev/null
                 log_success "Trash emptied"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
             fi
