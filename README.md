@@ -120,20 +120,22 @@ sudo ./clean-mac-space.sh --force
 8. **XCode Derived Data** - XCode build cache (5-50GB+ - **use caution!**)
 9. **npm/Yarn Cache** - Node.js package manager caches (500MB-5GB)
 10. **Python pip Cache** - Python package manager cache (100MB-2GB)
-11. **Docker Cache** 🆕 - Docker images, containers, volumes (variable)
-12. **iOS Simulator Data** 🆕 - Simulator caches and data (variable)
 
 ### Maintenance Categories
 
-13. **Trash Bin** - Empties user trash directory (variable)
-14. **.DS_Store Files** - macOS system metadata files (100MB-2GB)
-15. **Mail App Cache** - Mail application caches (100MB-1GB)
-16. **Siri TTS Cache** - Siri text-to-speech cache files
-17. **iCloud Mail Cache** - iCloud Mail agent cache files
-18. **QuickLook Thumbnails** - Regenerable thumbnail cache
-19. **Diagnostic Reports** - System crash/diagnostic logs older than 30 days
-20. **iOS Device Backups** - Local iTunes/Finder device backups ⚠️
-21. **iOS/iPadOS Update Files** 🆕 - Stale `.ipsw` firmware files from iTunes (3–7 GB each!)
+11. **Trash Bin** - Empties user trash directory including directories (variable)
+12. **Docker Cache** - Docker images, containers, volumes (variable)
+13. **iOS Simulator Data** - Simulator caches and data (variable)
+14. **Mail App Cache** - Mail application caches (100MB-1GB)
+15. **Siri TTS Cache** - Siri text-to-speech cache files
+16. **iCloud Mail Cache** - iCloud Mail agent cache files
+17. **iCloud Photos Cache** - Locally cached iCloud Photos (keeps photos in iCloud)
+18. **iCloud Drive Offline Files** - Offline iCloud Drive files (re-downloads on demand)
+19. **QuickLook Thumbnails** - Regenerable thumbnail cache
+20. **Diagnostic Reports** - System crash/diagnostic logs older than 30 days
+21. **iOS Device Backups** - Local iTunes/Finder device backups ⚠️
+22. **iOS/iPadOS Update Files** - Stale `.ipsw` firmware files from iTunes (3-7 GB each!)
+23. **.DS_Store Files** - macOS system metadata files (100MB-2GB)
 
 ## Usage
 
