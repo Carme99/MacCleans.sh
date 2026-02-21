@@ -1,0 +1,36 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+jobs:
+  claude-review:
+    name: Claude Code Review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Review PR with Claude
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          direct_prompt: |
+            You are a code reviewer for a macOS shell script project (MacCleans.sh).
+            Review this pull request and provide feedback. Focus on:
+            - Bugs that could cause incorrect behavior at runtime
+            - Security vulnerabilities (this script can run with sudo privileges, so be thorough)
+            - Correctness of file paths and shell commands
+            - Shell scripting best practices (quoting, error handling, portability)
+
+            Only flag HIGH SIGNAL issues — objective bugs and clear security problems.
+            Do not flag nitpicks, style preferences, or speculative concerns.
+
+            Post inline comments for specific line-level issues and a summary review comment.
