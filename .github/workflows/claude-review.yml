@@ -11,28 +11,33 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      pull-requests: read
+      issues: read
+      id-token: write
 
-      - name: Review PR with Claude
-        uses: anthropics/claude-code-action@beta
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          model: claude-haiku-4-5-20251001
-          thinking_budget: 10000
-          direct_prompt: |
-            You are a code reviewer for a macOS shell script project (MacCleans.sh).
-            Review this pull request and provide feedback. Focus on:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request for the MacCleans.sh project (a macOS cleanup shell script).
+            Focus on:
             - Bugs that could cause incorrect behavior at runtime
-            - Security vulnerabilities (this script can run with sudo privileges, so be thorough)
+            - Security vulnerabilities (this script can run with sudo privileges)
             - Correctness of file paths and shell commands
             - Shell scripting best practices (quoting, error handling, portability)
 
             Only flag HIGH SIGNAL issues — objective bugs and clear security problems.
             Do not flag nitpicks, style preferences, or speculative concerns.
 
-            Post inline comments for specific line-level issues and a summary review comment.
+            Use `gh pr comment` to leave your review as a comment on the PR.
+          claude_args: '--allowed-tools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"'
