@@ -682,7 +682,7 @@ interactive_selection() {
 
             # Cursor indicator
             local cursor_mark="  "
-            if [ $i -eq $cursor ]; then
+            if [ "$i" -eq "$cursor" ]; then
                 cursor_mark="${CYAN}>${NC} "
             fi
 
@@ -715,7 +715,7 @@ interactive_selection() {
                     ;;
                 '[B') # Down arrow
                     ((cursor++))
-                    if [ $cursor -ge $total ]; then
+                    if [ "$cursor" -ge "$total" ]; then
                         cursor=0
                     fi
                     draw_menu
@@ -1404,8 +1404,8 @@ if [ "$SKIP_TRASH" = false ]; then
                 find "$TRASH_DIR" -maxdepth 1 -type f -delete 2>/dev/null
                 # Delete hidden files but not symlinks
                 find "$TRASH_DIR" -maxdepth 1 -type f -name '.*' -delete 2>/dev/null
-                # Delete directories (but not .Trash or ..)
-                find "$TRASH_DIR" -maxdepth 1 -type d -not -name '.Trash' -not -name '..' -delete 2>/dev/null
+                # Delete directories (including non-empty) - use rm -rf as find -delete only removes empty dirs
+                find "$TRASH_DIR" -maxdepth 1 -mindepth 1 -type d -not -name '.Trash' -print0 | xargs -0 rm -rf 2>/dev/null || true
                 log_success "Trash emptied"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
             fi
@@ -1648,6 +1648,7 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
                     sleep 1
                 else
                     log "Skipping Photos Library - close Photos and retry"
+                    SKIP_PHOTOS_LIBRARY=true
                     SKIPPED_CATEGORIES+=("Photos Library Cache")
                 fi
             fi
@@ -1698,8 +1699,13 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
                 # Check if it's an iCloud Photos library
                 CLOUDDOCS="$HOME/Library/Application Support/CloudDocs/session/containers"
                 IS_ICLOUD=false
-                if [ -d "$CLOUDDOCS" ] && ls "$CLOUDDOCS/" 2>/dev/null | grep -qi "photo"; then
-                    IS_ICLOUD=true
+                if [ -d "$CLOUDDOCS" ]; then
+                    for item in "$CLOUDDOCS"/*; do
+                        if [ -n "$item" ] && [ -d "$item" ] && [[ $(basename "$item") =~ -[Pp]hoto[s]? ]]; then
+                            IS_ICLOUD=true
+                            break
+                        fi
+                    done
                 fi
 
                 LIB_TYPE="Photos"
@@ -1761,22 +1767,34 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
     ICLOUD_DRIVE_SIZE=0
     ICLOUD_DRIVE_BYTES=0
 
+    # Check if iCloud Drive is available
     if [ -d "$ICLOUD_DRIVE_DIR" ]; then
         ICLOUD_DRIVE_SIZE=$(du -sh "$ICLOUD_DRIVE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
 
         if [ -n "$ICLOUD_DRIVE_SIZE" ] && [ "$ICLOUD_DRIVE_SIZE" != "0B" ]; then
             log "iCloud Drive offline files: $ICLOUD_DRIVE_SIZE"
-            ICLOUD_DRIVE_BYTES=$(size_to_bytes "$ICLOUD_DRIVE_SIZE")
+            log "${YELLOW}Warning: This bypasses iCloud sync and may cause data loss!${NC}"
+            log "${YELLOW}Files pending upload or in conflict state may be permanently lost.${NC}"
+            
+            # Require --force flag for this dangerous operation
+            if [ "$FORCE" = true ]; then
+                log "${YELLOW}Running with --force: proceeding with deletion${NC}"
+                ICLOUD_DRIVE_BYTES=$(size_to_bytes "$ICLOUD_DRIVE_SIZE")
 
-            if [ "$DRY_RUN" = true ]; then
-                log "Would remove iCloud Drive offline files: $ICLOUD_DRIVE_SIZE"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
+                if [ "$DRY_RUN" = true ]; then
+                    log "Would remove iCloud Drive offline files: $ICLOUD_DRIVE_SIZE"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
+                else
+                    log "Removing iCloud Drive offline files (files will re-download from iCloud)..."
+                    find "$ICLOUD_DRIVE_DIR" -type f -mindepth 1 -delete 2>/dev/null
+                    find "$ICLOUD_DRIVE_DIR" -type d -mindepth 1 -empty -delete 2>/dev/null
+                    log_success "iCloud Drive offline files removed"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
+                fi
             else
-                log "Removing iCloud Drive offline files (files will re-download from iCloud)..."
-                find "$ICLOUD_DRIVE_DIR" -type f -mindepth 1 -delete 2>/dev/null
-                find "$ICLOUD_DRIVE_DIR" -type d -mindepth 1 -empty -delete 2>/dev/null
-                log_success "iCloud Drive offline files removed"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
+                log "${RED}Skipping: Use --force to enable iCloud Drive cleanup${NC}"
+                log "${RED}This operation bypasses iCloud sync and can cause data loss.${NC}"
+                SKIPPED_CATEGORIES+=("iCloud Drive Offline Files (requires --force)")
             fi
         else
             log "iCloud Drive has no offline files"

@@ -112,6 +112,7 @@ These operations require `--force` to skip warnings:
 - XCode Derived Data (5-50GB+)
 - iOS Device Backups
 - Full Docker cleanup
+- **iCloud Drive Offline Files** (bypasses sync, data loss risk)
 
 ---
 
@@ -148,7 +149,7 @@ These operations require `--force` to skip warnings:
 | 15 | Siri TTS Cache | 100-500MB | 🟢 Low |
 | 16 | iCloud Mail Cache | Variable | 🟢 Low |
 | 17 | **Photos Library Cache** | Variable | 🟢 Low |
-| 18 | iCloud Drive Offline Files | Variable | 🟢 Low |
+| 18 | iCloud Drive Offline Files | Variable | 🔴 High (requires --force) |
 | 19 | QuickLook Thumbnails | 100MB-1GB | 🟢 Low |
 | 20 | Diagnostic Reports (>30 days) | 100MB-1GB | 🟢 Low |
 | 21 | iOS Device Backups | 5-50GB+ | 🔴 High |

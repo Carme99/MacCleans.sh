@@ -1,4 +1,4 @@
-# MacCleans Configuration File (v3.3.0)
+# MacCleans Configuration File (v4.0.0)
 # Copy this file to one of these locations:
 #   ~/.maccleans.conf (recommended)
 #   ~/.config/maccleans/config
@@ -37,7 +37,7 @@
 # SKIP_MAIL=false            # Skip Mail app cache cleanup (NEW in v3.0)
 # SKIP_SIRI_TTS=false        # Skip Siri TTS cache cleanup
 # SKIP_ICLOUD_MAIL=false     # Skip iCloud Mail cache cleanup
-# SKIP_ICLOUD_PHOTOS=false    # Skip iCloud Photos cache cleanup (NEW in v3.3)
+# SKIP_PHOTOS_LIBRARY=false    # Skip Photos Library cache cleanup (NEW in v4.0)
 # SKIP_ICLOUD_DRIVE=false    # Skip iCloud Drive offline files cleanup (NEW in v3.3)
 # SKIP_QUICKLOOK=false       # Skip QuickLook thumbnails cleanup
 # SKIP_DIAGNOSTICS=false     # Skip diagnostic reports (>30 days)
