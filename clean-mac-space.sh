@@ -1409,46 +1409,12 @@ else
 fi
 
 ###############################################################################
-# 12. .DS_Store Files
-###############################################################################
-if [ "$SKIP_DSSTORE" = false ]; then
-    PROCESSED_CATEGORIES+=(".DS_Store Files")
-    log_plain "================================================"
-    log "12. .DS_Store Files"
-    log_plain "================================================"
-
-    # Count .DS_Store files in user home
-    DSSTORE_COUNT=$(find "$USER_HOME" -name ".DS_Store" -type f 2>/dev/null | wc -l | tr -d ' ')
-
-    if [ "$DSSTORE_COUNT" -gt 0 ]; then
-        DSSTORE_SIZE=$(find "$USER_HOME" -name ".DS_Store" -type f -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
-        DSSTORE_BYTES=$(size_to_bytes "$DSSTORE_SIZE")
-        log "Found $DSSTORE_COUNT .DS_Store file(s): $DSSTORE_SIZE"
-
-        if [ "$DRY_RUN" = true ]; then
-            log "Would delete $DSSTORE_COUNT .DS_Store file(s)"
-            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DSSTORE_BYTES))
-        else
-            log "Deleting .DS_Store files..."
-            find "$USER_HOME" -name ".DS_Store" -type f -delete 2>/dev/null
-            log_success ".DS_Store files deleted"
-            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DSSTORE_BYTES))
-        fi
-    else
-        log "No .DS_Store files found"
-    fi
-    log_plain ""
-else
-    SKIPPED_CATEGORIES+=(".DS_Store Files")
-fi
-
-###############################################################################
-# 13. Docker Cache
+# 12. Docker Cache
 ###############################################################################
 if [ "$SKIP_DOCKER" = false ]; then
     PROCESSED_CATEGORIES+=("Docker Cache")
     log_plain "================================================"
-    log "13. Docker Cache"
+    log "12. Docker Cache"
     log_plain "================================================"
 
     if command -v docker &> /dev/null; then
@@ -1493,12 +1459,12 @@ else
 fi
 
 ###############################################################################
-# 14. iOS Simulator Data
+# 13. iOS Simulator Data
 ###############################################################################
 if [ "$SKIP_SIMULATOR" = false ]; then
     PROCESSED_CATEGORIES+=("iOS Simulator Data")
     log_plain "================================================"
-    log "14. iOS Simulator Data"
+    log "13. iOS Simulator Data"
     log_plain "================================================"
 
     SIMULATOR_DIR="$USER_HOME/Library/Developer/CoreSimulator"
@@ -1536,12 +1502,12 @@ else
 fi
 
 ###############################################################################
-# 15. Mail App Cache
+# 14. Mail App Cache
 ###############################################################################
 if [ "$SKIP_MAIL" = false ]; then
     PROCESSED_CATEGORIES+=("Mail App Cache")
     log_plain "================================================"
-    log "15. Mail App Cache"
+    log "14. Mail App Cache"
     log_plain "================================================"
 
     MAIL_CACHE="$USER_HOME/Library/Caches/com.apple.mail"
@@ -1573,12 +1539,12 @@ else
 fi
 
 ###############################################################################
-# 16. Siri TTS Cache
+# 15. Siri TTS Cache
 ###############################################################################
 if [ "$SKIP_SIRI_TTS" = false ]; then
     PROCESSED_CATEGORIES+=("Siri TTS Cache")
     log_plain "================================================"
-    log "16. Siri TTS Cache"
+    log "15. Siri TTS Cache"
     log_plain "================================================"
 
     SIRI_CACHE="$USER_HOME/Library/Caches/SiriTTS"
@@ -1610,12 +1576,12 @@ else
 fi
 
 ###############################################################################
-# 17. iCloud Mail Cache
+# 16. iCloud Mail Cache
 ###############################################################################
 if [ "$SKIP_ICLOUD_MAIL" = false ]; then
     PROCESSED_CATEGORIES+=("iCloud Mail Cache")
     log_plain "================================================"
-    log "17. iCloud Mail Cache"
+    log "16. iCloud Mail Cache"
     log_plain "================================================"
 
     ICLOUD_MAIL_CACHE="$USER_HOME/Library/Caches/icloudmailagent"
@@ -1647,12 +1613,12 @@ else
 fi
 
 ###############################################################################
-# 18. iCloud Photos Cache
+# 17. iCloud Photos Cache
 ###############################################################################
 if [ "$SKIP_ICLOUD_PHOTOS" = false ]; then
     PROCESSED_CATEGORIES+=("iCloud Photos Cache")
     log_plain "================================================"
-    log "18. iCloud Photos Cache"
+    log "17. iCloud Photos Cache"
     log_plain "================================================"
 
     ICLOUD_PHOTOS_DIR="$USER_HOME/Library/Application Support/CloudDocs/session/containers/data"
@@ -1687,12 +1653,12 @@ else
 fi
 
 ###############################################################################
-# 19. iCloud Drive Offline Files
+# 18. iCloud Drive Offline Files
 ###############################################################################
 if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
     PROCESSED_CATEGORIES+=("iCloud Drive Offline Files")
     log_plain "================================================"
-    log "19. iCloud Drive Offline Files"
+    log "18. iCloud Drive Offline Files"
     log_plain "================================================"
 
     ICLOUD_DRIVE_DIR="$USER_HOME/Library/CloudStorage"
@@ -1728,12 +1694,12 @@ else
 fi
 
 ###############################################################################
-# 20. QuickLook Thumbnails
+# 19. QuickLook Thumbnails
 ###############################################################################
 if [ "$SKIP_QUICKLOOK" = false ]; then
     PROCESSED_CATEGORIES+=("QuickLook Thumbnails")
     log_plain "================================================"
-    log "18. QuickLook Thumbnails"
+    log "19. QuickLook Thumbnails"
     log_plain "================================================"
 
     QUICKLOOK_CACHE="$USER_HOME/Library/Caches/com.apple.QuickLook.thumbnailcache"
@@ -1765,12 +1731,12 @@ else
 fi
 
 ###############################################################################
-# 21. Diagnostic Reports
+# 20. Diagnostic Reports
 ###############################################################################
-if [ "$SKIP_DIAGNOSTICS" = false ]; then
+if [ "$SKIP_DIAGNOSTIC" = false ]; then
     PROCESSED_CATEGORIES+=("Diagnostic Reports")
     log_plain "================================================"
-    log "21. Diagnostic Reports"
+    log "20. Diagnostic Reports"
     log_plain "================================================"
 
     DIAG_USER="$USER_HOME/Library/Logs/DiagnosticReports"
@@ -1826,12 +1792,12 @@ else
 fi
 
 ###############################################################################
-# 22. iOS Device Backups
+# 21. iOS Device Backups
 ###############################################################################
 if [ "$SKIP_IOS_BACKUPS" = false ]; then
     PROCESSED_CATEGORIES+=("iOS Device Backups")
     log_plain "================================================"
-    log "22. iOS Device Backups"
+    log "21. iOS Device Backups"
     log_plain "================================================"
 
     IOS_BACKUP_DIR="$USER_HOME/Library/Application Support/MobileSync/Backup"
@@ -1888,12 +1854,12 @@ else
 fi
 
 ###############################################################################
-# 23. iOS/iPadOS Update Files (.ipsw)
+# 22. iOS/iPadOS Update Files (.ipsw)
 ###############################################################################
 if [ "$SKIP_IOS_UPDATES" = false ]; then
     PROCESSED_CATEGORIES+=("iOS/iPadOS Update Files")
     log_plain "================================================"
-    log "23. iOS/iPadOS Update Files (.ipsw)"
+    log "22. iOS/iPadOS Update Files (.ipsw)"
     log_plain "================================================"
 
     # iTunes stores downloaded firmware in these directories
@@ -1946,6 +1912,40 @@ if [ "$SKIP_IOS_UPDATES" = false ]; then
     log_plain ""
 else
     SKIPPED_CATEGORIES+=("iOS/iPadOS Update Files")
+fi
+
+###############################################################################
+# 23. .DS_Store Files
+###############################################################################
+if [ "$SKIP_DSSTORE" = false ]; then
+    PROCESSED_CATEGORIES+=(".DS_Store Files")
+    log_plain "================================================"
+    log "23. .DS_Store Files"
+    log_plain "================================================"
+
+    # Count .DS_Store files in user home
+    DSSTORE_COUNT=$(find "$USER_HOME" -name ".DS_Store" -type f 2>/dev/null | wc -l | tr -d ' ')
+
+    if [ "$DSSTORE_COUNT" -gt 0 ]; then
+        DSSTORE_SIZE=$(find "$USER_HOME" -name ".DS_Store" -type f -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+        DSSTORE_BYTES=$(size_to_bytes "$DSSTORE_SIZE")
+        log "Found $DSSTORE_COUNT .DS_Store file(s): $DSSTORE_SIZE"
+
+        if [ "$DRY_RUN" = true ]; then
+            log "Would delete $DSSTORE_COUNT .DS_Store file(s)"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DSSTORE_BYTES))
+        else
+            log "Deleting .DS_Store files..."
+            find "$USER_HOME" -name ".DS_Store" -type f -delete 2>/dev/null
+            log_success ".DS_Store files deleted"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DSSTORE_BYTES))
+        fi
+    else
+        log "No .DS_Store files found"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=(".DS_Store Files")
 fi
 
 ###############################################################################
