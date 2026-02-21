@@ -2,6 +2,74 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [4.0.0] - 2026-02-21
+
+### Major Features
+
+- **Photos Library Multi-Library Support**: New `--photos-library` flag to target specific libraries or clean all libraries
+  - `--photos-library "Photos Library"` - Target specific library by name
+  - `--photos-library all` - Clean all found libraries
+  - Default: cleans first/default library only
+- **Enhanced iCloud Integration**: Improved iCloud Photos, Drive, and Mail cache cleanup with smart detection
+
+### Breaking Changes
+
+- Renamed `--skip-icloud-photos` → `--skip-photos-library`
+- Renamed variable `SKIP_ICLOUD_PHOTOS` → `SKIP_PHOTOS_LIBRARY`
+- Updated category name: "iCloud Photos Cache" → "Photos Library Cache"
+
+### Bug Fixes (v4.0.x)
+
+#### Critical Fixes
+- **Disk Space Calculation**: Fixed broken calculation using `df -h` multiplied by 512. Now uses `df -k` for accurate kilobyte-based calculation
+- **iCloud Drive Scope**: Fixed deletion targeting ALL cloud providers (OneDrive, Google Drive, Box). Now only targets iCloud Drive folders using glob filter `iCloud Drive*`
+
+#### High Severity Fixes
+- **iOS Backups Safety**: Added `--force` requirement for iOS backup deletion (like iCloud Drive). Prevents accidental data loss
+- **iCloud Drive Safety**: Added `--force` requirement with prominent warnings about data loss risk
+- **Photos iCloud Detection**: Fixed `$HOME` → `$USER_HOME` for CloudDocs path (correct when running under sudo)
+- **Summary Double-Counting**: Fixed Photos Library and iCloud Drive appearing in both processed AND skipped lists
+
+#### Medium/Low Fixes
+- **POSIX Compatibility**: Fixed `mapfile` command not found error on macOS (Bash 3.2). Replaced with POSIX-compatible `while IFS= read` loop
+- **Dry-Run Photos Check**: Photos app running check now logs warning in dry-run mode without blocking space calculation
+- **Photos App Auto-Close**: When `--yes` flag is used, script now auto-closes Photos app for safe cleanup
+- **Section Numbering**: Fixed incorrect section numbers after .DS_Store was moved to end
+
+### Security & Stability
+
+- **Eval vulnerability fix**: Replaced unsafe `eval` with safer alternatives
+- **Symlink attack prevention**: Fixed trash deletion to prevent following malicious symlinks
+- **Signal handling**: Graceful interruption handling
+
+### Documentation
+
+- **Complete README overhaul**: Modernized with badges, quick reference cards, categories grid
+- **Added**: Quick Reference section, Command Reference tables, Why MacCleans comparison
+- **Updated**: All documentation to reference v4.0
+- **Danger Zone**: Added iCloud Drive to list of operations requiring `--force`
+
+### Dependencies
+
+- No new dependencies added
+- Compatible with macOS 10.15+ (Catalina and later)
+- Compatible with Bash 3.2+ (macOS default)
+
+## [3.3.0] - 2026-02-21
+
+### Bug Fixes
+
+- **Trash directory deletion**: Fixed trash cleanup to also delete directories, not just files. On macOS Trash commonly contains folders, so previous implementation left content behind and reported incorrect freed-space.
+- **FORCE config propagation**: Fixed FORCE=true in config file to propagate to AUTO_YES, ensuring unattended runs don't block on prompts.
+
+### Added
+
+- **iCloud Photos cache cleanup**: New category to clear locally cached iCloud Photos (frees space while keeping photos in iCloud)
+- **iCloud Drive offline files**: New category to remove offline copies of iCloud Drive files (files will re-download on demand)
+- New `--skip-icloud-photos` flag
+- New `--skip-icloud-drive` flag
+- Added iCloud Photos and iCloud Drive to interactive mode selection
+
 ## [3.2.1] - 2026-02-21
 
 ### Security Fixes

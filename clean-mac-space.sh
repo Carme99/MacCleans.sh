@@ -3,7 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="3.2.1"
+VERSION="4.0.0"
 
 ###############################################################################
 # Mac Space Cleanup Script
@@ -50,10 +50,13 @@ VERSION="3.2.1"
 #   --skip-mail         Skip Mail app cache cleanup
 #   --skip-siri-tts     Skip Siri TTS cache cleanup
 #   --skip-icloud-mail  Skip iCloud Mail cache cleanup
+#   --skip-photos-library Skip Photos Library cache cleanup
+#   --skip-icloud-drive Skip iCloud Drive offline files cleanup
 #   --skip-quicklook    Skip QuickLook thumbnails cleanup
 #   --skip-diagnostics  Skip diagnostic reports cleanup
 #   --skip-ios-backups  Skip iOS device backups cleanup
 #   --skip-ios-updates  Skip iOS/iPadOS update files (.ipsw) cleanup
+#   --photos-library    Specify Photos library name or "all" to clean all libraries
 ###############################################################################
 
 # Default options
@@ -80,6 +83,9 @@ SKIP_SIMULATOR=false
 SKIP_MAIL=false
 SKIP_SIRI_TTS=false
 SKIP_ICLOUD_MAIL=false
+SKIP_PHOTOS_LIBRARY=false
+SKIP_ICLOUD_DRIVE=false
+PHOTOS_LIBRARY_NAME=""
 SKIP_QUICKLOOK=false
 SKIP_DIAGNOSTICS=false
 SKIP_IOS_BACKUPS=false
@@ -130,7 +136,7 @@ validate_config() {
     for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR SKIP_SNAPSHOTS SKIP_HOMEBREW \
                SKIP_SPOTIFY SKIP_CLAUDE SKIP_XCODE SKIP_BROWSERS SKIP_NPM \
                SKIP_PIP SKIP_TRASH SKIP_DSSTORE SKIP_DOCKER SKIP_SIMULATOR SKIP_MAIL \
-               SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_QUICKLOOK SKIP_DIAGNOSTICS SKIP_IOS_BACKUPS \
+               SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_PHOTOS_LIBRARY SKIP_ICLOUD_DRIVE SKIP_QUICKLOOK SKIP_DIAGNOSTICS SKIP_IOS_BACKUPS \
                SKIP_IOS_UPDATES; do
         local value="${!var}"
         if ! validate_boolean "$value"; then
@@ -169,7 +175,7 @@ load_config_file() {
                 case "$key" in
                     DRY_RUN) DRY_RUN="$value" ;;
                     AUTO_YES) AUTO_YES="$value" ;;
-                    FORCE) FORCE="$value" ;;
+                    FORCE) FORCE="$value"; [ "$value" = "true" ] && AUTO_YES="true" ;;
                     QUIET) QUIET="$value" ;;
                     NO_COLOR) NO_COLOR="$value" ;;
                     THRESHOLD) THRESHOLD="$value" ;;
@@ -188,6 +194,8 @@ load_config_file() {
                     SKIP_MAIL) SKIP_MAIL="$value" ;;
                     SKIP_SIRI_TTS) SKIP_SIRI_TTS="$value" ;;
                     SKIP_ICLOUD_MAIL) SKIP_ICLOUD_MAIL="$value" ;;
+                    SKIP_PHOTOS_LIBRARY) SKIP_PHOTOS_LIBRARY="$value" ;;
+                    SKIP_ICLOUD_DRIVE) SKIP_ICLOUD_DRIVE="$value" ;;
                     SKIP_QUICKLOOK) SKIP_QUICKLOOK="$value" ;;
                     SKIP_DIAGNOSTICS) SKIP_DIAGNOSTICS="$value" ;;
                     SKIP_IOS_BACKUPS) SKIP_IOS_BACKUPS="$value" ;;
@@ -311,6 +319,14 @@ parse_arguments() {
                 SKIP_ICLOUD_MAIL=true
                 shift
                 ;;
+            --skip-photos-library)
+                SKIP_PHOTOS_LIBRARY=true
+                shift
+                ;;
+            --skip-icloud-drive)
+                SKIP_ICLOUD_DRIVE=true
+                shift
+                ;;
             --skip-quicklook)
                 SKIP_QUICKLOOK=true
                 shift
@@ -327,8 +343,16 @@ parse_arguments() {
                 SKIP_IOS_UPDATES=true
                 shift
                 ;;
+            --photos-library)
+                if [ -z "${2:-}" ]; then
+                    echo "ERROR: --photos-library requires an argument (library name or 'all')" >&2
+                    exit 1
+                fi
+                PHOTOS_LIBRARY_NAME="$2"
+                shift 2
+                ;;
             --help|-h)
-                head -n 50 "$0" | tail -n +3 | sed 's/^# //'
+                head -n 62 "$0" | tail -n +3 | sed 's/^# //'
                 exit 0
                 ;;
             *)
@@ -605,6 +629,8 @@ interactive_selection() {
         "Mail App Cache|SKIP_MAIL"
         "Siri TTS Cache|SKIP_SIRI_TTS"
         "iCloud Mail Cache|SKIP_ICLOUD_MAIL"
+        "Photos Library Cache|SKIP_PHOTOS_LIBRARY"
+        "iCloud Drive Offline Files|SKIP_ICLOUD_DRIVE"
         "QuickLook Thumbnails|SKIP_QUICKLOOK"
         "Diagnostic Reports (>30 days)|SKIP_DIAGNOSTICS"
         "iOS Device Backups (⚠️  requires confirmation)|SKIP_IOS_BACKUPS"
@@ -656,7 +682,7 @@ interactive_selection() {
 
             # Cursor indicator
             local cursor_mark="  "
-            if [ $i -eq $cursor ]; then
+            if [ "$i" -eq "$cursor" ]; then
                 cursor_mark="${CYAN}>${NC} "
             fi
 
@@ -689,7 +715,7 @@ interactive_selection() {
                     ;;
                 '[B') # Down arrow
                     ((cursor++))
-                    if [ $cursor -ge $total ]; then
+                    if [ "$cursor" -ge "$total" ]; then
                         cursor=0
                     fi
                     draw_menu
@@ -791,8 +817,8 @@ fi
 DISK_USAGE=$(df -h / | tail -1 | awk '{print $5}' | sed 's/%//')
 DISK_AVAIL=$(df -h / | tail -1 | awk '{print $4}')
 DISK_USED=$(df -h / | tail -1 | awk '{print $3}')
-DISK_AVAIL_BYTES=$(df / | tail -1 | awk '{print $4}')
-DISK_AVAIL_BYTES=$((DISK_AVAIL_BYTES * 512))  # Convert 512-byte blocks to bytes
+DISK_AVAIL_BYTES=$(df -k / | tail -1 | awk '{print $4}')  # Get KB
+DISK_AVAIL_BYTES=$((DISK_AVAIL_BYTES * 1024))  # Convert KB to bytes
 
 log "Running as user: $ACTUAL_USER"
 log "Home directory: $USER_HOME"
@@ -1378,6 +1404,8 @@ if [ "$SKIP_TRASH" = false ]; then
                 find "$TRASH_DIR" -maxdepth 1 -type f -delete 2>/dev/null
                 # Delete hidden files but not symlinks
                 find "$TRASH_DIR" -maxdepth 1 -type f -name '.*' -delete 2>/dev/null
+                # Delete directories (including non-empty) - use rm -rf as find -delete only removes empty dirs
+                find "$TRASH_DIR" -maxdepth 1 -mindepth 1 -type d -not -name '.Trash' -print0 | xargs -0 rm -rf 2>/dev/null || true
                 log_success "Trash emptied"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
             fi
@@ -1391,46 +1419,12 @@ else
 fi
 
 ###############################################################################
-# 12. .DS_Store Files
-###############################################################################
-if [ "$SKIP_DSSTORE" = false ]; then
-    PROCESSED_CATEGORIES+=(".DS_Store Files")
-    log_plain "================================================"
-    log "12. .DS_Store Files"
-    log_plain "================================================"
-
-    # Count .DS_Store files in user home
-    DSSTORE_COUNT=$(find "$USER_HOME" -name ".DS_Store" -type f 2>/dev/null | wc -l | tr -d ' ')
-
-    if [ "$DSSTORE_COUNT" -gt 0 ]; then
-        DSSTORE_SIZE=$(find "$USER_HOME" -name ".DS_Store" -type f -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
-        DSSTORE_BYTES=$(size_to_bytes "$DSSTORE_SIZE")
-        log "Found $DSSTORE_COUNT .DS_Store file(s): $DSSTORE_SIZE"
-
-        if [ "$DRY_RUN" = true ]; then
-            log "Would delete $DSSTORE_COUNT .DS_Store file(s)"
-            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DSSTORE_BYTES))
-        else
-            log "Deleting .DS_Store files..."
-            find "$USER_HOME" -name ".DS_Store" -type f -delete 2>/dev/null
-            log_success ".DS_Store files deleted"
-            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DSSTORE_BYTES))
-        fi
-    else
-        log "No .DS_Store files found"
-    fi
-    log_plain ""
-else
-    SKIPPED_CATEGORIES+=(".DS_Store Files")
-fi
-
-###############################################################################
-# 13. Docker Cache
+# 12. Docker Cache
 ###############################################################################
 if [ "$SKIP_DOCKER" = false ]; then
     PROCESSED_CATEGORIES+=("Docker Cache")
     log_plain "================================================"
-    log "13. Docker Cache"
+    log "12. Docker Cache"
     log_plain "================================================"
 
     if command -v docker &> /dev/null; then
@@ -1475,12 +1469,12 @@ else
 fi
 
 ###############################################################################
-# 14. iOS Simulator Data
+# 13. iOS Simulator Data
 ###############################################################################
 if [ "$SKIP_SIMULATOR" = false ]; then
     PROCESSED_CATEGORIES+=("iOS Simulator Data")
     log_plain "================================================"
-    log "14. iOS Simulator Data"
+    log "13. iOS Simulator Data"
     log_plain "================================================"
 
     SIMULATOR_DIR="$USER_HOME/Library/Developer/CoreSimulator"
@@ -1518,12 +1512,12 @@ else
 fi
 
 ###############################################################################
-# 15. Mail App Cache
+# 14. Mail App Cache
 ###############################################################################
 if [ "$SKIP_MAIL" = false ]; then
     PROCESSED_CATEGORIES+=("Mail App Cache")
     log_plain "================================================"
-    log "15. Mail App Cache"
+    log "14. Mail App Cache"
     log_plain "================================================"
 
     MAIL_CACHE="$USER_HOME/Library/Caches/com.apple.mail"
@@ -1555,12 +1549,12 @@ else
 fi
 
 ###############################################################################
-# 16. Siri TTS Cache
+# 15. Siri TTS Cache
 ###############################################################################
 if [ "$SKIP_SIRI_TTS" = false ]; then
     PROCESSED_CATEGORIES+=("Siri TTS Cache")
     log_plain "================================================"
-    log "16. Siri TTS Cache"
+    log "15. Siri TTS Cache"
     log_plain "================================================"
 
     SIRI_CACHE="$USER_HOME/Library/Caches/SiriTTS"
@@ -1592,12 +1586,12 @@ else
 fi
 
 ###############################################################################
-# 17. iCloud Mail Cache
+# 16. iCloud Mail Cache
 ###############################################################################
 if [ "$SKIP_ICLOUD_MAIL" = false ]; then
     PROCESSED_CATEGORIES+=("iCloud Mail Cache")
     log_plain "================================================"
-    log "17. iCloud Mail Cache"
+    log "16. iCloud Mail Cache"
     log_plain "================================================"
 
     ICLOUD_MAIL_CACHE="$USER_HOME/Library/Caches/icloudmailagent"
@@ -1629,12 +1623,227 @@ else
 fi
 
 ###############################################################################
-# 18. QuickLook Thumbnails
+# 17. Photos Library Cache
+###############################################################################
+if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
+    log_plain "================================================"
+    log "17. Photos Library Cache"
+    log_plain "================================================"
+
+    # Check if Photos app is running (only in real run mode, not dry-run)
+    if pgrep -x "Photos" > /dev/null 2>&1; then
+        if [ "$DRY_RUN" = true ]; then
+            log "${YELLOW}Warning: Photos app is currently running (dry-run mode - no action taken)${NC}"
+        else
+            log "${YELLOW}Warning: Photos app is currently running${NC}"
+            if [ "$AUTO_YES" = true ]; then
+                log "Auto-closing Photos app for safe cleanup..."
+                osascript -e 'quit app "Photos"' 2>/dev/null || pkill -9 -x Photos 2>/dev/null
+                sleep 1
+            else
+                read -p "Close Photos app for safe cleanup? (y/n): " -r
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    osascript -e 'quit app "Photos"' 2>/dev/null || pkill -9 -x Photos 2>/dev/null
+                    sleep 1
+                else
+                    log "Skipping Photos Library - close Photos and retry"
+                    SKIP_PHOTOS_LIBRARY=true
+                    SKIPPED_CATEGORIES+=("Photos Library Cache")
+                fi
+            fi
+        fi
+    fi
+
+    # Skip if already skipped due to Photos running
+    if [ "$SKIP_PHOTOS_LIBRARY" = true ]; then
+        log_plain ""
+    else
+        # Find all Photos libraries in Pictures folder (POSIX-compatible)
+        PHOTOS_LIBS=()
+        while IFS= read -r -d '' lib; do
+            PHOTOS_LIBS+=("$lib")
+        done < <(find "$USER_HOME/Pictures" -maxdepth 1 -name "*.photoslibrary" -type d -print0 2>/dev/null)
+
+        if [ ${#PHOTOS_LIBS[@]} -eq 0 ]; then
+            log "No Photos libraries found"
+        else
+            # Determine which libraries to clean
+            declare -a SELECTED_LIBS=()
+            
+            if [ -n "$PHOTOS_LIBRARY_NAME" ]; then
+                if [ "$PHOTOS_LIBRARY_NAME" = "all" ]; then
+                    SELECTED_LIBS=("${PHOTOS_LIBS[@]}")
+                else
+                    LIB_PATH="$USER_HOME/Pictures/${PHOTOS_LIBRARY_NAME}.photoslibrary"
+                    if [ -d "$LIB_PATH" ]; then
+                        SELECTED_LIBS=("$LIB_PATH")
+                    else
+                        log "Photos library '${PHOTOS_LIBRARY_NAME}' not found"
+                        log "Available libraries: ${PHOTOS_LIBS[*]}"
+                        SKIPPED_CATEGORIES+=("Photos Library Cache")
+                    fi
+                fi
+            else
+                # Default: clean first library only
+                SELECTED_LIBS=("${PHOTOS_LIBS[0]}")
+            fi
+
+            # Only add to processed if we have libraries to clean
+            if [ ${#SELECTED_LIBS[@]} -gt 0 ]; then
+                PROCESSED_CATEGORIES+=("Photos Library Cache")
+            fi
+
+            # Process each selected library
+            TOTAL_PHOTOS_BYTES=0
+            
+            for LIB_PATH in "${SELECTED_LIBS[@]}"; do
+                LIB_NAME=$(basename "$LIB_PATH" .photoslibrary)
+                RESOURCES_DIR="$LIB_PATH/resources"
+
+                # Check if it's an iCloud Photos library
+                CLOUDDOCS="$USER_HOME/Library/Application Support/CloudDocs/session/containers"
+                IS_ICLOUD=false
+                if [ -d "$CLOUDDOCS" ]; then
+                    for item in "$CLOUDDOCS"/*; do
+                        if [ -n "$item" ] && [ -d "$item" ] && [[ $(basename "$item") =~ -[Pp]hoto[s]? ]]; then
+                            IS_ICLOUD=true
+                            break
+                        fi
+                    done
+                fi
+
+                LIB_TYPE="Photos"
+                if [ "$IS_ICLOUD" = true ]; then
+                    LIB_TYPE="iCloud Photos"
+                fi
+
+                if [ -d "$RESOURCES_DIR" ]; then
+                    LIB_KB=$(du -sk "$RESOURCES_DIR" 2>/dev/null | awk '{print $1}' || echo "0")
+                    
+                    if [ "$LIB_KB" -gt 0 ]; then
+                        LIB_HUMAN=$(bytes_to_human $((LIB_KB * 1024)))
+                        log "${LIB_NAME}.photoslibrary ($LIB_TYPE): $LIB_HUMAN"
+                        log "  ${DIM}Clearing thumbnails, previews, rendered edits${NC}"
+                        log "  ${DIM}Original photos remain safe - will re-render on demand${NC}"
+                        TOTAL_PHOTOS_BYTES=$((TOTAL_PHOTOS_BYTES + LIB_KB * 1024))
+
+                        if [ "$DRY_RUN" = true ]; then
+                            log "  Would clear: $LIB_HUMAN"
+                        else
+                            # Check for symlink before deleting (security)
+                            if [ -d "$RESOURCES_DIR" ] && [ ! -L "$RESOURCES_DIR" ]; then
+                                find "$RESOURCES_DIR" -mindepth 1 -delete 2>/dev/null || true
+                            fi
+                            log_success "  Cleared: $LIB_HUMAN"
+                        fi
+                    else
+                        log "${LIB_NAME}.photoslibrary: cache is empty"
+                    fi
+                else
+                    log "${LIB_NAME}.photoslibrary: resources folder not found"
+                fi
+            done
+
+            # Add to total freed
+            if [ "$TOTAL_PHOTOS_BYTES" -gt 0 ]; then
+                TOTAL_PHOTOS_HUMAN=$(bytes_to_human $TOTAL_PHOTOS_BYTES)
+                if [ "$DRY_RUN" = true ]; then
+                    log "Would clear Photos Library cache: $TOTAL_PHOTOS_HUMAN"
+                fi
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TOTAL_PHOTOS_BYTES))
+            elif [ ${#SELECTED_LIBS[@]} -gt 0 ]; then
+                log "No Photos Library cache found"
+            fi
+        fi
+    fi
+    
+    log_plain ""
+fi
+
+###############################################################################
+# 18. iCloud Drive Offline Files
+###############################################################################
+if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
+    log_plain "================================================"
+    log "18. iCloud Drive Offline Files"
+    log_plain "================================================"
+
+    CLOUD_STORAGE_DIR="$USER_HOME/Library/CloudStorage"
+    ICLOUD_DRIVE_BYTES=0
+
+    # Check if CloudStorage directory exists
+    if [ -d "$CLOUD_STORAGE_DIR" ]; then
+        # Find only iCloud Drive folders (not OneDrive, Google Drive, Box, etc.)
+        ICLOUD_FOLDERS=()
+        for dir in "$CLOUD_STORAGE_DIR"/*; do
+            if [ -d "$dir" ]; then
+                dirname=$(basename "$dir")
+                # Match iCloud Drive folders (various language versions)
+                if [[ "$dirname" == iCloud\ Drive* ]] || [[ "$dirname" == "iCloud Drive" ]]; then
+                    ICLOUD_FOLDERS+=("$dir")
+                fi
+            fi
+        done
+
+        if [ ${#ICLOUD_FOLDERS[@]} -gt 0 ]; then
+            # Calculate total size of only iCloud Drive folders
+            ICLOUD_DRIVE_SIZE_KB=0
+            for folder in "${ICLOUD_FOLDERS[@]}"; do
+                folder_kb=$(du -sk "$folder" 2>/dev/null | awk '{print $1}' || echo "0")
+                ICLOUD_DRIVE_SIZE_KB=$((ICLOUD_DRIVE_SIZE_KB + folder_kb))
+            done
+
+            if [ "$ICLOUD_DRIVE_SIZE_KB" -gt 0 ]; then
+                ICLOUD_DRIVE_SIZE=$(bytes_to_human $((ICLOUD_DRIVE_SIZE_KB * 1024)))
+                log "iCloud Drive offline files: $ICLOUD_DRIVE_SIZE"
+                log "${YELLOW}Warning: This bypasses iCloud sync and may cause data loss!${NC}"
+                log "${YELLOW}Files pending upload or in conflict state may be permanently lost.${NC}"
+                
+                # Require --force flag for this dangerous operation
+                if [ "$FORCE" = true ]; then
+                    log "${YELLOW}Running with --force: proceeding with deletion${NC}"
+                    PROCESSED_CATEGORIES+=("iCloud Drive Offline Files")
+                    ICLOUD_DRIVE_BYTES=$((ICLOUD_DRIVE_SIZE_KB * 1024))
+
+                    if [ "$DRY_RUN" = true ]; then
+                        log "Would remove iCloud Drive files: $ICLOUD_DRIVE_SIZE"
+                        log "${DIM}(Files will be DELETED from iCloud, recoverable via Recently Deleted)${NC}"
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
+                    else
+                        log "Removing iCloud Drive files (DELETED from iCloud, not just local cache)..."
+                        for folder in "${ICLOUD_FOLDERS[@]}"; do
+                            find "$folder" -type f -mindepth 1 -delete 2>/dev/null
+                            find "$folder" -type d -mindepth 1 -depth -empty -delete 2>/dev/null
+                        done
+                        log_success "iCloud Drive files removed (check Recently Deleted in iCloud to recover)"
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
+                    fi
+                else
+                    log "${RED}Skipping: Use --force to enable iCloud Drive cleanup${NC}"
+                    log "${RED}This operation bypasses iCloud sync and can cause data loss.${NC}"
+                    SKIPPED_CATEGORIES+=("iCloud Drive Offline Files (requires --force)")
+                fi
+            else
+                log "iCloud Drive has no offline files"
+            fi
+        else
+            log "iCloud Drive not configured or no iCloud Drive folder found"
+        fi
+    else
+        log "CloudStorage directory not found (iCloud Drive not configured)"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("iCloud Drive Offline Files")
+fi
+
+###############################################################################
+# 19. QuickLook Thumbnails
 ###############################################################################
 if [ "$SKIP_QUICKLOOK" = false ]; then
     PROCESSED_CATEGORIES+=("QuickLook Thumbnails")
     log_plain "================================================"
-    log "18. QuickLook Thumbnails"
+    log "19. QuickLook Thumbnails"
     log_plain "================================================"
 
     QUICKLOOK_CACHE="$USER_HOME/Library/Caches/com.apple.QuickLook.thumbnailcache"
@@ -1666,12 +1875,12 @@ else
 fi
 
 ###############################################################################
-# 19. Diagnostic Reports
+# 20. Diagnostic Reports
 ###############################################################################
 if [ "$SKIP_DIAGNOSTICS" = false ]; then
     PROCESSED_CATEGORIES+=("Diagnostic Reports")
     log_plain "================================================"
-    log "19. Diagnostic Reports"
+    log "20. Diagnostic Reports"
     log_plain "================================================"
 
     DIAG_USER="$USER_HOME/Library/Logs/DiagnosticReports"
@@ -1727,12 +1936,11 @@ else
 fi
 
 ###############################################################################
-# 20. iOS Device Backups
+# 21. iOS Device Backups
 ###############################################################################
 if [ "$SKIP_IOS_BACKUPS" = false ]; then
-    PROCESSED_CATEGORIES+=("iOS Device Backups")
     log_plain "================================================"
-    log "20. iOS Device Backups"
+    log "21. iOS Device Backups"
     log_plain "================================================"
 
     IOS_BACKUP_DIR="$USER_HOME/Library/Application Support/MobileSync/Backup"
@@ -1745,37 +1953,27 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
 
             log "Found $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
             log_warning "These are local iTunes/Finder device backups"
-
-            if [ "$DRY_RUN" = true ]; then
-                log "${YELLOW}Would delete $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE${NC}"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
-            else
-                # WARNING for non-dry-run, non-auto-yes mode
-                if [ "$AUTO_YES" = false ]; then
-                    log_always ""
-                    log_warning "${RED}CRITICAL WARNING: This will delete ALL local iOS device backups!${NC}"
-                    log_always "   Only proceed if:"
-                    log_always "   1. Your devices are backed up to iCloud, OR"
-                    log_always "   2. You have recent backups stored elsewhere"
-                    log_always ""
-                    read -p "Delete iOS device backups? Type 'DELETE' to confirm: " -r
-                    echo
-                    if [ "$REPLY" = "DELETE" ]; then
-                        log "Deleting iOS device backups..."
-                        rm -rf "${IOS_BACKUP_DIR:?}"/* 2>/dev/null
-                        log_success "iOS device backups deleted"
-                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
-                    else
-                        log "iOS backup deletion cancelled by user"
-                        log_plain ""
-                    fi
+            log "${YELLOW}Warning: Deleting backups without iCloud backup may cause data loss!${NC}"
+            
+            # Require --force for this dangerous operation
+            if [ "$FORCE" = true ]; then
+                log "${YELLOW}Running with --force: proceeding with deletion${NC}"
+                PROCESSED_CATEGORIES+=("iOS Device Backups")
+                
+                if [ "$DRY_RUN" = true ]; then
+                    log "Would delete $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
                 else
-                    # Auto-yes mode - still delete
                     log "Deleting iOS device backups..."
                     rm -rf "${IOS_BACKUP_DIR:?}"/* 2>/dev/null
                     log_success "iOS device backups deleted"
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
                 fi
+            else
+                # Not --force: require manual confirmation
+                log "${RED}Skipping: Use --force to enable iOS backup deletion${NC}"
+                log "${RED}This operation can cause data loss without iCloud backup.${NC}"
+                SKIPPED_CATEGORIES+=("iOS Device Backups (requires --force)")
             fi
         else
             log "No iOS device backups found"
@@ -1789,12 +1987,12 @@ else
 fi
 
 ###############################################################################
-# 21. iOS/iPadOS Update Files (.ipsw)
+# 22. iOS/iPadOS Update Files (.ipsw)
 ###############################################################################
 if [ "$SKIP_IOS_UPDATES" = false ]; then
     PROCESSED_CATEGORIES+=("iOS/iPadOS Update Files")
     log_plain "================================================"
-    log "21. iOS/iPadOS Update Files (.ipsw)"
+    log "22. iOS/iPadOS Update Files (.ipsw)"
     log_plain "================================================"
 
     # iTunes stores downloaded firmware in these directories
@@ -1850,6 +2048,40 @@ else
 fi
 
 ###############################################################################
+# 23. .DS_Store Files
+###############################################################################
+if [ "$SKIP_DSSTORE" = false ]; then
+    PROCESSED_CATEGORIES+=(".DS_Store Files")
+    log_plain "================================================"
+    log "23. .DS_Store Files"
+    log_plain "================================================"
+
+    # Count .DS_Store files in user home
+    DSSTORE_COUNT=$(find "$USER_HOME" -name ".DS_Store" -type f 2>/dev/null | wc -l | tr -d ' ')
+
+    if [ "$DSSTORE_COUNT" -gt 0 ]; then
+        DSSTORE_SIZE=$(find "$USER_HOME" -name ".DS_Store" -type f -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+        DSSTORE_BYTES=$(size_to_bytes "$DSSTORE_SIZE")
+        log "Found $DSSTORE_COUNT .DS_Store file(s): $DSSTORE_SIZE"
+
+        if [ "$DRY_RUN" = true ]; then
+            log "Would delete $DSSTORE_COUNT .DS_Store file(s)"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DSSTORE_BYTES))
+        else
+            log "Deleting .DS_Store files..."
+            find "$USER_HOME" -name ".DS_Store" -type f -delete 2>/dev/null
+            log_success ".DS_Store files deleted"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DSSTORE_BYTES))
+        fi
+    else
+        log "No .DS_Store files found"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=(".DS_Store Files")
+fi
+
+###############################################################################
 # Enhanced Summary Report
 ###############################################################################
 log_plain "================================================"
@@ -1890,8 +2122,8 @@ else
     DISK_USAGE_AFTER=$(df -h / | tail -1 | awk '{print $5}' | sed 's/%//')
     DISK_AVAIL_AFTER=$(df -h / | tail -1 | awk '{print $4}')
     DISK_USED_AFTER=$(df -h / | tail -1 | awk '{print $3}')
-    DISK_AVAIL_BYTES_AFTER=$(df / | tail -1 | awk '{print $4}')
-    DISK_AVAIL_BYTES_AFTER=$((DISK_AVAIL_BYTES_AFTER * 512))  # Convert 512-byte blocks to bytes
+    DISK_AVAIL_BYTES_AFTER=$(df -k / | tail -1 | awk '{print $4}')  # Get KB
+    DISK_AVAIL_BYTES_AFTER=$((DISK_AVAIL_BYTES_AFTER * 1024))  # Convert KB to bytes
 
     log "Initial disk usage: ${DISK_USAGE}% (${DISK_USED} used, ${DISK_AVAIL} available)"
     log "Final disk usage:   ${DISK_USAGE_AFTER}% (${DISK_USED_AFTER} used, ${DISK_AVAIL_AFTER} available)"
