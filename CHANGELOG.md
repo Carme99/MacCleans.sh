@@ -35,6 +35,10 @@ All notable changes to MacCleans.sh are documented in this file.
 - **Dry-Run Photos Check**: Photos app running check now logs warning in dry-run mode without blocking space calculation
 - **Photos App Auto-Close**: When `--yes` flag is used, script now auto-closes Photos app for safe cleanup
 - **Section Numbering**: Fixed incorrect section numbers after .DS_Store was moved to end
+- **iCloud Drive Recovery Message**: Fixed incorrect claim that files are "recoverable via Recently Deleted". Files are permanently deleted; local-only files pending upload cannot be recovered
+- **Photos Database Safety**: Changed from `pkill -9` (SIGKILL) to graceful shutdown with SIGTERM + 5-second polling loop to prevent SQLite database corruption
+- **Path Traversal Protection**: Added validation for `--photos-library` flag to reject path traversal attempts (`/` or `..`)
+- **Diagnostic Reports Symlink**: Added symlink check to find commands in Diagnostic Reports section
 
 ### Security & Stability
 

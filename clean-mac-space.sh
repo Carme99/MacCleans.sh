@@ -349,6 +349,11 @@ parse_arguments() {
                     exit 1
                 fi
                 PHOTOS_LIBRARY_NAME="$2"
+                # Validate: reject path traversal attempts
+                if [[ "$PHOTOS_LIBRARY_NAME" == *"/"* ]] || [[ "$PHOTOS_LIBRARY_NAME" == *".."* ]]; then
+                    echo "ERROR: --photos-library must be a plain library name, not a path" >&2
+                    exit 1
+                fi
                 shift 2
                 ;;
             --help|-h)
@@ -1636,15 +1641,47 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
             log "${YELLOW}Warning: Photos app is currently running (dry-run mode - no action taken)${NC}"
         else
             log "${YELLOW}Warning: Photos app is currently running${NC}"
-            if [ "$AUTO_YES" = true ]; then
-                log "Auto-closing Photos app for safe cleanup..."
-                osascript -e 'quit app "Photos"' 2>/dev/null || pkill -9 -x Photos 2>/dev/null
-                sleep 1
+            if [ "$AUTO_YES" = true ] || [ "$FORCE" = true ]; then
+                log "Closing Photos app for safe cleanup..."
+                # Try graceful quit first, then SIGTERM
+                osascript -e 'quit app "Photos"' 2>/dev/null || pkill -TERM -x Photos 2>/dev/null
+                
+                # Poll for up to 5 seconds for Photos to quit
+                for i in 1 2 3 4 5; do
+                    if ! pgrep -x Photos > /dev/null 2>&1; then
+                        break
+                    fi
+                    sleep 1
+                done
+                
+                # If still running, skip cleanup to prevent database corruption
+                if pgrep -x Photos > /dev/null 2>&1; then
+                    log_error "Photos app did not quit after 5 seconds. Skipping cleanup to prevent database corruption."
+                    log "Please close Photos manually and retry."
+                    SKIP_PHOTOS_LIBRARY=true
+                    SKIPPED_CATEGORIES+=("Photos Library Cache")
+                fi
             else
                 read -p "Close Photos app for safe cleanup? (y/n): " -r
                 if [[ $REPLY =~ ^[Yy]$ ]]; then
-                    osascript -e 'quit app "Photos"' 2>/dev/null || pkill -9 -x Photos 2>/dev/null
-                    sleep 1
+                    # Try graceful quit first, then SIGTERM
+                    osascript -e 'quit app "Photos"' 2>/dev/null || pkill -TERM -x Photos 2>/dev/null
+                    
+                    # Poll for up to 5 seconds for Photos to quit
+                    for i in 1 2 3 4 5; do
+                        if ! pgrep -x Photos > /dev/null 2>&1; then
+                            break
+                        fi
+                        sleep 1
+                    done
+                    
+                    # If still running, skip cleanup to prevent database corruption
+                    if pgrep -x Photos > /dev/null 2>&1; then
+                        log_error "Photos app did not quit after 5 seconds. Skipping cleanup to prevent database corruption."
+                        log "Please close Photos manually and retry."
+                        SKIP_PHOTOS_LIBRARY=true
+                        SKIPPED_CATEGORIES+=("Photos Library Cache")
+                    fi
                 else
                     log "Skipping Photos Library - close Photos and retry"
                     SKIP_PHOTOS_LIBRARY=true
@@ -1807,15 +1844,22 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
 
                     if [ "$DRY_RUN" = true ]; then
                         log "Would remove iCloud Drive files: $ICLOUD_DRIVE_SIZE"
-                        log "${DIM}(Files will be DELETED from iCloud, recoverable via Recently Deleted)${NC}"
+                        log "${DIM}(Files will be PERMANENTLY DELETED - local-only files cannot be recovered)${NC}"
                         TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
                     else
-                        log "Removing iCloud Drive files (DELETED from iCloud, not just local cache)..."
+                        log "Removing iCloud Drive files (PERMANENTLY DELETED from iCloud)..."
                         for folder in "${ICLOUD_FOLDERS[@]}"; do
-                            find "$folder" -type f -mindepth 1 -delete 2>/dev/null
-                            find "$folder" -type d -mindepth 1 -depth -empty -delete 2>/dev/null
+                            # Safety: skip symlinks to prevent symlink attacks
+                            if [ -L "$folder" ]; then
+                                log_warning "Skipping symlink: $folder"
+                                continue
+                            fi
+                            find "$folder" -type f -mindepth 1 ! -L -delete 2>/dev/null
+                            find "$folder" -type d -mindepth 1 -depth ! -L -empty -delete 2>/dev/null
                         done
-                        log_success "iCloud Drive files removed (check Recently Deleted in iCloud to recover)"
+                        log_success "iCloud Drive files removed"
+                        log "${RED}WARNING: Files pending upload are PERMANENTLY LOST!${NC}"
+                        log "${RED}Check System Settings > iCloud > iCloud Drive for pending uploads before running.${NC}"
                         TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
                     fi
                 else
@@ -1922,8 +1966,9 @@ if [ "$SKIP_DIAGNOSTICS" = false ]; then
             TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DIAG_SIZE_BYTES))
         else
             log "Cleaning old diagnostic reports..."
-            [ -d "$DIAG_USER" ] && find "$DIAG_USER" -type f -mtime +30 -delete 2>/dev/null
-            [ -d "$DIAG_SYSTEM" ] && find "$DIAG_SYSTEM" -type f -mtime +30 -delete 2>/dev/null
+            # Safety: skip symlinks to prevent symlink attacks
+            [ -d "$DIAG_USER" ] && [ ! -L "$DIAG_USER" ] && find "$DIAG_USER" -type f -mtime +30 ! -L -delete 2>/dev/null
+            [ -d "$DIAG_SYSTEM" ] && [ ! -L "$DIAG_SYSTEM" ] && find "$DIAG_SYSTEM" -type f -mtime +30 ! -L -delete 2>/dev/null
             log_success "Old diagnostic reports cleaned"
             TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DIAG_SIZE_BYTES))
         fi
