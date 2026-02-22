@@ -1795,6 +1795,8 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
     fi
     
     log_plain ""
+else
+    SKIPPED_CATEGORIES+=("Photos Library Cache")
 fi
 
 ###############################################################################
@@ -1816,7 +1818,7 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
             if [ -d "$dir" ]; then
                 dirname=$(basename "$dir")
                 # Match iCloud Drive folders (various language versions)
-                if [[ "$dirname" == iCloud\ Drive* ]] || [[ "$dirname" == "iCloud Drive" ]]; then
+                if [[ "$dirname" == iCloud\ Drive* ]]; then
                     ICLOUD_FOLDERS+=("$dir")
                 fi
             fi
