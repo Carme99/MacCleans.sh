@@ -17,6 +17,7 @@ All notable changes to MacCleans.sh are documented in this file.
 - Renamed `--skip-icloud-photos` → `--skip-photos-library`
 - Renamed variable `SKIP_ICLOUD_PHOTOS` → `SKIP_PHOTOS_LIBRARY`
 - Updated category name: "iCloud Photos Cache" → "Photos Library Cache"
+- **FORCE=true in config now propagates to AUTO_YES=true**: This means iOS device backups and iCloud Drive files will be deleted without requiring 'DELETE' confirmation when FORCE=true is set in config. Users who previously relied on config-based FORCE=true for unattended runs should add `SKIP_IOS_BACKUPS=true` and `SKIP_ICLOUD_DRIVE=true` to their config if they don't want these categories deleted.
 
 ### Bug Fixes (v4.0.x)
 

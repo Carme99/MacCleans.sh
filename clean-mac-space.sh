@@ -1409,8 +1409,10 @@ if [ "$SKIP_TRASH" = false ]; then
                 find "$TRASH_DIR" -maxdepth 1 -type f -delete 2>/dev/null
                 # Delete hidden files but not symlinks
                 find "$TRASH_DIR" -maxdepth 1 -type f -name '.*' -delete 2>/dev/null
-                # Delete directories (including non-empty) - use rm -rf as find -delete only removes empty dirs
-                find "$TRASH_DIR" -maxdepth 1 -mindepth 1 -type d -not -name '.Trash' -print0 | xargs -0 rm -rf 2>/dev/null || true
+                # Delete directories (including non-empty)
+                # Note: -type d is the symlink guard (BSD find: -type d doesn't match symlinks to dirs)
+                # -mindepth 1 already excludes .Trash itself, so -not -name is unnecessary
+                find "$TRASH_DIR" -maxdepth 1 -mindepth 1 -type d -print0 | xargs -0 rm -rf 2>/dev/null || true
                 log_success "Trash emptied"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
             fi
