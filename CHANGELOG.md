@@ -39,6 +39,9 @@ All notable changes to MacCleans.sh are documented in this file.
 - **Photos Database Safety**: Changed from `pkill -9` (SIGKILL) to graceful shutdown with SIGTERM + 5-second polling loop to prevent SQLite database corruption
 - **Path Traversal Protection**: Added validation for `--photos-library` flag to reject path traversal attempts (`/` or `..`)
 - **Diagnostic Reports Symlink**: Added symlink check to find commands in Diagnostic Reports section
+- **BSD Find Compatibility**: Removed invalid `\! -L` predicate from find commands (not valid in macOS BSD find). Added `|| true` guards to prevent set -e aborts
+- **Photos Summary Fix**: Added missing else clause so skipped Photos Library shows in summary
+- **Dead Code Removal**: Removed redundant condition in iCloud Drive folder matching
 
 ### Security & Stability
 
