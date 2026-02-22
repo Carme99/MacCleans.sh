@@ -1854,8 +1854,9 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
                                 log_warning "Skipping symlink: $folder"
                                 continue
                             fi
-                            find "$folder" -type f -mindepth 1 ! -L -delete 2>/dev/null
-                            find "$folder" -type d -mindepth 1 -depth ! -L -empty -delete 2>/dev/null
+                            # Note: -type f/d already excludes symlinks; ! -L is invalid in BSD find
+                            find "$folder" -type f -mindepth 1 -delete 2>/dev/null || true
+                            find "$folder" -type d -mindepth 1 -depth -empty -delete 2>/dev/null || true
                         done
                         log_success "iCloud Drive files removed"
                         log "${RED}WARNING: Files pending upload are PERMANENTLY LOST!${NC}"
@@ -1967,8 +1968,9 @@ if [ "$SKIP_DIAGNOSTICS" = false ]; then
         else
             log "Cleaning old diagnostic reports..."
             # Safety: skip symlinks to prevent symlink attacks
-            [ -d "$DIAG_USER" ] && [ ! -L "$DIAG_USER" ] && find "$DIAG_USER" -type f -mtime +30 ! -L -delete 2>/dev/null
-            [ -d "$DIAG_SYSTEM" ] && [ ! -L "$DIAG_SYSTEM" ] && find "$DIAG_SYSTEM" -type f -mtime +30 ! -L -delete 2>/dev/null
+            # Note: -type f already excludes symlinks; ! -L is invalid in BSD find
+            [ -d "$DIAG_USER" ] && [ ! -L "$DIAG_USER" ] && find "$DIAG_USER" -type f -mtime +30 -delete 2>/dev/null || true
+            [ -d "$DIAG_SYSTEM" ] && [ ! -L "$DIAG_SYSTEM" ] && find "$DIAG_SYSTEM" -type f -mtime +30 -delete 2>/dev/null || true
             log_success "Old diagnostic reports cleaned"
             TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DIAG_SIZE_BYTES))
         fi
