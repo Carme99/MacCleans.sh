@@ -466,6 +466,24 @@ bytes_to_human() {
     fi
 }
 
+# Function to safely quit Photos app and poll for exit
+# Returns 0 if Photos quit successfully, 1 if it didn't quit
+quit_photos_app() {
+    # Try graceful quit first, then SIGTERM
+    osascript -e 'quit app "Photos"' 2>/dev/null || pkill -TERM -x Photos 2>/dev/null
+    
+    # Poll for up to 5 seconds for Photos to quit
+    for i in 1 2 3 4 5; do
+        if ! pgrep -x Photos > /dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+    done
+    
+    # If still running, return failure
+    return 1
+}
+
 ###############################################################################
 # System Validation and Health Checks
 ###############################################################################
@@ -651,10 +669,55 @@ interactive_selection() {
         local var
         var=$(echo "${categories[$idx]}" | cut -d'|' -f2)
         local current_val="${!var}"
+        # Use case statement instead of eval for security
         if [ "$current_val" = "true" ]; then
-            eval "$var=false"
+            case "$var" in
+                SKIP_SNAPSHOTS) SKIP_SNAPSHOTS=false ;;
+                SKIP_HOMEBREW) SKIP_HOMEBREW=false ;;
+                SKIP_SPOTIFY) SKIP_SPOTIFY=false ;;
+                SKIP_CLAUDE) SKIP_CLAUDE=false ;;
+                SKIP_XCODE) SKIP_XCODE=false ;;
+                SKIP_BROWSERS) SKIP_BROWSERS=false ;;
+                SKIP_NPM) SKIP_NPM=false ;;
+                SKIP_PIP) SKIP_PIP=false ;;
+                SKIP_TRASH) SKIP_TRASH=false ;;
+                SKIP_DSSTORE) SKIP_DSSTORE=false ;;
+                SKIP_DOCKER) SKIP_DOCKER=false ;;
+                SKIP_SIMULATOR) SKIP_SIMULATOR=false ;;
+                SKIP_MAIL) SKIP_MAIL=false ;;
+                SKIP_SIRI_TTS) SKIP_SIRI_TTS=false ;;
+                SKIP_ICLOUD_MAIL) SKIP_ICLOUD_MAIL=false ;;
+                SKIP_PHOTOS_LIBRARY) SKIP_PHOTOS_LIBRARY=false ;;
+                SKIP_ICLOUD_DRIVE) SKIP_ICLOUD_DRIVE=false ;;
+                SKIP_QUICKLOOK) SKIP_QUICKLOOK=false ;;
+                SKIP_DIAGNOSTICS) SKIP_DIAGNOSTICS=false ;;
+                SKIP_IOS_BACKUPS) SKIP_IOS_BACKUPS=false ;;
+                SKIP_IOS_UPDATES) SKIP_IOS_UPDATES=false ;;
+            esac
         else
-            eval "$var=true"
+            case "$var" in
+                SKIP_SNAPSHOTS) SKIP_SNAPSHOTS=true ;;
+                SKIP_HOMEBREW) SKIP_HOMEBREW=true ;;
+                SKIP_SPOTIFY) SKIP_SPOTIFY=true ;;
+                SKIP_CLAUDE) SKIP_CLAUDE=true ;;
+                SKIP_XCODE) SKIP_XCODE=true ;;
+                SKIP_BROWSERS) SKIP_BROWSERS=true ;;
+                SKIP_NPM) SKIP_NPM=true ;;
+                SKIP_PIP) SKIP_PIP=true ;;
+                SKIP_TRASH) SKIP_TRASH=true ;;
+                SKIP_DSSTORE) SKIP_DSSTORE=true ;;
+                SKIP_DOCKER) SKIP_DOCKER=true ;;
+                SKIP_SIMULATOR) SKIP_SIMULATOR=true ;;
+                SKIP_MAIL) SKIP_MAIL=true ;;
+                SKIP_SIRI_TTS) SKIP_SIRI_TTS=true ;;
+                SKIP_ICLOUD_MAIL) SKIP_ICLOUD_MAIL=true ;;
+                SKIP_PHOTOS_LIBRARY) SKIP_PHOTOS_LIBRARY=true ;;
+                SKIP_ICLOUD_DRIVE) SKIP_ICLOUD_DRIVE=true ;;
+                SKIP_QUICKLOOK) SKIP_QUICKLOOK=true ;;
+                SKIP_DIAGNOSTICS) SKIP_DIAGNOSTICS=true ;;
+                SKIP_IOS_BACKUPS) SKIP_IOS_BACKUPS=true ;;
+                SKIP_IOS_UPDATES) SKIP_IOS_UPDATES=true ;;
+            esac
         fi
     }
 
@@ -1406,9 +1469,8 @@ if [ "$SKIP_TRASH" = false ]; then
             else
                 log "Emptying trash..."
                 # Safely delete files only (not symlinks) in trash
+                # Note: -type f matches all files including hidden files
                 find "$TRASH_DIR" -maxdepth 1 -type f -delete 2>/dev/null
-                # Delete hidden files but not symlinks
-                find "$TRASH_DIR" -maxdepth 1 -type f -name '.*' -delete 2>/dev/null
                 # Delete directories (including non-empty)
                 # Note: -type d is the symlink guard (BSD find: -type d doesn't match symlinks to dirs)
                 # -mindepth 1 already excludes .Trash itself, so -not -name is unnecessary
@@ -1645,19 +1707,7 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
             log "${YELLOW}Warning: Photos app is currently running${NC}"
             if [ "$AUTO_YES" = true ] || [ "$FORCE" = true ]; then
                 log "Closing Photos app for safe cleanup..."
-                # Try graceful quit first, then SIGTERM
-                osascript -e 'quit app "Photos"' 2>/dev/null || pkill -TERM -x Photos 2>/dev/null
-                
-                # Poll for up to 5 seconds for Photos to quit
-                for i in 1 2 3 4 5; do
-                    if ! pgrep -x Photos > /dev/null 2>&1; then
-                        break
-                    fi
-                    sleep 1
-                done
-                
-                # If still running, skip cleanup to prevent database corruption
-                if pgrep -x Photos > /dev/null 2>&1; then
+                if ! quit_photos_app; then
                     log_error "Photos app did not quit after 5 seconds. Skipping cleanup to prevent database corruption."
                     log "Please close Photos manually and retry."
                     SKIP_PHOTOS_LIBRARY=true
@@ -1666,19 +1716,7 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
             else
                 read -p "Close Photos app for safe cleanup? (y/n): " -r
                 if [[ $REPLY =~ ^[Yy]$ ]]; then
-                    # Try graceful quit first, then SIGTERM
-                    osascript -e 'quit app "Photos"' 2>/dev/null || pkill -TERM -x Photos 2>/dev/null
-                    
-                    # Poll for up to 5 seconds for Photos to quit
-                    for i in 1 2 3 4 5; do
-                        if ! pgrep -x Photos > /dev/null 2>&1; then
-                            break
-                        fi
-                        sleep 1
-                    done
-                    
-                    # If still running, skip cleanup to prevent database corruption
-                    if pgrep -x Photos > /dev/null 2>&1; then
+                    if ! quit_photos_app; then
                         log_error "Photos app did not quit after 5 seconds. Skipping cleanup to prevent database corruption."
                         log "Please close Photos manually and retry."
                         SKIP_PHOTOS_LIBRARY=true
@@ -1771,7 +1809,13 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
                         else
                             # Check for symlink before deleting (security)
                             if [ -d "$RESOURCES_DIR" ] && [ ! -L "$RESOURCES_DIR" ]; then
-                                find "$RESOURCES_DIR" -mindepth 1 -delete 2>/dev/null || true
+                                # Only clear known cache subdirectories, skip cpl/ (iCloud sync state)
+                                for cache_dir in derivatives renders caches proxies; do
+                                    target="$RESOURCES_DIR/$cache_dir"
+                                    if [ -d "$target" ] && [ ! -L "$target" ]; then
+                                        find "$target" -mindepth 1 -delete 2>/dev/null || true
+                                    fi
+                                done
                             fi
                             log_success "  Cleared: $LIB_HUMAN"
                         fi
@@ -1858,7 +1902,8 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
                                 log_warning "Skipping symlink: $folder"
                                 continue
                             fi
-                            # Note: -type f/d already excludes symlinks; ! -L is invalid in BSD find
+                            # Note: -type f/d excludes symlinks (safety feature), 
+                            # so du -sk accounting may slightly overstate freed space
                             find "$folder" -type f -mindepth 1 -delete 2>/dev/null || true
                             find "$folder" -type d -mindepth 1 -depth -empty -delete 2>/dev/null || true
                         done

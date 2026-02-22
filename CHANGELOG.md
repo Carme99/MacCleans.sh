@@ -43,6 +43,10 @@ All notable changes to MacCleans.sh are documented in this file.
 - **BSD Find Compatibility**: Removed invalid `\! -L` predicate from find commands (not valid in macOS BSD find). Added `|| true` guards to prevent set -e aborts
 - **Photos Summary Fix**: Added missing else clause so skipped Photos Library shows in summary
 - **Dead Code Removal**: Removed redundant condition in iCloud Drive folder matching
+- **Interactive Menu Security**: Replaced `eval` with case statement to prevent potential code injection
+- **Photos Library Targeted Cleanup**: Only clear known cache subdirectories (derivatives, renders, caches, proxies), skip cpl/ to preserve iCloud sync state
+- **Trash Cleanup**: Removed redundant find command (second -type f -name '.*' was unnecessary)
+- **Code Refactoring**: Extracted Photos quit logic to reusable function to eliminate duplication
 
 ### Security & Stability
 
