@@ -548,7 +548,8 @@ perform_health_checks() {
     # Check system load (if uptime available)
     if command -v uptime &> /dev/null; then
         local load_avg
-        load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d. -f1 | tr -d ' \n' || echo "0")
+        # Parse load average - get first number before decimal
+        load_avg=$(uptime 2>/dev/null | awk -F'load average:' '{print $2}' | awk '{print $1}' | cut -d. -f1 | tr -d ' \n')
         # Ensure load_avg is not empty and is numeric
         if [ -z "$load_avg" ] || ! [[ "$load_avg" =~ ^[0-9]+$ ]]; then
             load_avg=0
@@ -887,10 +888,11 @@ if [ "$INTERACTIVE" = true ] && [ "$QUIET" = false ]; then
 fi
 
 # Get initial disk usage (capture bytes for accurate calculation)
-DISK_USAGE=$(df -h / | tail -1 | awk '{print $5}' | sed 's/%//')
-DISK_AVAIL=$(df -h / | tail -1 | awk '{print $4}')
-DISK_USED=$(df -h / | tail -1 | awk '{print $3}')
-DISK_AVAIL_BYTES=$(df -k / | tail -1 | awk '{print $4}')  # Get KB
+# Use 'df /' instead of 'df -h | tail -1' for reliability
+DISK_USAGE=$(df -h / 2>/dev/null | awk 'NR==2 {print $5}' | sed 's/%//')
+DISK_AVAIL=$(df -h / 2>/dev/null | awk 'NR==2 {print $4}')
+DISK_USED=$(df -h / 2>/dev/null | awk 'NR==2 {print $3}')
+DISK_AVAIL_BYTES=$(df -k / 2>/dev/null | awk 'NR==2 {print $4}')  # Get KB
 DISK_AVAIL_BYTES=$((DISK_AVAIL_BYTES * 1024))  # Convert KB to bytes
 
 log "Running as user: $ACTUAL_USER"
@@ -949,13 +951,14 @@ if [ "$SKIP_SNAPSHOTS" = false ]; then
             SNAPSHOT_ESTIMATE=""
 
             if command -v diskutil &> /dev/null; then
-                # Get volume root disk identifier
-                ROOT_DISK=$(df / | tail -1 | awk '{print $1}' | sed 's|/dev/||')
+                # Get volume root disk identifier (use 'df /' for reliability)
+                ROOT_DISK=$(df / 2>/dev/null | awk 'NR==2 {print $1}' | sed 's|/dev/||')
 
                 # Get container total and free space to estimate snapshot overhead (extract byte values)
-                CONTAINER_TOTAL=$(diskutil info "$ROOT_DISK" 2>/dev/null | grep "Container Total Space" | grep -oE '\([0-9]+ Bytes\)' | grep -oE '[0-9]+' || echo "0")
-                CONTAINER_FREE=$(diskutil info "$ROOT_DISK" 2>/dev/null | grep "Container Free Space" | grep -oE '\([0-9]+ Bytes\)' | grep -oE '[0-9]+' || echo "0")
-                VOLUME_USED=$(diskutil info "$ROOT_DISK" 2>/dev/null | grep "Volume Used Space" | grep -oE '\([0-9]+ Bytes\)' | grep -oE '[0-9]+' || echo "0")
+                # Use diskutil info with better parsing - extract numeric value after "Bytes"
+                CONTAINER_TOTAL=$(diskutil info "$ROOT_DISK" 2>/dev/null | grep "Container Total Space" | sed 's/.*(\([0-9]*\) Bytes).*/\1/' | grep -oE '^[0-9]+' || echo "0")
+                CONTAINER_FREE=$(diskutil info "$ROOT_DISK" 2>/dev/null | grep "Container Free Space" | sed 's/.*(\([0-9]*\) Bytes).*/\1/' | grep -oE '^[0-9]+' || echo "0")
+                VOLUME_USED=$(diskutil info "$ROOT_DISK" 2>/dev/null | grep "Volume Used Space" | sed 's/.*(\([0-9]*\) Bytes).*/\1/' | grep -oE '^[0-9]+' || echo "0")
 
                 # Ensure all values are numeric
                 if ! [[ "$CONTAINER_TOTAL" =~ ^[0-9]+$ ]]; then CONTAINER_TOTAL=0; fi
@@ -965,6 +968,11 @@ if [ "$SKIP_SNAPSHOTS" = false ]; then
                 if [ "$CONTAINER_TOTAL" -gt 0 ] && [ "$CONTAINER_FREE" -gt 0 ] && [ "$VOLUME_USED" -gt 0 ]; then
                     # Unaccounted space = Total - Used - Free (likely includes snapshots and purgeable)
                     UNACCOUNTED=$((CONTAINER_TOTAL - VOLUME_USED - CONTAINER_FREE))
+
+                    # Check for negative value (edge case) - set to 0 if negative
+                    if [ "$UNACCOUNTED" -lt 0 ]; then
+                        UNACCOUNTED=0
+                    fi
 
                     # Rough estimate: assume 50-70% of unaccounted space is snapshots
                     # This is conservative as unaccounted space includes other APFS overhead
@@ -1500,10 +1508,10 @@ if [ "$SKIP_DOCKER" = false ]; then
     log_plain "================================================"
 
     if command -v docker &> /dev/null; then
-        # Get docker disk usage
+        # Get docker disk usage (with proper error handling)
         DOCKER_INFO=$(docker system df 2>/dev/null || echo "")
 
-        if [ -n "$DOCKER_INFO" ]; then
+        if [ -n "$DOCKER_INFO" ] && [ -n "${DOCKER_INFO// }" ]; then
             log "Docker system disk usage:"
             echo "$DOCKER_INFO" | tail -n +2 | while read -r line; do
                 log "  $line"
@@ -1511,12 +1519,13 @@ if [ "$SKIP_DOCKER" = false ]; then
 
             # Estimate reclaimable space using docker's format option
             DOCKER_RECLAIM_SIZE=$(docker system df --format '{{.Reclaimable}}' 2>/dev/null | head -1 || echo "0B")
-            if [ -n "$DOCKER_RECLAIM_SIZE" ] && [ "$DOCKER_RECLAIM_SIZE" != "0B" ]; then
+            # Validate and sanitize - handle empty, 0B, or N/A
+            if [ -z "$DOCKER_RECLAIM_SIZE" ] || [ "$DOCKER_RECLAIM_SIZE" = "0B" ] || [ "$DOCKER_RECLAIM_SIZE" = "N/A" ]; then
+                DOCKER_RECLAIM=0
+            else
                 # Strip any trailing parenthetical percentage e.g. "3.2GB (45%)" -> "3.2GB"
                 DOCKER_RECLAIM_SIZE=$(echo "$DOCKER_RECLAIM_SIZE" | awk '{print $1}')
                 DOCKER_RECLAIM=$(size_to_bytes "$DOCKER_RECLAIM_SIZE")
-            else
-                DOCKER_RECLAIM=0
             fi
 
             if [ "$DRY_RUN" = true ]; then
