@@ -8,8 +8,9 @@
 set -euo pipefail
 
 # Check for sudo at the start - re-run with sudo if needed
+# Use /dev/stdin to handle piped input from curl
 if [ "$EUID" -ne 0 ]; then
-    exec sudo bash "$0" "$@"
+    exec sudo bash -s -- "$@" <<< "$(cat)"
 fi
 
 # Configuration
