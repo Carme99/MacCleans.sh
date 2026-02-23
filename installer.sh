@@ -7,10 +7,21 @@
 
 set -euo pipefail
 
-# Check for sudo at the start - re-run with sudo if needed
-# Use /dev/stdin to handle piped input from curl
+# Detect if input is from pipe (curl | bash) or terminal
 if [ "$EUID" -ne 0 ]; then
-    exec sudo bash -s -- "$@" <<< "$(cat)"
+    # Check if stdin is a pipe (from curl)
+    if [ ! -t 0 ]; then
+        # Piped input - cannot re-run with sudo, ask user to run with sudo
+        echo "[*] This script requires sudo to install to /usr/local/bin"
+        echo "[*] Please run with sudo:"
+        echo ""
+        echo "    curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/installer.sh | sudo bash"
+        echo ""
+        exit 1
+    else
+        # Terminal input - re-run with sudo
+        exec sudo bash "$0" "$@"
+    fi
 fi
 
 # Configuration
