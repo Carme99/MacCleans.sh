@@ -540,17 +540,31 @@ log_error() {
 # Uses awk to avoid bash integer overflow on large sizes (TB+)
 size_to_bytes() {
     local size="$1"
-    awk -v s="$size" 'BEGIN {
-        if (match(s, /^([0-9.]+)([KMGT]?)/, m)) {
-            n = m[1]; u = m[2]
-            if (u == "K" || u == "k" || u == "KB" || u == "kb") n *= 1024
-            else if (u == "M" || u == "m" || u == "MB" || u == "mb") n *= 1048576
-            else if (u == "G" || u == "g" || u == "GB" || u == "gb") n *= 1073741824
-            else if (u == "T" || u == "t" || u == "TB" || u == "tb") n *= 1099511627776
-            else if (u == "P" || u == "p" || u == "PB" || u == "pb") n *= 1125899906842624
-            else if (u == "E" || u == "e" || u == "EB" || u == "eb") n *= 1152921504606846976
-            printf "%.0f", n
-        } else print 0
+    # Use POSIX-compatible awk (macOS default awk doesn't support regex capture groups)
+    echo "$size" | awk '{
+        # Extract number and unit
+        if (match($0, /^[0-9.]+/)) {
+            n = substr($0, RSTART, RLENGTH)
+        } else {
+            n = 0
+        }
+        # Extract unit (everything after the number)
+        if (match($0, /[A-Za-z]+$/)) {
+            u = substr($0, RSTART, RLENGTH)
+        } else {
+            u = ""
+        }
+        # Remove any spaces
+        gsub(/[ \t]/, "", u)
+        
+        # Convert
+        if (u == "K" || u == "k" || u == "KB" || u == "kb") n *= 1024
+        else if (u == "M" || u == "m" || u == "MB" || u == "mb") n *= 1048576
+        else if (u == "G" || u == "g" || u == "GB" || u == "gb") n *= 1073741824
+        else if (u == "T" || u == "t" || u == "TB" || u == "tb") n *= 1099511627776
+        else if (u == "P" || u == "p" || u == "PB" || u == "pb") n *= 1125899906842624
+        else if (u == "E" || u == "e" || u == "EB" || u == "eb") n *= 1152921504606846976
+        printf "%.0f", n
     }'
 }
 
