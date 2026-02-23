@@ -20,7 +20,13 @@
 
 > A comprehensive macOS disk cleanup utility that safely frees up disk space by removing cache files, temporary files, and other safe-to-delete items.
 
-## Quick Start (30 seconds)
+## Quick Links
+
+[Installation](#installation) · [Usage](#usage) · [Features](#features) · [Categories](#what-gets-cleaned-23-categories) · [Commands](#quick-reference) · [Safety](#safety-guarantees) · [Automation](#automation) · [Troubleshooting](#troubleshooting)
+
+---
+
+## Quick Start
 
 ```bash
 # Install and run in one command
