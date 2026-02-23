@@ -2,6 +2,20 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [4.1.1] - 2026-02-23
+
+### Bug Fixes
+
+- **Size conversion error**: Fixed `size_to_bytes()` function for macOS - now uses POSIX-compatible awk (macOS default awk doesn't support regex capture groups in `match()`)
+- **Non-interactive mode**: Script no longer hangs when run from cron/automation - auto-confirms when stdin is not a TTY
+- **Concurrent runs**: Added lock file to prevent multiple instances from running simultaneously
+- **Safety**: Added symlink protection for temp file deletion
+- **Reliability**: Validates disk usage and user existence before operations
+
+### Installer Fixes
+
+- Fixed sudo detection for piped input from curl
+
 ## [4.1.0] - 2026-02-23
 
 ### New Features
