@@ -40,7 +40,7 @@ VERSION="4.1.0"
 #   --interactive, -i   Interactive category selection mode
 #   --profile NAME      Use preset profile (conservative, developer, aggressive, minimal)
 #   --update, -u        Run brew update before cleanup
-#   --verbose, -v        Enable verbose debug output
+#   --verbose, -V        Enable verbose debug output
 #   --skip-snapshots    Skip Time Machine snapshot deletion
 #   --skip-homebrew     Skip Homebrew cache cleanup
 #   --skip-spotify      Skip Spotify cache cleanup
@@ -107,6 +107,7 @@ SKIP_GO=false
 SKIP_BUN=false
 SKIP_PNPM=false
 UPDATE=false
+VERBOSE=false
 
 # Configuration file locations (checked in order)
 CONFIG_FILES=(
@@ -150,7 +151,7 @@ validate_config() {
     local errors=0
 
     # Validate boolean values
-    for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR UPDATE SKIP_SNAPSHOTS SKIP_HOMEBREW \
+    for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR UPDATE VERBOSE SKIP_SNAPSHOTS SKIP_HOMEBREW \
                SKIP_SPOTIFY SKIP_CLAUDE SKIP_XCODE SKIP_BROWSERS SKIP_NPM \
                SKIP_PIP SKIP_TRASH SKIP_DSSTORE SKIP_DOCKER SKIP_SIMULATOR SKIP_MAIL \
                SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_PHOTOS_LIBRARY SKIP_ICLOUD_DRIVE SKIP_QUICKLOOK SKIP_DIAGNOSTICS SKIP_IOS_BACKUPS \
@@ -217,6 +218,13 @@ load_config_file() {
                     SKIP_DIAGNOSTICS) SKIP_DIAGNOSTICS="$value" ;;
                     SKIP_IOS_BACKUPS) SKIP_IOS_BACKUPS="$value" ;;
                     SKIP_IOS_UPDATES) SKIP_IOS_UPDATES="$value" ;;
+                    SKIP_COCOAPODS) SKIP_COCOAPODS="$value" ;;
+                    SKIP_GRADLE) SKIP_GRADLE="$value" ;;
+                    SKIP_GO) SKIP_GO="$value" ;;
+                    SKIP_BUN) SKIP_BUN="$value" ;;
+                    SKIP_PNPM) SKIP_PNPM="$value" ;;
+                    UPDATE) UPDATE="$value" ;;
+                    VERBOSE) VERBOSE="$value" ;;
                 esac
             done < "$config_file"
             break
@@ -384,8 +392,9 @@ parse_arguments() {
                 UPDATE=true
                 shift
                 ;;
-            --verbose)
-                set -x
+            --verbose|-V)
+                VERBOSE=true
+                export VERBOSE
                 shift
                 ;;
             --photos-library)
@@ -446,7 +455,7 @@ start_spinner() {
     printf "${DIM}%s${NC} " "$message"
     (while true; do
         for char in $SPINNER_chars; do
-            printf "\b$char"
+            printf "\b%s" "$char"
             sleep 0.1
         done
     done) &
@@ -482,6 +491,13 @@ log() {
     fi
 }
 
+# Function to log verbose debug output (only when --verbose is used)
+log_verbose() {
+    if [ "$VERBOSE" = true ] && [ "$QUIET" = false ]; then
+        echo -e "${DIM}[$(date '+%Y-%m-%d %H:%M:%S')] [DEBUG]${NC} $1"
+    fi
+}
+
 # Function to log without timestamp
 log_plain() {
     if [ "$QUIET" = false ]; then
@@ -514,23 +530,21 @@ log_error() {
 }
 
 # Function to convert human-readable size to bytes
+# Uses awk to avoid bash integer overflow on large sizes (TB+)
 size_to_bytes() {
-    local size=$1
-    local number
-    number=$(echo "$size" | grep -oE '[0-9.]+' || echo "0")
-    local unit
-    unit=$(echo "$size" | grep -oE '[A-Za-z]+' || echo "B")
-
-    # Convert to integer (bash doesn't handle floats)
-    number=${number%.*}
-
-    case $unit in
-        K|k|KB|kb) echo $((number * 1024)) ;;
-        M|m|MB|mb) echo $((number * 1024 * 1024)) ;;
-        G|g|GB|gb) echo $((number * 1024 * 1024 * 1024)) ;;
-        T|t|TB|tb) echo $((number * 1024 * 1024 * 1024 * 1024)) ;;
-        *) echo "$number" ;;
-    esac
+    local size="$1"
+    awk -v s="$size" 'BEGIN {
+        if (match(s, /^([0-9.]+)([KMGT]?)/, m)) {
+            n = m[1]; u = m[2]
+            if (u == "K" || u == "k" || u == "KB" || u == "kb") n *= 1024
+            else if (u == "M" || u == "m" || u == "MB" || u == "mb") n *= 1048576
+            else if (u == "G" || u == "g" || u == "GB" || u == "gb") n *= 1073741824
+            else if (u == "T" || u == "t" || u == "TB" || u == "tb") n *= 1099511627776
+            else if (u == "P" || u == "p" || u == "PB" || u == "pb") n *= 1125899906842624
+            else if (u == "E" || u == "e" || u == "EB" || u == "eb") n *= 1152921504606846976
+            printf "%.0f", n
+        } else print 0
+    }'
 }
 
 # Function to convert bytes to human-readable
@@ -788,11 +802,6 @@ interactive_selection() {
                 SKIP_DIAGNOSTICS) SKIP_DIAGNOSTICS=false ;;
                 SKIP_IOS_BACKUPS) SKIP_IOS_BACKUPS=false ;;
                 SKIP_IOS_UPDATES) SKIP_IOS_UPDATES=false ;;
-                SKIP_COCOAPODS) SKIP_COCOAPODS=false ;;
-                SKIP_GRADLE) SKIP_GRADLE=false ;;
-                SKIP_GO) SKIP_GO=false ;;
-                SKIP_BUN) SKIP_BUN=false ;;
-                SKIP_PNPM) SKIP_PNPM=false ;;
                 SKIP_COCOAPODS) SKIP_COCOAPODS=false ;;
                 SKIP_GRADLE) SKIP_GRADLE=false ;;
                 SKIP_GO) SKIP_GO=false ;;
