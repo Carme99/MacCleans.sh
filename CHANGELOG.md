@@ -47,6 +47,7 @@ All notable changes to MacCleans.sh are documented in this file.
 - **Photos Library Targeted Cleanup**: Only clear known cache subdirectories (derivatives, renders, caches, proxies), skip cpl/ to preserve iCloud sync state
 - **Trash Cleanup**: Removed redundant find command (second -type f -name '.*' was unnecessary)
 - **Code Refactoring**: Extracted Photos quit logic to reusable function to eliminate duplication
+- **Robustness Improvements**: Improved parsing reliability for df, diskutil, docker, and uptime commands. Added numeric validation to prevent arithmetic errors
 
 ### Security & Stability
 
