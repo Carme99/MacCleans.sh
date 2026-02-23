@@ -452,7 +452,12 @@ size_to_bytes() {
 
 # Function to convert bytes to human-readable
 bytes_to_human() {
-    local bytes=$1
+    local bytes=${1:-0}
+    # Validate numeric input
+    if ! [[ "$bytes" =~ ^[0-9]+$ ]]; then
+        echo "0B"
+        return
+    fi
     if [ "$bytes" -lt 1024 ]; then
         echo "${bytes}B"
     elif [ "$bytes" -lt 1048576 ]; then
@@ -932,9 +937,7 @@ if [ "$SKIP_SNAPSHOTS" = false ]; then
     log_plain "================================================"
 
     # Check if Time Machine backup is currently running
-    TM_RUNNING=$(tmutil status 2>/dev/null | grep -c "Running = 1" || echo "0")
-    TM_RUNNING=$(echo "$TM_RUNNING" | tr -d '\n' | head -n 1)
-    if [ "$TM_RUNNING" -gt 0 ]; then
+    if tmutil status 2>/dev/null | grep -q "Running = 1"; then
         log_warning "Time Machine backup is currently running"
         log "Skipping snapshot deletion for safety"
     else
@@ -2105,7 +2108,10 @@ if [ "$SKIP_IOS_UPDATES" = false ]; then
         if [ -d "$UPDATE_DIR" ]; then
             while IFS= read -r -d '' ipsw_file; do
                 IPSW_SIZE=$(du -sk "$ipsw_file" 2>/dev/null | awk '{print $1}')
-                IPSW_SIZE=${IPSW_SIZE:-0}
+                # Validate numeric before arithmetic
+                if ! [[ "$IPSW_SIZE" =~ ^[0-9]+$ ]]; then
+                    IPSW_SIZE=0
+                fi
                 IPSW_BYTES=$((IPSW_SIZE * 1024))
                 IPSW_HUMAN=$(bytes_to_human "$IPSW_BYTES")
                 IPSW_NAME=$(basename "$ipsw_file")
