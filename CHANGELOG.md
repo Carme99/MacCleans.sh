@@ -2,6 +2,33 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [4.1.0] - 2026-02-23
+
+### New Features
+
+- **New Command Name**: Script now installs as `Mac-Clean` (with backward-compatible symlink as `mac-clean`)
+- **Visual Feedback**: Added spinners, colored status indicators, and progress messages for better UX
+- **brew update Integration**: New `--update` / `-u` flag to run `brew update` before cleanup
+
+### New Cleanup Categories (5 additional)
+
+- **CocoaPods Cache**: Clean `$HOME/Library/Caches/CocoaPods` using `pod cache clean --all`
+- **Gradle Cache**: Clean `$HOME/.gradle/caches`
+- **Go Module Cache**: Clean `$GOPATH/pkg/mod` using `go clean -modcache`
+- **Bun Cache**: Clean `$HOME/.bun/install/cache`
+- **pnpm Store**: Clean pnpm store using `pnpm store prune`
+
+### Improvements
+
+- **Time Machine Snapshots**: Now shows accurate count only. Removed estimated size calculation since macOS doesn't expose snapshot sizes (previously showed unreliable estimates)
+- **Interactive Menu**: Updated to include all 29 cleanup categories in correct order
+- **Documentation**: Added attribution to [mac-cleanup](https://github.com/mac-cleanup/mac-cleanup-sh) for inspiration on several cleanup categories
+
+### Bug Fixes
+
+- Fixed section numbering after adding new categories (now 29 total, .DS_Store is section 29)
+- Installer script now creates proper symlinks for backward compatibility
+
 ## [4.0.0] - 2026-02-21
 
 ### Major Features

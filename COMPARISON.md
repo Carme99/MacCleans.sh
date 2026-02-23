@@ -140,6 +140,14 @@ MacCleans.sh was created to fill a gap:
 
 It's not about replacing commercial tools - it's about giving users choice and transparency.
 
+## Related Projects
+
+MacCleans.sh draws inspiration from several open-source projects:
+
+- **[mac-cleanup](https://github.com/mac-cleanup/mac-cleanup-sh)** (MIT License) - A popular shell-based macOS cleanup script that helped inspire several cleanup categories in MacCleans.sh. The CocoaPods, Gradle, Go, Bun, and pnpm cleanup modules were particularly influenced by their approach.
+
+Both projects aim to provide free, transparent, and scriptable cleanup for macOS - we encourage users to explore both!
+
 ---
 
 **Related:**

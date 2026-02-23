@@ -3,23 +3,27 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="4.0.0"
+VERSION="4.1.0"
 
 ###############################################################################
-# Mac Space Cleanup Script
+# Mac-Clean: macOS Disk Cleanup Utility
 # Purpose: Free up space on small SSDs by cleaning safe cache/temp files
 # Safe: Does not touch Safari, browser sessions, or critical user data
 #
 # Usage:
-#   sudo ~/Scripts/clean-mac-space.sh                    # Interactive cleanup
-#   sudo ~/Scripts/clean-mac-space.sh --dry-run          # Preview only
-#   sudo ~/Scripts/clean-mac-space.sh --yes              # Skip confirmation
-#   sudo ~/Scripts/clean-mac-space.sh --quiet            # Minimal output
-#   sudo ~/Scripts/clean-mac-space.sh --threshold 85     # Only run if disk >85%
-#   sudo ~/Scripts/clean-mac-space.sh --skip-spotify     # Skip Spotify cache
-#   sudo ~/Scripts/clean-mac-space.sh --skip-homebrew    # Skip Homebrew cleanup
-#   sudo ~/Scripts/clean-mac-space.sh --interactive      # Interactive category selection
-#   sudo ~/Scripts/clean-mac-space.sh --profile developer # Use preset profile
+#   sudo Mac-Clean                    # Interactive cleanup
+#   sudo Mac-Clean --dry-run          # Preview only
+#   sudo Mac-Clean --yes              # Skip confirmation
+#   sudo Mac-Clean --quiet            # Minimal output
+#   sudo Mac-Clean --threshold 85     # Only run if disk >85%
+#   sudo Mac-Clean --skip-spotify     # Skip Spotify cache
+#   sudo Mac-Clean --skip-homebrew    # Skip Homebrew cleanup
+#   sudo Mac-Clean --interactive      # Interactive category selection
+#   sudo Mac-Clean --profile developer # Use preset profile
+#   sudo Mac-Clean --update           # Run brew update before cleanup
+#
+# Installation:
+#   curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/installer.sh | bash
 #
 # Configuration:
 #   Settings can be saved in ~/.maccleans.conf or ~/.config/maccleans/config
@@ -32,9 +36,11 @@ VERSION="4.0.0"
 #   --quiet, -q         Minimal output (useful for cron)
 #   --no-color          Disable colored output
 #   --version, -v       Display version information
-#   --threshold N       Only run if disk usage is above N% (default: 0)
+#   --threshold N        Only run if disk usage is above N% (default: 0)
 #   --interactive, -i   Interactive category selection mode
 #   --profile NAME      Use preset profile (conservative, developer, aggressive, minimal)
+#   --update, -u        Run brew update before cleanup
+#   --verbose, -v        Enable verbose debug output
 #   --skip-snapshots    Skip Time Machine snapshot deletion
 #   --skip-homebrew     Skip Homebrew cache cleanup
 #   --skip-spotify      Skip Spotify cache cleanup
@@ -56,6 +62,11 @@ VERSION="4.0.0"
 #   --skip-diagnostics  Skip diagnostic reports cleanup
 #   --skip-ios-backups  Skip iOS device backups cleanup
 #   --skip-ios-updates  Skip iOS/iPadOS update files (.ipsw) cleanup
+#   --skip-cocoapods    Skip CocoaPods cache cleanup (NEW)
+#   --skip-gradle       Skip Gradle cache cleanup (NEW)
+#   --skip-go           Skip Go module cache cleanup (NEW)
+#   --skip-bun          Skip Bun cache cleanup (NEW)
+#   --skip-pnpm         Skip pnpm cache cleanup (NEW)
 #   --photos-library    Specify Photos library name or "all" to clean all libraries
 ###############################################################################
 
@@ -90,6 +101,12 @@ SKIP_QUICKLOOK=false
 SKIP_DIAGNOSTICS=false
 SKIP_IOS_BACKUPS=false
 SKIP_IOS_UPDATES=false
+SKIP_COCOAPODS=false
+SKIP_GRADLE=false
+SKIP_GO=false
+SKIP_BUN=false
+SKIP_PNPM=false
+UPDATE=false
 
 # Configuration file locations (checked in order)
 CONFIG_FILES=(
@@ -133,11 +150,11 @@ validate_config() {
     local errors=0
 
     # Validate boolean values
-    for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR SKIP_SNAPSHOTS SKIP_HOMEBREW \
+    for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR UPDATE SKIP_SNAPSHOTS SKIP_HOMEBREW \
                SKIP_SPOTIFY SKIP_CLAUDE SKIP_XCODE SKIP_BROWSERS SKIP_NPM \
                SKIP_PIP SKIP_TRASH SKIP_DSSTORE SKIP_DOCKER SKIP_SIMULATOR SKIP_MAIL \
                SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_PHOTOS_LIBRARY SKIP_ICLOUD_DRIVE SKIP_QUICKLOOK SKIP_DIAGNOSTICS SKIP_IOS_BACKUPS \
-               SKIP_IOS_UPDATES; do
+               SKIP_IOS_UPDATES SKIP_COCOAPODS SKIP_GRADLE SKIP_GO SKIP_BUN SKIP_PNPM; do
         local value="${!var}"
         if ! validate_boolean "$value"; then
             echo "ERROR: Invalid config value for $var: '$value' (must be true or false)" >&2
@@ -343,6 +360,34 @@ parse_arguments() {
                 SKIP_IOS_UPDATES=true
                 shift
                 ;;
+            --skip-cocoapods)
+                SKIP_COCOAPODS=true
+                shift
+                ;;
+            --skip-gradle)
+                SKIP_GRADLE=true
+                shift
+                ;;
+            --skip-go)
+                SKIP_GO=true
+                shift
+                ;;
+            --skip-bun)
+                SKIP_BUN=true
+                shift
+                ;;
+            --skip-pnpm)
+                SKIP_PNPM=true
+                shift
+                ;;
+            --update|-u)
+                UPDATE=true
+                shift
+                ;;
+            --verbose)
+                set -x
+                shift
+                ;;
             --photos-library)
                 if [ -z "${2:-}" ]; then
                     echo "ERROR: --photos-library requires an argument (library name or 'all')" >&2
@@ -391,6 +436,44 @@ else
     CYAN='\033[0;36m'
     BOLD='\033[1m' DIM='\033[2m' NC='\033[0m'
 fi
+
+# Spinner for visual feedback
+SPINNER_chars='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
+spinner_pid=""
+start_spinner() {
+    if [ "$QUIET" = true ]; then return; fi
+    local message="${1:-Processing}"
+    printf "${DIM}%s${NC} " "$message"
+    (while true; do
+        for char in $SPINNER_chars; do
+            printf "\b$char"
+            sleep 0.1
+        done
+    done) &
+    spinner_pid=$!
+}
+
+stop_spinner() {
+    if [ "$QUIET" = true ]; then return; fi
+    if [ -n "$spinner_pid" ]; then
+        kill "$spinner_pid" 2>/dev/null || true
+        wait "$spinner_pid" 2>/dev/null || true
+        spinner_pid=""
+        printf "\b"
+    fi
+}
+
+# Category header - shows which category is being cleaned
+log_category() {
+    if [ "$QUIET" = true ]; then return; fi
+    echo -e "\n${CYAN}▸${NC} ${BOLD}$1${NC}"
+}
+
+# Category section with icon
+log_section() {
+    if [ "$QUIET" = true ]; then return; fi
+    echo -e "\n${BOLD}📦 $1${NC}"
+}
 
 # Function to log with timestamp
 log() {
@@ -642,6 +725,7 @@ interactive_selection() {
     log_plain ""
 
     # Category data: "display_name|skip_var"
+    # Order matches cleanup section numbers (sections without skip vars run automatically)
     local -a categories=(
         "Time Machine Snapshots|SKIP_SNAPSHOTS"
         "Homebrew Cache|SKIP_HOMEBREW"
@@ -652,7 +736,6 @@ interactive_selection() {
         "npm/Yarn Cache|SKIP_NPM"
         "Python pip Cache|SKIP_PIP"
         "Trash Bin|SKIP_TRASH"
-        ".DS_Store Files|SKIP_DSSTORE"
         "Docker Cache|SKIP_DOCKER"
         "iOS Simulator Data|SKIP_SIMULATOR"
         "Mail App Cache|SKIP_MAIL"
@@ -664,6 +747,12 @@ interactive_selection() {
         "Diagnostic Reports (>30 days)|SKIP_DIAGNOSTICS"
         "iOS Device Backups (⚠️  requires confirmation)|SKIP_IOS_BACKUPS"
         "iOS/iPadOS Update Files (.ipsw)|SKIP_IOS_UPDATES"
+        "CocoaPods Cache|SKIP_COCOAPODS"
+        "Gradle Cache|SKIP_GRADLE"
+        "Go Module Cache|SKIP_GO"
+        "Bun Cache|SKIP_BUN"
+        "pnpm Store|SKIP_PNPM"
+        ".DS_Store Files|SKIP_DSSTORE"
     )
 
     local cursor=0
@@ -699,6 +788,16 @@ interactive_selection() {
                 SKIP_DIAGNOSTICS) SKIP_DIAGNOSTICS=false ;;
                 SKIP_IOS_BACKUPS) SKIP_IOS_BACKUPS=false ;;
                 SKIP_IOS_UPDATES) SKIP_IOS_UPDATES=false ;;
+                SKIP_COCOAPODS) SKIP_COCOAPODS=false ;;
+                SKIP_GRADLE) SKIP_GRADLE=false ;;
+                SKIP_GO) SKIP_GO=false ;;
+                SKIP_BUN) SKIP_BUN=false ;;
+                SKIP_PNPM) SKIP_PNPM=false ;;
+                SKIP_COCOAPODS) SKIP_COCOAPODS=false ;;
+                SKIP_GRADLE) SKIP_GRADLE=false ;;
+                SKIP_GO) SKIP_GO=false ;;
+                SKIP_BUN) SKIP_BUN=false ;;
+                SKIP_PNPM) SKIP_PNPM=false ;;
             esac
         else
             case "$var" in
@@ -723,6 +822,11 @@ interactive_selection() {
                 SKIP_DIAGNOSTICS) SKIP_DIAGNOSTICS=true ;;
                 SKIP_IOS_BACKUPS) SKIP_IOS_BACKUPS=true ;;
                 SKIP_IOS_UPDATES) SKIP_IOS_UPDATES=true ;;
+                SKIP_COCOAPODS) SKIP_COCOAPODS=true ;;
+                SKIP_GRADLE) SKIP_GRADLE=true ;;
+                SKIP_GO) SKIP_GO=true ;;
+                SKIP_BUN) SKIP_BUN=true ;;
+                SKIP_PNPM) SKIP_PNPM=true ;;
             esac
         fi
     }
@@ -908,6 +1012,23 @@ if [ "$THRESHOLD" -gt 0 ] && [ "$DISK_USAGE" -lt "$THRESHOLD" ]; then
     exit 0
 fi
 
+# Run brew update if --update flag is set
+if [ "$UPDATE" = true ]; then
+    log_plain "================================================"
+    log "Running brew update..."
+    log_plain "================================================"
+    if command -v brew &> /dev/null; then
+        if [ "$DRY_RUN" = true ]; then
+            log "Would run: brew update"
+        else
+            brew update 2>/dev/null || log_warning "brew update failed or requires authentication"
+        fi
+    else
+        log_warning "Homebrew not installed, skipping update"
+    fi
+    log_plain ""
+fi
+
 log_plain ""
 
 # Track total space freed and categories processed
@@ -945,60 +1066,16 @@ if [ "$SKIP_SNAPSHOTS" = false ]; then
     else
         SNAPSHOTS=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c "com.apple.TimeMachine" || echo "0")
         if [ "$SNAPSHOTS" -gt 0 ]; then
-            # Estimate snapshot size by checking container space allocation
-            # On APFS, snapshots share blocks with the main volume making exact size calculation complex
-            SNAPSHOT_SIZE_BYTES=0
-            SNAPSHOT_ESTIMATE=""
+            # Note: macOS doesn't expose snapshot sizes directly
+            # Only showing count as accurate size calculation isn't possible
 
-            if command -v diskutil &> /dev/null; then
-                # Get volume root disk identifier (use 'df /' for reliability)
-                ROOT_DISK=$(df / 2>/dev/null | awk 'NR==2 {print $1}' | sed 's|/dev/||')
-
-                # Get container total and free space to estimate snapshot overhead (extract byte values)
-                # Use diskutil info with better parsing - extract numeric value after "Bytes"
-                CONTAINER_TOTAL=$(diskutil info "$ROOT_DISK" 2>/dev/null | grep "Container Total Space" | sed 's/.*(\([0-9]*\) Bytes).*/\1/' | grep -oE '^[0-9]+' || echo "0")
-                CONTAINER_FREE=$(diskutil info "$ROOT_DISK" 2>/dev/null | grep "Container Free Space" | sed 's/.*(\([0-9]*\) Bytes).*/\1/' | grep -oE '^[0-9]+' || echo "0")
-                VOLUME_USED=$(diskutil info "$ROOT_DISK" 2>/dev/null | grep "Volume Used Space" | sed 's/.*(\([0-9]*\) Bytes).*/\1/' | grep -oE '^[0-9]+' || echo "0")
-
-                # Ensure all values are numeric
-                if ! [[ "$CONTAINER_TOTAL" =~ ^[0-9]+$ ]]; then CONTAINER_TOTAL=0; fi
-                if ! [[ "$CONTAINER_FREE" =~ ^[0-9]+$ ]]; then CONTAINER_FREE=0; fi
-                if ! [[ "$VOLUME_USED" =~ ^[0-9]+$ ]]; then VOLUME_USED=0; fi
-
-                if [ "$CONTAINER_TOTAL" -gt 0 ] && [ "$CONTAINER_FREE" -gt 0 ] && [ "$VOLUME_USED" -gt 0 ]; then
-                    # Unaccounted space = Total - Used - Free (likely includes snapshots and purgeable)
-                    UNACCOUNTED=$((CONTAINER_TOTAL - VOLUME_USED - CONTAINER_FREE))
-
-                    # Check for negative value (edge case) - set to 0 if negative
-                    if [ "$UNACCOUNTED" -lt 0 ]; then
-                        UNACCOUNTED=0
-                    fi
-
-                    # Rough estimate: assume 50-70% of unaccounted space is snapshots
-                    # This is conservative as unaccounted space includes other APFS overhead
-                    if [ "$UNACCOUNTED" -gt 0 ]; then
-                        SNAPSHOT_SIZE_BYTES=$((UNACCOUNTED * 6 / 10))  # 60% estimate
-                        SNAPSHOT_ESTIMATE=" (estimated ~$(bytes_to_human $SNAPSHOT_SIZE_BYTES))"
-                    fi
-                fi
-            fi
-
-            # Display snapshot information
-            log "Found $SNAPSHOTS local snapshot(s)${SNAPSHOT_ESTIMATE}"
-            log "${DIM}Note: Exact snapshot sizes aren't exposed by macOS; estimate shown${NC}"
+            # Display snapshot information (count only - macOS doesn't expose snapshot sizes)
+            log "Found $SNAPSHOTS local Time Machine snapshot(s)"
 
             if [ "$DRY_RUN" = true ]; then
-                if [ "$SNAPSHOT_SIZE_BYTES" -gt 0 ]; then
-                    log "Would delete $SNAPSHOTS snapshot(s) - may free up to $(bytes_to_human $SNAPSHOT_SIZE_BYTES)"
-                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SNAPSHOT_SIZE_BYTES))
-                else
-                    log "Would delete $SNAPSHOTS snapshot(s)"
-                fi
+                log "Would delete $SNAPSHOTS snapshot(s)"
             else
                 log "Deleting snapshots..."
-                if [ "$SNAPSHOT_SIZE_BYTES" -gt 0 ]; then
-                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SNAPSHOT_SIZE_BYTES))
-                fi
                 tmutil deletelocalsnapshots / 2>/dev/null || log_warning "Some snapshots could not be deleted"
                 log_success "Local snapshots deleted successfully"
             fi
@@ -2159,12 +2236,275 @@ else
 fi
 
 ###############################################################################
-# 23. .DS_Store Files
+# 24. CocoaPods Cache
+###############################################################################
+if [ "$SKIP_COCOAPODS" = false ]; then
+    PROCESSED_CATEGORIES+=("CocoaPods Cache")
+    log_plain "================================================"
+    log "24. CocoaPods Cache"
+    log_plain "================================================"
+
+    # CocoaPods cache locations
+    COCOAPODS_DIRS=(
+        "$USER_HOME/Library/Caches/CocoaPods"
+        "$USER_HOME/Library/Developer/Xcode/DerivedData"
+    )
+
+    COCOAPODS_TOTAL_BYTES=0
+    COCOAPODS_TOTAL_COUNT=0
+
+    for DIR in "${COCOAPODS_DIRS[@]}"; do
+        if [ -d "$DIR" ]; then
+            # Count and size for Pods cache (not DerivedData to be safe)
+            if [[ "$DIR" == *"Caches/CocoaPods" ]]; then
+                while IFS= read -r -d '' file; do
+                    FILE_SIZE=$(du -sk "$file" 2>/dev/null | awk '{print $1}')
+                    if ! [[ "$FILE_SIZE" =~ ^[0-9]+$ ]]; then
+                        FILE_SIZE=0
+                    fi
+                    FILE_BYTES=$((FILE_SIZE * 1024))
+                    COCOAPODS_TOTAL_BYTES=$((COCOAPODS_TOTAL_BYTES + FILE_BYTES))
+                    COCOAPODS_TOTAL_COUNT=$((COCOAPODS_TOTAL_COUNT + 1))
+                done < <(find "$DIR" -type f -print0 2>/dev/null)
+            fi
+        fi
+    done
+
+    # Also check for Pods directory in projects (optional, user can specify)
+    if [ "$COCOAPODS_TOTAL_COUNT" -gt 0 ]; then
+        COCOAPODS_HUMAN=$(bytes_to_human "$COCOAPODS_TOTAL_BYTES")
+        log "Found $COCOAPODS_TOTAL_COUNT item(s): $COCOAPODS_HUMAN"
+
+        if [ "$DRY_RUN" = true ]; then
+            log "Would delete CocoaPods cache: $COCOAPODS_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + COCOAPODS_TOTAL_BYTES))
+        else
+            log "Cleaning CocoaPods cache..."
+            # Clean CocoaPods cache
+            if command -v pod &> /dev/null; then
+                pod cache clean --all 2>/dev/null || true
+            fi
+            # Also clean the caches directory manually
+            if [ -d "$USER_HOME/Library/Caches/CocoaPods" ]; then
+                find "$USER_HOME/Library/Caches/CocoaPods" -type f -delete 2>/dev/null || true
+            fi
+            log_success "CocoaPods cache cleared: $COCOAPODS_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + COCOAPODS_TOTAL_BYTES))
+        fi
+    else
+        log "No CocoaPods cache found"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("CocoaPods Cache")
+fi
+
+###############################################################################
+# 25. Gradle Cache
+###############################################################################
+if [ "$SKIP_GRADLE" = false ]; then
+    PROCESSED_CATEGORIES+=("Gradle Cache")
+    log_plain "================================================"
+    log "25. Gradle Cache"
+    log_plain "================================================"
+
+    GRADLE_CACHE_DIR="$USER_HOME/.gradle/caches"
+
+    if [ -d "$GRADLE_CACHE_DIR" ]; then
+        GRADLE_SIZE=$(du -sh "$GRADLE_CACHE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+        GRADLE_BYTES=$(size_to_bytes "$GRADLE_SIZE")
+
+        if [ "$GRADLE_BYTES" -gt 0 ]; then
+            log "Found Gradle cache: $GRADLE_SIZE"
+
+            if [ "$DRY_RUN" = true ]; then
+                log "Would delete Gradle cache: $GRADLE_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GRADLE_BYTES))
+            else
+                log "Cleaning Gradle cache..."
+                # Clean Gradle caches
+                if command -v gradle &> /dev/null; then
+                    gradle --stop 2>/dev/null || true
+                fi
+                rm -rf "$GRADLE_CACHE_DIR" 2>/dev/null || true
+                log_success "Gradle cache cleared: $GRADLE_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GRADLE_BYTES))
+            fi
+        else
+            log "Gradle cache is empty"
+        fi
+    else
+        log "No Gradle cache found (Gradle not installed or not used)"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("Gradle Cache")
+fi
+
+###############################################################################
+# 26. Go Module Cache
+###############################################################################
+if [ "$SKIP_GO" = false ]; then
+    PROCESSED_CATEGORIES+=("Go Module Cache")
+    log_plain "================================================"
+    log "26. Go Module Cache"
+    log_plain "================================================"
+
+    # Go module cache location
+    GO_CACHE_DIR="${GOPATH:-$USER_HOME/go}/pkg/mod"
+    GO_CACHE_DIR_ALT="$USER_HOME/go/pkg/mod"
+
+    GO_TOTAL_BYTES=0
+
+    for CACHE_DIR in "$GO_CACHE_DIR" "$GO_CACHE_DIR_ALT"; do
+        if [ -d "$CACHE_DIR" ]; then
+            GO_SIZE=$(du -sh "$CACHE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+            GO_BYTES=$(size_to_bytes "$GO_SIZE")
+
+            if [ "$GO_BYTES" -gt 0 ]; then
+                GO_TOTAL_BYTES=$GO_BYTES
+                GO_HUMAN=$GO_SIZE
+                break
+            fi
+        fi
+    done
+
+    if [ "$GO_TOTAL_BYTES" -gt 0 ]; then
+        log "Found Go module cache: $GO_HUMAN"
+
+        if [ "$DRY_RUN" = true ]; then
+            log "Would delete Go module cache: $GO_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GO_TOTAL_BYTES))
+        else
+            log "Cleaning Go module cache..."
+            # Use go clean to safely remove module cache
+            if command -v go &> /dev/null; then
+                go clean -modcache 2>/dev/null || true
+            fi
+            # Fallback: manual deletion
+            for CACHE_DIR in "$GO_CACHE_DIR" "$GO_CACHE_DIR_ALT"; do
+                if [ -d "$CACHE_DIR" ]; then
+                    rm -rf "$CACHE_DIR" 2>/dev/null || true
+                fi
+            done
+            log_success "Go module cache cleared: $GO_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GO_TOTAL_BYTES))
+        fi
+    else
+        log "No Go module cache found (Go not installed or not used)"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("Go Module Cache")
+fi
+
+###############################################################################
+# 27. Bun Cache
+###############################################################################
+if [ "$SKIP_BUN" = false ]; then
+    PROCESSED_CATEGORIES+=("Bun Cache")
+    log_plain "================================================"
+    log "27. Bun Cache"
+    log_plain "================================================"
+
+    # Bun cache location
+    BUN_CACHE_DIR="$USER_HOME/.bun/install/cache"
+
+    if [ -d "$BUN_CACHE_DIR" ]; then
+        BUN_SIZE=$(du -sh "$BUN_CACHE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+        BUN_BYTES=$(size_to_bytes "$BUN_SIZE")
+
+        if [ "$BUN_BYTES" -gt 0 ]; then
+            log "Found Bun cache: $BUN_SIZE"
+
+            if [ "$DRY_RUN" = true ]; then
+                log "Would delete Bun cache: $BUN_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BUN_BYTES))
+            else
+                log "Cleaning Bun cache..."
+                rm -rf "$BUN_CACHE_DIR" 2>/dev/null || true
+                log_success "Bun cache cleared: $BUN_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BUN_BYTES))
+            fi
+        else
+            log "Bun cache is empty"
+        fi
+    else
+        log "No Bun cache found (Bun not installed or not used)"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("Bun Cache")
+fi
+
+###############################################################################
+# 28. pnpm Store
+###############################################################################
+if [ "$SKIP_PNPM" = false ]; then
+    PROCESSED_CATEGORIES+=("pnpm Store")
+    log_plain "================================================"
+    log "28. pnpm Store"
+    log_plain "================================================"
+
+    # pnpm store location
+    PNPM_STORE_DIR=""
+    
+    # Try to find pnpm store location
+    if command -v pnpm &> /dev/null; then
+        PNPM_STORE_DIR=$(pnpm store path 2>/dev/null || echo "")
+    fi
+
+    # Default pnpm store location if command not available
+    if [ -z "$PNPM_STORE_DIR" ] || [ ! -d "$PNPM_STORE_DIR" ]; then
+        PNPM_STORE_DIR="$USER_HOME/Library/pnpm/store"
+    fi
+
+    if [ -d "$PNPM_STORE_DIR" ]; then
+        PNPM_SIZE=$(du -sh "$PNPM_STORE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+        PNPM_BYTES=$(size_to_bytes "$PNPM_SIZE")
+
+        if [ "$PNPM_BYTES" -gt 0 ]; then
+            log "Found pnpm store: $PNPM_SIZE"
+
+            if [ "$DRY_RUN" = true ]; then
+                log "Would prune pnpm store: $PNPM_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PNPM_BYTES))
+            else
+                log "Pruning pnpm store..."
+                # Use pnpm store prune for safe cleanup
+                if command -v pnpm &> /dev/null; then
+                    pnpm store prune 2>/dev/null || true
+                fi
+                # Also check for the global store
+                PNPM_GLOBAL_STORE="$USER_HOME/.pnpm-store"
+                if [ -d "$PNPM_GLOBAL_STORE" ]; then
+                    PNPM_GLOBAL_SIZE=$(du -sh "$PNPM_GLOBAL_STORE" 2>/dev/null | awk '{print $1}' || echo "0B")
+                    PNPM_GLOBAL_BYTES=$(size_to_bytes "$PNPM_GLOBAL_SIZE")
+                    PNPM_BYTES=$((PNPM_BYTES + PNPM_GLOBAL_BYTES))
+                    PNPM_SIZE="$PNPM_SIZE (global: $PNPM_GLOBAL_SIZE)"
+                    rm -rf "$PNPM_GLOBAL_STORE" 2>/dev/null || true
+                fi
+                log_success "pnpm store pruned: $PNPM_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PNPM_BYTES))
+            fi
+        else
+            log "pnpm store is empty"
+        fi
+    else
+        log "No pnpm store found (pnpm not installed or not used)"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("pnpm Store")
+fi
+
+###############################################################################
+# 29. .DS_Store Files
 ###############################################################################
 if [ "$SKIP_DSSTORE" = false ]; then
     PROCESSED_CATEGORIES+=(".DS_Store Files")
     log_plain "================================================"
-    log "23. .DS_Store Files"
+    log "29. .DS_Store Files"
     log_plain "================================================"
 
     # Count .DS_Store files in user home
