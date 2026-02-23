@@ -29,14 +29,14 @@
 ## Quick Start
 
 ```bash
-# Install and run in one command
-curl -sSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/clean-mac-space.sh -o ~/Scripts/clean-mac-space.sh && chmod +x ~/Scripts/clean-mac-space.sh
+# Install
+curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/installer.sh | bash
 
 # Preview what would be cleaned
-sudo ~/Scripts/clean-mac-space.sh --dry-run
+sudo Mac-Clean --dry-run
 
 # Clean everything (non-interactive)
-sudo ~/Scripts/clean-mac-space.sh --yes
+sudo Mac-Clean --yes
 ```
 
 ---
@@ -70,13 +70,11 @@ sudo ~/Scripts/clean-mac-space.sh --yes
 ### Installation
 
 ```bash
-# Quick install (recommended)
+# Install (recommended)
 curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/installer.sh | bash
-
-# Manual installation
-sudo curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/clean-mac-space.sh -o /usr/local/bin/Mac-Clean
-sudo chmod +x /usr/local/bin/Mac-Clean
 ```
+
+This will install `Mac-Clean` to `/usr/local/bin/` and create a symlink for `mac-clean`.
 
 ---
 
@@ -214,14 +212,17 @@ See [INSTALL.md](INSTALL.md) for detailed installation instructions.
 ### Quick Install Methods
 
 ```bash
-# Method 1: curl (recommended)
-curl -sSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/clean-mac-space.sh -o ~/Scripts/clean-mac-space.sh
-chmod +x ~/Scripts/clean-mac-space.sh
+# Method 1: Installer script (recommended)
+curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/installer.sh | bash
 
-# Method 2: git clone
+# Method 2: Manual install
+curl -sSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/clean-mac-space.sh -o /usr/local/bin/Mac-Clean
+chmod +x /usr/local/bin/Mac-Clean
+
+# Method 3: Git clone
 git clone https://github.com/Carme99/MacCleans.sh ~/MacCleans.sh
 
-# Method 3: Homebrew
+# Method 4: Homebrew (if available)
 brew install carme99/maccleans/maccleans
 ```
 
