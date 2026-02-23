@@ -28,6 +28,15 @@ All notable changes to MacCleans.sh are documented in this file.
 
 - Fixed section numbering after adding new categories (now 29 total, .DS_Store is section 29)
 - Installer script now creates proper symlinks for backward compatibility
+- **Non-interactive mode**: Script no longer hangs when run from cron/automation - auto-confirms when stdin is not a TTY
+- **Disk usage validation**: Added numeric validation to prevent errors when disk usage cannot be determined
+- **Symlink protection**: Replaced `rm -rf` with `find` commands to avoid following malicious symlinks in temp directories
+- **Concurrent run protection**: Added lock file (`/tmp/mac-clean.lock`) to prevent multiple instances from running simultaneously
+- **User validation**: Added check for valid user before running brew commands with `sudo -u`
+- **Spinner cleanup**: Fixed spinner orphaning on early exit by adding cleanup to all exit traps
+- **Docker daemon check**: Added check for running Docker daemon before attempting cleanup
+- **Size formatting**: Fixed integer truncation in human-readable sizes (now shows "1.5M" instead of "1M")
+- **tmutil availability**: Added check for tmutil availability before using Time Machine commands
 
 ## [4.0.0] - 2026-02-21
 

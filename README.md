@@ -60,6 +60,13 @@ sudo ~/Scripts/clean-mac-space.sh --yes
 - **Time Machine Snapshots**: Now shows accurate count without estimated sizes (macOS doesn't expose snapshot sizes)
 - **Interactive Menu**: Updated to include all 29 cleanup categories
 
+### Bug Fixes
+
+- **Non-interactive mode**: No longer hangs when run from cron/automation
+- **Concurrent runs**: Lock file prevents multiple instances from running simultaneously
+- **Safety**: Added symlink protection for temp file deletion
+- **Reliability**: Validates disk usage and user existence before operations
+
 ### Installation
 
 ```bash
