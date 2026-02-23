@@ -1,6 +1,7 @@
 # Advanced Usage Guide
 
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
+[![Tested](https://img.shields.io/badge/Tested%20on-26.4-green.svg)]()
 [![Advanced](https://img.shields.io/badge/Level-Advanced-red.svg)]()
 [![Automation](https://img.shields.io/badge/Use%20Case-Automation-orange.svg)]()
 

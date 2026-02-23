@@ -1,6 +1,7 @@
 [![Version](https://img.shields.io/badge/Version-4.0.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
+[![Tested](https://img.shields.io/badge/Tested%20on-26.4-green.svg)]()
 [![Shell](https://img.shields.io/badge/Shell-Bash-black.svg)](https://www.gnu.org/software/bash/)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Carme99/MacCleans.sh/graphs/commit-activity)
 
@@ -9,6 +10,9 @@
 [![Issues](https://img.shields.io/github/issues/Carme99/MacCleans.sh)](https://github.com/Carme99/MacCleans.sh/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/Carme99/MacCleans.sh)](https://github.com/Carme99/MacCleans.sh/commits/main)
 [![Code Size](https://img.shields.io/github/languages/code-size/Carme99/MacCleans.sh)](https://github.com/Carme99/MacCleans.sh)
+
+[![AI Assisted](https://img.shields.io/badge/AI%20Assisted-Claude-blueviolet.svg)](https://claude.ai)
+[![AI Assisted](https://img.shields.io/badge/AI%20Assisted-MiniMax%20M2.5-cyan.svg)](https://minimax.ai)
 
 ---
 
@@ -341,6 +345,30 @@ SKIP_DOCKER=false
 
 ---
 
+## What MacCleans Does NOT Touch
+
+MacCleans is designed to only delete safe, regenerable files. It will **never** delete:
+
+| Category | Examples | Why Safe |
+|----------|----------|----------|
+| **User Documents** | ~/Documents/* | Your actual files |
+| **Photos & Media** | ~/Pictures/*, ~/Music/* | Personal media |
+| **Downloads** | ~/Downloads/* | User downloads |
+| **Applications** | /Applications/* | Installed apps |
+| **App Settings** | ~/Library/Preferences/* | User preferences |
+| **Browser Data** | History, bookmarks, passwords | Never touched |
+| **Email** | Mail messages, attachments | Never touched |
+| **iCloud Data** | Files synced to iCloud | Only local cache |
+
+**What IS cleaned:**
+- Cache files (~/Library/Caches)
+- Temporary files (/tmp, /var/tmp)
+- Build artifacts (XCode Derived Data)
+- System logs (old logs only)
+- Thumbnail caches (regenerate on demand)
+
+---
+
 ## Automation
 
 ### Cron (Daily at 2 AM)
@@ -388,10 +416,10 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common issues.
 
 ### Additional Guides
 
-- [Understanding macOS Caches](docs/understanding-macos-caches.md)
-- [XCode Derived Data Guide](docs/xcode-derived-data-guide.md)
-- [Docker Cache Guide](docs/docker-cache-guide.md)
-- [Automating macOS Maintenance](docs/automating-macos-maintenance.md)
+- [Understanding macOS Caches](docs/guides/understanding-macos-caches.md)
+- [XCode Derived Data Guide](docs/guides/xcode-derived-data-guide.md)
+- [Docker Cache Guide](docs/guides/docker-cache-guide.md)
+- [Automating macOS Maintenance](docs/guides/automating-macos-maintenance.md)
 
 ---
 
@@ -423,9 +451,10 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
+This project is developed with AI assistance from [Claude](https://claude.ai) and [MiniMax M2.5](https://minimax.ai). AI helps accelerate development while maintaining quality and security standards. All code is reviewed by the maintainer before merging.
+
 - Inspired by various macOS cleanup utilities
 - Thanks to all [contributors](https://github.com/Carme99/MacCleans.sh/graphs/contributors)
-- Built with [Claude AI](https://claude.ai)
 
 ---
 

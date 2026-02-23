@@ -126,6 +126,8 @@ AUTO_YES=true
 THRESHOLD=80
 ```
 
+> **Warning (v4.0+)**: In v4.0+, setting `FORCE=true` in your config file will also set `AUTO_YES=true`. This means iOS device backups and iCloud Drive files will be deleted without confirmation prompts. If you use `FORCE=true` for unattended automation and want to skip these categories, add `SKIP_IOS_BACKUPS=true` and `SKIP_ICLOUD_DRIVE=true` to your config.
+
 ## Setting Up Automated Cleanup (Optional)
 
 ### Using cron
@@ -268,7 +270,7 @@ Check these locations in order (first one found is used):
 
 ```bash
 ls -la ~/.maccleans.conf
-ls -la ~/.config/maccleans.conf
+ls -la ~/.config/maccleans/config
 ls -la "${XDG_CONFIG_HOME}/maccleans/config"
 ```
 
