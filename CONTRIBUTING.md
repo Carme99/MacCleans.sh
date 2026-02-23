@@ -551,12 +551,12 @@ We follow [Semantic Versioning](https://semver.org/):
 
 ### Release Checklist
 
-1. Update version number in script
-2. Update CHANGELOG.md
+1. Update version number in script (VERSION="X.Y.Z")
+2. Update CHANGELOG.md with new version section
 3. Update README.md badges
 4. Test on clean macOS installation
-5. Create git tag: `git tag -a v3.2.1 -m "Version 3.2.1"`
-6. Push tag: `git push origin v3.2.1`
+5. Create git tag: `git tag -a vX.Y.Z -m "Version X.Y.Z"`
+6. Push tag: `git push origin vX.Y.Z`
 7. Create GitHub release with changelog
 8. Update documentation if needed
 
