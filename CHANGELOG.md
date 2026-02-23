@@ -2,6 +2,42 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [4.1.0] - 2026-02-23
+
+### New Features
+
+- **New Command Name**: Script now installs as `Mac-Clean` (with backward-compatible symlink as `mac-clean`)
+- **Visual Feedback**: Added spinners, colored status indicators, and progress messages for better UX
+- **brew update Integration**: New `--update` / `-u` flag to run `brew update` before cleanup
+
+### New Cleanup Categories (5 additional)
+
+- **CocoaPods Cache**: Clean `$HOME/Library/Caches/CocoaPods` using `pod cache clean --all`
+- **Gradle Cache**: Clean `$HOME/.gradle/caches`
+- **Go Module Cache**: Clean `$GOPATH/pkg/mod` using `go clean -modcache`
+- **Bun Cache**: Clean `$HOME/.bun/install/cache`
+- **pnpm Store**: Clean pnpm store using `pnpm store prune`
+
+### Improvements
+
+- **Time Machine Snapshots**: Now shows accurate count only. Removed estimated size calculation since macOS doesn't expose snapshot sizes (previously showed unreliable estimates)
+- **Interactive Menu**: Updated to include all 29 cleanup categories in correct order
+- **Documentation**: Added attribution to [mac-cleanup](https://github.com/mac-cleanup/mac-cleanup-sh) for inspiration on several cleanup categories
+
+### Bug Fixes
+
+- Fixed section numbering after adding new categories (now 29 total, .DS_Store is section 29)
+- Installer script now creates proper symlinks for backward compatibility
+- **Non-interactive mode**: Script no longer hangs when run from cron/automation - auto-confirms when stdin is not a TTY
+- **Disk usage validation**: Added numeric validation to prevent errors when disk usage cannot be determined
+- **Symlink protection**: Replaced `rm -rf` with `find` commands to avoid following malicious symlinks in temp directories
+- **Concurrent run protection**: Added lock file (`/tmp/mac-clean.lock`) to prevent multiple instances from running simultaneously
+- **User validation**: Added check for valid user before running brew commands with `sudo -u`
+- **Spinner cleanup**: Fixed spinner orphaning on early exit by adding cleanup to all exit traps
+- **Docker daemon check**: Added check for running Docker daemon before attempting cleanup
+- **Size formatting**: Fixed integer truncation in human-readable sizes (now shows "1.5M" instead of "1M")
+- **tmutil availability**: Added check for tmutil availability before using Time Machine commands
+
 ## [4.0.0] - 2026-02-21
 
 ### Major Features

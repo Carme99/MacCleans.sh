@@ -1,4 +1,4 @@
-[![Version](https://img.shields.io/badge/Version-4.0.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-4.1.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![Tested](https://img.shields.io/badge/Tested%20on-26.4-green.svg)]()
@@ -37,6 +37,45 @@ sudo ~/Scripts/clean-mac-space.sh --dry-run
 
 # Clean everything (non-interactive)
 sudo ~/Scripts/clean-mac-space.sh --yes
+```
+
+---
+
+## What's New in v4.1.0
+
+### New Features
+
+- **New Command Name**: Installed as `Mac-Clean` (also available as `mac-clean` for backward compatibility)
+- **Visual Feedback**: Added spinners, progress messages, and colored status indicators
+- **New Cleanup Categories**:
+  - CocoaPods cache cleanup
+  - Gradle cache cleanup
+  - Go module cache cleanup
+  - Bun cache cleanup
+  - pnpm store cleanup
+- **brew update Integration**: New `--update` / `-u` flag to run `brew update` before cleanup
+
+### Improvements
+
+- **Time Machine Snapshots**: Now shows accurate count without estimated sizes (macOS doesn't expose snapshot sizes)
+- **Interactive Menu**: Updated to include all 29 cleanup categories
+
+### Bug Fixes
+
+- **Non-interactive mode**: No longer hangs when run from cron/automation
+- **Concurrent runs**: Lock file prevents multiple instances from running simultaneously
+- **Safety**: Added symlink protection for temp file deletion
+- **Reliability**: Validates disk usage and user existence before operations
+
+### Installation
+
+```bash
+# Quick install (recommended)
+curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/installer.sh | bash
+
+# Manual installation
+sudo curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/clean-mac-space.sh -o /usr/local/bin/Mac-Clean
+sudo chmod +x /usr/local/bin/Mac-Clean
 ```
 
 ---
@@ -83,7 +122,7 @@ sudo ~/Scripts/clean-mac-space.sh --yes
 ## Features
 
 - **Safe by Design** - Only removes cache/temp files, never touches user data, documents, or settings
-- **Opt-Out Approach** - 23 cleanup categories enabled by default with `--skip-*` flags
+- **Opt-Out Approach** - 29 cleanup categories enabled by default with `--skip-*` flags
 - **Interactive Mode** - Choose exactly what to clean with a menu
 - **Configuration Profiles** - Quick presets: conservative, developer, aggressive, minimal
 - **Preview Mode** - `--dry-run` to see what would be deleted
@@ -460,6 +499,7 @@ MIT License - See [LICENSE](LICENSE) for details.
 This project is developed with AI assistance from [Claude](https://claude.ai) and [MiniMax M2.5](https://minimax.ai). AI helps accelerate development while maintaining quality and security standards. All code is reviewed by the maintainer before merging.
 
 - Inspired by various macOS cleanup utilities
+- Special thanks to [mac-cleanup](https://github.com/mac-cleanup/mac-cleanup-sh) for inspiration on several cleanup categories (MIT License)
 - Thanks to all [contributors](https://github.com/Carme99/MacCleans.sh/graphs/contributors)
 
 ---
