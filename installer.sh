@@ -7,6 +7,11 @@
 
 set -euo pipefail
 
+# Check for sudo at the start - re-run with sudo if needed
+if [ "$EUID" -ne 0 ]; then
+    exec sudo bash "$0" "$@"
+fi
+
 # Configuration
 INSTALL_DIR="/usr/local/bin"
 SCRIPT_NAME="Mac-Clean"
@@ -52,11 +57,10 @@ if ! command -v curl &> /dev/null && ! command -v wget &> /dev/null; then
     exit 1
 fi
 
-# Check if we can write to /usr/local/bin
-if [ ! -w "$INSTALL_DIR" ] && [ "$EUID" -ne 0 ]; then
-    log_warning "Cannot write to $INSTALL_DIR without sudo"
-    log_info "Re-running with sudo..."
-    exec sudo "$0" "$@"
+# Check if we can write to /usr/local/bin (should already be root due to early check)
+if [ ! -w "$INSTALL_DIR" ]; then
+    log_error "Cannot write to $INSTALL_DIR. Check permissions."
+    exit 1
 fi
 
 # Create backup if script already exists
