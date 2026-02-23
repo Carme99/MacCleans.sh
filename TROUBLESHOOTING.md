@@ -593,7 +593,7 @@ sudo ./clean-mac-space.sh --dry-run
 **Solution 1**: Run during off-hours
 ```bash
 # Schedule for night
-# See: docs/automating-macos-maintenance.md
+# See: docs/guides/automating-macos-maintenance.md
 ```
 
 **Solution 2**: Check system load first

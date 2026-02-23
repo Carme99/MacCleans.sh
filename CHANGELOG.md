@@ -66,7 +66,16 @@ All notable changes to MacCleans.sh are documented in this file.
 
 - No new dependencies added
 - Compatible with macOS 10.15+ (Catalina and later)
+- Tested on macOS 26.4
 - Compatible with Bash 3.2+ (macOS default)
+
+### Documentation
+
+- **Documentation restructure**: Moved guides to `docs/guides/` folder with new index at `docs/index.md`
+- **New COMPARISON.md**: Tool comparison guide added
+- **AI transparency**: Added AI assistance badges and acknowledgment
+- **Security enhancements**: Expanded security policy with audit instructions
+- **macOS 26.4**: Added compatibility badge and testing confirmation
 
 ## [3.3.0] - 2026-02-21
 
@@ -143,7 +152,7 @@ All notable changes to MacCleans.sh are documented in this file.
 - `docs/xcode-derived-data-guide.md` - Comprehensive guide for iOS/Mac developers on managing XCode caches with real-world examples
 - `docs/docker-cache-guide.md` - Docker cache management best practices and cleanup strategies
 - `docs/automating-macos-maintenance.md` - Complete automation guide with cron, LaunchD, and custom scripts
-- `docs/README.md` - Navigation hub for all documentation
+- `docs/index.md` - Navigation hub for all documentation
 
 **Documentation Improvements**
 - Updated main README with comprehensive documentation section

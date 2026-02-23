@@ -46,6 +46,7 @@ MacCleans focuses on being safe, scriptable, and transparent about what it does.
 ### Q: What macOS versions are supported?
 
 **A:** MacCleans supports macOS 10.15 (Catalina) and later, including:
+- macOS 26.4 (tested)
 - macOS 15 Sequoia
 - macOS 14 Sonoma
 - macOS 13 Ventura
