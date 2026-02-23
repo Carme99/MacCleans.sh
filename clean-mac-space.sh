@@ -431,11 +431,18 @@ validate_config
 
 # Set up signal handling for graceful interruption
 cleanup_on_interrupt() {
+    stop_spinner 2>/dev/null || true
     log_warning "Interrupted by user, cleaning up..."
     log_always "Cleanup aborted."
     exit 130
 }
 trap cleanup_on_interrupt INT TERM
+
+# Also stop spinner on normal exit
+cleanup_on_exit() {
+    stop_spinner 2>/dev/null || true
+}
+trap cleanup_on_exit EXIT
 
 # Color definitions
 if [ "$NO_COLOR" = true ] || [ ! -t 1 ]; then
@@ -557,10 +564,9 @@ bytes_to_human() {
     fi
     if [ "$bytes" -lt 1024 ]; then
         echo "${bytes}B"
-    elif [ "$bytes" -lt 1048576 ]; then
-        echo "$((bytes / 1024))K"
     elif [ "$bytes" -lt 1073741824 ]; then
-        echo "$((bytes / 1048576))M"
+        # Use awk to avoid integer division truncation (e.g., show 1.5M instead of 1M)
+        echo "$(awk -v b="$bytes" 'BEGIN {printf "%.2f", b / 1048576}')M"
     elif [ "$bytes" -lt 1099511627776 ]; then
         echo "$(awk -v b="$bytes" 'BEGIN {printf "%.2f", b / 1073741824}')G"
     else
@@ -597,6 +603,22 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Lock file to prevent concurrent runs
+LOCKFILE="/tmp/mac-clean.lock"
+if [ -f "$LOCKFILE" ]; then
+    LOCK_PID=$(cat "$LOCKFILE" 2>/dev/null)
+    if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" 2>/dev/null; then
+        log_error "Another instance is already running (PID: $LOCK_PID)"
+        log_always "If you're sure no other instance is running, remove $LOCKFILE"
+        exit 1
+    else
+        # Stale lock file - remove it
+        rm -f "$LOCKFILE"
+    fi
+fi
+echo $$ > "$LOCKFILE"
+trap 'rm -f "$LOCKFILE"' EXIT
+
 # Get and validate actual user
 if [ -n "${SUDO_USER:-}" ]; then
     ACTUAL_USER="$SUDO_USER"
@@ -629,11 +651,16 @@ fi
 if [[ ! "$USER_HOME" =~ ^/Users/ ]] && [[ ! "$USER_HOME" =~ ^/home/ ]]; then
     log_warning "User home directory is not in standard location: $USER_HOME"
     if [ "$AUTO_YES" = false ] && [ "$QUIET" = false ]; then
-        read -p "Continue anyway? [y/N] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log_always "Aborted by user"
-            exit 0
+        # Check if running non-interactively
+        if [ ! -t 0 ]; then
+            log_plain "Non-interactive mode detected, auto-confirming"
+        else
+            read -p "Continue anyway? [y/N] " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                log_always "Aborted by user"
+                exit 0
+            fi
         fi
     fi
 fi
@@ -1006,7 +1033,20 @@ DISK_USAGE=$(df -h / 2>/dev/null | awk 'NR==2 {print $5}' | sed 's/%//')
 DISK_AVAIL=$(df -h / 2>/dev/null | awk 'NR==2 {print $4}')
 DISK_USED=$(df -h / 2>/dev/null | awk 'NR==2 {print $3}')
 DISK_AVAIL_BYTES=$(df -k / 2>/dev/null | awk 'NR==2 {print $4}')  # Get KB
-DISK_AVAIL_BYTES=$((DISK_AVAIL_BYTES * 1024))  # Convert KB to bytes
+
+# Validate disk usage - ensure it's numeric
+DISK_USAGE=${DISK_USAGE:-0}
+if [[ ! "$DISK_USAGE" =~ ^[0-9]+$ ]]; then
+    log_warning "Could not determine disk usage, proceeding anyway"
+    DISK_USAGE=0
+fi
+
+# Validate available bytes
+if [[ ! "$DISK_AVAIL_BYTES" =~ ^[0-9]+$ ]]; then
+    DISK_AVAIL_BYTES=0
+else
+    DISK_AVAIL_BYTES=$((DISK_AVAIL_BYTES * 1024))  # Convert KB to bytes
+fi
 
 log "Running as user: $ACTUAL_USER"
 log "Home directory: $USER_HOME"
@@ -1045,18 +1085,24 @@ TOTAL_BYTES_FREED=0
 declare -a PROCESSED_CATEGORIES=()
 declare -a SKIPPED_CATEGORIES=()
 
-# Confirmation prompt (skip in dry-run or if --yes flag)
+# Confirmation prompt (skip in dry-run, if --yes flag, or non-interactive)
 if [ "$DRY_RUN" = false ] && [ "$AUTO_YES" = false ]; then
-    log_plain "This will clean cache files, temporary files, and old logs."
-    log_plain "Safari and browser data will NOT be touched."
-    log_plain ""
-    read -p "Continue with cleanup? [y/N] " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        log_always "Cleanup cancelled."
-        exit 0
+    # Check if running non-interactively (cron, pipe, etc.) - skip prompt
+    if [ ! -t 0 ]; then
+        log_plain "Non-interactive mode detected, auto-confirming"
+        AUTO_YES=true
+    else
+        log_plain "This will clean cache files, temporary files, and old logs."
+        log_plain "Safari and browser data will NOT be touched."
+        log_plain ""
+        read -p "Continue with cleanup? [y/N] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log_always "Cleanup cancelled."
+            exit 0
+        fi
+        log_plain ""
     fi
-    log_plain ""
 fi
 
 ###############################################################################
@@ -1069,28 +1115,32 @@ if [ "$SKIP_SNAPSHOTS" = false ]; then
     log_plain "================================================"
 
     # Check if Time Machine backup is currently running
-    if tmutil status 2>/dev/null | grep -q "Running = 1"; then
-        log_warning "Time Machine backup is currently running"
-        log "Skipping snapshot deletion for safety"
-    else
-        SNAPSHOTS=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c "com.apple.TimeMachine" || echo "0")
-        if [ "$SNAPSHOTS" -gt 0 ]; then
-            # Note: macOS doesn't expose snapshot sizes directly
-            # Only showing count as accurate size calculation isn't possible
-
-            # Display snapshot information (count only - macOS doesn't expose snapshot sizes)
-            log "Found $SNAPSHOTS local Time Machine snapshot(s)"
-
-            if [ "$DRY_RUN" = true ]; then
-                log "Would delete $SNAPSHOTS snapshot(s)"
-            else
-                log "Deleting snapshots..."
-                tmutil deletelocalsnapshots / 2>/dev/null || log_warning "Some snapshots could not be deleted"
-                log_success "Local snapshots deleted successfully"
-            fi
+    if command -v tmutil &> /dev/null; then
+        if tmutil status 2>/dev/null | grep -q "Running = 1"; then
+            log_warning "Time Machine backup is currently running"
+            log "Skipping snapshot deletion for safety"
         else
-            log "No local snapshots found"
+            SNAPSHOTS=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c "com.apple.TimeMachine" || echo "0")
+            if [ "$SNAPSHOTS" -gt 0 ]; then
+                # Note: macOS doesn't expose snapshot sizes directly
+                # Only showing count as accurate size calculation isn't possible
+
+                # Display snapshot information (count only - macOS doesn't expose snapshot sizes)
+                log "Found $SNAPSHOTS local Time Machine snapshot(s)"
+
+                if [ "$DRY_RUN" = true ]; then
+                    log "Would delete $SNAPSHOTS snapshot(s)"
+                else
+                    log "Deleting snapshots..."
+                    tmutil deletelocalsnapshots / 2>/dev/null || log_warning "Some snapshots could not be deleted"
+                    log_success "Local snapshots deleted successfully"
+                fi
+            else
+                log "No local snapshots found"
+            fi
         fi
+    else
+        log "Time Machine (tmutil) not available, skipping"
     fi
     log_plain ""
 else
@@ -1119,10 +1169,14 @@ if [ "$SKIP_HOMEBREW" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BREW_BYTES))
             else
                 log "Cleaning Homebrew cache..."
-                sudo -u "$ACTUAL_USER" brew cleanup -s 2>/dev/null || log_warning "Homebrew cleanup encountered issues"
-
-                log "Removing unused dependencies..."
-                sudo -u "$ACTUAL_USER" brew autoremove 2>/dev/null || log_warning "Homebrew autoremove encountered issues"
+                # Validate user exists before running sudo -u
+                if id "$ACTUAL_USER" &>/dev/null; then
+                    sudo -u "$ACTUAL_USER" brew cleanup -s 2>/dev/null || log_warning "Homebrew cleanup encountered issues"
+                    log "Removing unused dependencies..."
+                    sudo -u "$ACTUAL_USER" brew autoremove 2>/dev/null || log_warning "Homebrew autoremove encountered issues"
+                else
+                    log_warning "User $ACTUAL_USER not found, skipping Homebrew cleanup"
+                fi
 
                 log_success "Homebrew cleaned"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BREW_BYTES))
@@ -1312,8 +1366,9 @@ if [ "$TMP_COUNT" -gt 0 ]; then
         TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TMP_BYTES))
     else
         log "Cleaning system temporary files..."
-        rm -rf /private/var/tmp/* 2>/dev/null
-        rm -rf /private/tmp/* 2>/dev/null
+        # Use find with -maxdepth to avoid following symlinks
+        find /private/var/tmp -maxdepth 1 -type f ! -type l -delete 2>/dev/null || true
+        find /private/tmp -maxdepth 1 -type f ! -type l -delete 2>/dev/null || true
         log_success "Temporary files cleaned"
         TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TMP_BYTES))
     fi
@@ -1594,38 +1649,43 @@ if [ "$SKIP_DOCKER" = false ]; then
     log_plain "================================================"
 
     if command -v docker &> /dev/null; then
-        # Get docker disk usage (with proper error handling)
-        DOCKER_INFO=$(docker system df 2>/dev/null || echo "")
-
-        if [ -n "$DOCKER_INFO" ] && [ -n "${DOCKER_INFO// }" ]; then
-            log "Docker system disk usage:"
-            echo "$DOCKER_INFO" | tail -n +2 | while read -r line; do
-                log "  $line"
-            done
-
-            # Estimate reclaimable space using docker's format option
-            DOCKER_RECLAIM_SIZE=$(docker system df --format '{{.Reclaimable}}' 2>/dev/null | head -1 || echo "0B")
-            # Validate and sanitize - handle empty, 0B, or N/A
-            if [ -z "$DOCKER_RECLAIM_SIZE" ] || [ "$DOCKER_RECLAIM_SIZE" = "0B" ] || [ "$DOCKER_RECLAIM_SIZE" = "N/A" ]; then
-                DOCKER_RECLAIM=0
-            else
-                # Strip any trailing parenthetical percentage e.g. "3.2GB (45%)" -> "3.2GB"
-                DOCKER_RECLAIM_SIZE=$(echo "$DOCKER_RECLAIM_SIZE" | awk '{print $1}')
-                DOCKER_RECLAIM=$(size_to_bytes "$DOCKER_RECLAIM_SIZE")
-            fi
-
-            if [ "$DRY_RUN" = true ]; then
-                log "Would clean Docker cache (dangling images, stopped containers, unused networks)"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
-            else
-                log "Cleaning Docker cache..."
-                log_warning "Note: Named volumes are preserved. Use 'docker volume prune' manually if needed."
-                docker system prune -af 2>/dev/null || log_warning "Docker cleanup encountered issues"
-                log_success "Docker cache cleared"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
-            fi
+        # Check if Docker daemon is running
+        if ! docker info &>/dev/null; then
+            log_warning "Docker daemon is not running, skipping"
         else
-            log "Docker is not running or has no data"
+            # Get docker disk usage (with proper error handling)
+            DOCKER_INFO=$(docker system df 2>/dev/null || echo "")
+
+            if [ -n "$DOCKER_INFO" ] && [ -n "${DOCKER_INFO// }" ]; then
+                log "Docker system disk usage:"
+                echo "$DOCKER_INFO" | tail -n +2 | while read -r line; do
+                    log "  $line"
+                done
+
+                # Estimate reclaimable space using docker's format option
+                DOCKER_RECLAIM_SIZE=$(docker system df --format '{{.Reclaimable}}' 2>/dev/null | head -1 || echo "0B")
+                # Validate and sanitize - handle empty, 0B, or N/A
+                if [ -z "$DOCKER_RECLAIM_SIZE" ] || [ "$DOCKER_RECLAIM_SIZE" = "0B" ] || [ "$DOCKER_RECLAIM_SIZE" = "N/A" ]; then
+                    DOCKER_RECLAIM=0
+                else
+                    # Strip any trailing parenthetical percentage e.g. "3.2GB (45%)" -> "3.2GB"
+                    DOCKER_RECLAIM_SIZE=$(echo "$DOCKER_RECLAIM_SIZE" | awk '{print $1}')
+                    DOCKER_RECLAIM=$(size_to_bytes "$DOCKER_RECLAIM_SIZE")
+                fi
+
+                if [ "$DRY_RUN" = true ]; then
+                    log "Would clean Docker cache (dangling images, stopped containers, unused networks)"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
+                else
+                    log "Cleaning Docker cache..."
+                    log_warning "Note: Named volumes are preserved. Use 'docker volume prune' manually if needed."
+                    docker system prune -af 2>/dev/null || log_warning "Docker cleanup encountered issues"
+                    log_success "Docker cache cleared"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
+                fi
+            else
+                log "Docker has no data to clean"
+            fi
         fi
     else
         log "Docker not installed, skipping"
