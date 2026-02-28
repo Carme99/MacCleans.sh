@@ -3,7 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="4.1.1"
+VERSION="4.1.2"
 
 ###############################################################################
 # Mac-Clean: macOS Disk Cleanup Utility
@@ -181,6 +181,7 @@ validate_config() {
 load_config_file() {
     for config_file in "${CONFIG_FILES[@]}"; do
         if [ -f "$config_file" ]; then
+            log_verbose "Loading config from: $config_file"
             while IFS='=' read -r key value 2>/dev/null || [ -n "$key" ]; do
                 # Skip comments and empty lines
                 [[ "$key" =~ ^[[:space:]]*# ]] && continue
@@ -190,6 +191,40 @@ load_config_file() {
                 key=$(echo "$key" | xargs)
                 value=$(echo "$value" | xargs)
 
+                # Skip empty values
+                [[ -z "$value" ]] && continue
+
+                # Validate and assign values based on key type
+                case "$key" in
+                    DRY_RUN|AUTO_YES|FORCE|QUIET|NO_COLOR|UPDATE|VERBOSE|\
+                    SKIP_SNAPSHOTS|SKIP_HOMEBREW|SKIP_SPOTIFY|SKIP_CLAUDE|\
+                    SKIP_XCODE|SKIP_BROWSERS|SKIP_NPM|SKIP_PIP|SKIP_TRASH|\
+                    SKIP_DSSTORE|SKIP_DOCKER|SKIP_SIMULATOR|SKIP_MAIL|\
+                    SKIP_SIRI_TTS|SKIP_ICLOUD_MAIL|SKIP_PHOTOS_LIBRARY|\
+                    SKIP_ICLOUD_DRIVE|SKIP_QUICKLOOK|SKIP_DIAGNOSTICS|\
+                    SKIP_IOS_BACKUPS|SKIP_IOS_UPDATES|SKIP_COCOAPODS|\
+                    SKIP_GRADLE|SKIP_GO|SKIP_BUN|SKIP_PNPM)
+                        # Validate boolean values
+                        if [ "$value" != "true" ] && [ "$value" != "false" ]; then
+                            log_warning "Invalid config: $key=$value (must be true/false), ignoring"
+                            continue
+                        fi
+                        ;;
+                    THRESHOLD)
+                        # Validate numeric threshold (0-100)
+                        if ! [[ "$value" =~ ^[0-9]+$ ]] || [ "$value" -lt 0 ] || [ "$value" -gt 100 ]; then
+                            log_warning "Invalid config: $key=$value (must be 0-100), ignoring"
+                            continue
+                        fi
+                        ;;
+                    *)
+                        # Unknown key - warn but continue
+                        log_warning "Unknown config option: $key, ignoring"
+                        continue
+                        ;;
+                esac
+
+                # Assign validated values
                 case "$key" in
                     DRY_RUN) DRY_RUN="$value" ;;
                     AUTO_YES) AUTO_YES="$value" ;;
@@ -617,21 +652,45 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Lock file to prevent concurrent runs
+# Lock file to prevent concurrent runs (atomic creation)
 LOCKFILE="/tmp/mac-clean.lock"
-if [ -f "$LOCKFILE" ]; then
+
+# Use atomic lock file creation to prevent TOCTOU race condition
+# Skip lock file in dry-run mode to avoid modifying system state
+create_lockfile() {
+    # In dry-run mode, skip lock file creation
+    if [ "$DRY_RUN" = true ]; then
+        return 0
+    fi
+    
+    # Try to create lock file atomically using noclobber
+    if (set -o noclobber; echo $$ > "$LOCKFILE") 2>/dev/null; then
+        return 0
+    fi
+    
+    # Lock file exists - check if process is still running
     LOCK_PID=$(cat "$LOCKFILE" 2>/dev/null)
     if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" 2>/dev/null; then
         log_error "Another instance is already running (PID: $LOCK_PID)"
         log_always "If you're sure no other instance is running, remove $LOCKFILE"
         exit 1
-    else
-        # Stale lock file - remove it
-        rm -f "$LOCKFILE"
     fi
+    
+    # Stale lock file - remove it and retry
+    rm -f "$LOCKFILE" 2>/dev/null
+    if (set -o noclobber; echo $$ > "$LOCKFILE") 2>/dev/null; then
+        return 0
+    fi
+    
+    log_error "Failed to create lock file"
+    exit 1
+}
+
+create_lockfile
+# Only set trap to remove lock file if not in dry-run mode
+if [ "$DRY_RUN" = false ]; then
+    trap 'rm -f "${LOCKFILE:-/tmp/mac-clean.lock}"' EXIT
 fi
-echo $$ > "$LOCKFILE"
-trap 'rm -f "$LOCKFILE"' EXIT
 
 # Get and validate actual user
 if [ -n "${SUDO_USER:-}" ]; then
@@ -1637,10 +1696,10 @@ if [ "$SKIP_TRASH" = false ]; then
                 # Safely delete files only (not symlinks) in trash
                 # Note: -type f matches all files including hidden files
                 find "$TRASH_DIR" -maxdepth 1 -type f -delete 2>/dev/null
-                # Delete directories (including non-empty)
-                # Note: -type d is the symlink guard (BSD find: -type d doesn't match symlinks to dirs)
-                # -mindepth 1 already excludes .Trash itself, so -not -name is unnecessary
-                find "$TRASH_DIR" -maxdepth 1 -mindepth 1 -type d -print0 | xargs -0 rm -rf 2>/dev/null || true
+                # Delete directories but EXCLUDE symlinks to prevent symlink attack
+                # BSD find: -type d MATCHES symlinks to dirs, so we must explicitly exclude them
+                # Use -type d ! -type l to only match regular directories (not symlinks)
+                find "$TRASH_DIR" -maxdepth 1 -mindepth 1 -type d ! -type l -print0 | xargs -0 rm -rf 2>/dev/null || true
                 log_success "Trash emptied"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
             fi
@@ -1886,16 +1945,25 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
                     SKIPPED_CATEGORIES+=("Photos Library Cache")
                 fi
             else
-                read -p "Close Photos app for safe cleanup? (y/n): " -r
-                if [[ $REPLY =~ ^[Yy]$ ]]; then
-                    if ! quit_photos_app; then
-                        log_error "Photos app did not quit after 5 seconds. Skipping cleanup to prevent database corruption."
-                        log "Please close Photos manually and retry."
+                # Only prompt if running interactively (TTY available)
+                if [ -t 0 ]; then
+                    read -p "Close Photos app for safe cleanup? (y/n): " -r
+                    if [[ $REPLY =~ ^[Yy]$ ]]; then
+                        if ! quit_photos_app; then
+                            log_error "Photos app did not quit after 5 seconds. Skipping cleanup to prevent database corruption."
+                            log "Please close Photos manually and retry."
+                            SKIP_PHOTOS_LIBRARY=true
+                            SKIPPED_CATEGORIES+=("Photos Library Cache")
+                        fi
+                    else
+                        log "Skipping Photos Library - close Photos and retry"
                         SKIP_PHOTOS_LIBRARY=true
                         SKIPPED_CATEGORIES+=("Photos Library Cache")
                     fi
                 else
-                    log "Skipping Photos Library - close Photos and retry"
+                    # Non-interactive mode (cron/script) - skip with warning
+                    log_warning "Photos app is running. Skipping cleanup in non-interactive mode."
+                    log "Run interactively to close Photos app and continue."
                     SKIP_PHOTOS_LIBRARY=true
                     SKIPPED_CATEGORIES+=("Photos Library Cache")
                 fi
@@ -2409,7 +2477,8 @@ if [ "$SKIP_GRADLE" = false ]; then
                 if command -v gradle &> /dev/null; then
                     gradle --stop 2>/dev/null || true
                 fi
-                rm -rf "$GRADLE_CACHE_DIR" 2>/dev/null || true
+                # Use ${var:?} to prevent accidental deletion of current directory if var is empty
+                rm -rf "${GRADLE_CACHE_DIR:?}" 2>/dev/null || true
                 log_success "Gradle cache cleared: $GRADLE_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GRADLE_BYTES))
             fi
@@ -2466,8 +2535,9 @@ if [ "$SKIP_GO" = false ]; then
             fi
             # Fallback: manual deletion
             for CACHE_DIR in "$GO_CACHE_DIR" "$GO_CACHE_DIR_ALT"; do
-                if [ -d "$CACHE_DIR" ]; then
-                    rm -rf "$CACHE_DIR" 2>/dev/null || true
+                # Guard: only delete if directory exists and is not empty
+                if [ -n "$CACHE_DIR" ] && [ -d "$CACHE_DIR" ]; then
+                    rm -rf "${CACHE_DIR:?}" 2>/dev/null || true
                 fi
             done
             log_success "Go module cache cleared: $GO_HUMAN"
@@ -2505,7 +2575,8 @@ if [ "$SKIP_BUN" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BUN_BYTES))
             else
                 log "Cleaning Bun cache..."
-                rm -rf "$BUN_CACHE_DIR" 2>/dev/null || true
+                # Use ${var:?} to prevent accidental deletion of current directory
+                rm -rf "${BUN_CACHE_DIR:?}" 2>/dev/null || true
                 log_success "Bun cache cleared: $BUN_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BUN_BYTES))
             fi
@@ -2560,12 +2631,13 @@ if [ "$SKIP_PNPM" = false ]; then
                 fi
                 # Also check for the global store
                 PNPM_GLOBAL_STORE="$USER_HOME/.pnpm-store"
-                if [ -d "$PNPM_GLOBAL_STORE" ]; then
+                if [ -n "$PNPM_GLOBAL_STORE" ] && [ -d "$PNPM_GLOBAL_STORE" ]; then
                     PNPM_GLOBAL_SIZE=$(du -sh "$PNPM_GLOBAL_STORE" 2>/dev/null | awk '{print $1}' || echo "0B")
                     PNPM_GLOBAL_BYTES=$(size_to_bytes "$PNPM_GLOBAL_SIZE")
                     PNPM_BYTES=$((PNPM_BYTES + PNPM_GLOBAL_BYTES))
                     PNPM_SIZE="$PNPM_SIZE (global: $PNPM_GLOBAL_SIZE)"
-                    rm -rf "$PNPM_GLOBAL_STORE" 2>/dev/null || true
+                    # Use ${var:?} to prevent accidental deletion of current directory
+                    rm -rf "${PNPM_GLOBAL_STORE:?}" 2>/dev/null || true
                 fi
                 log_success "pnpm store pruned: $PNPM_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PNPM_BYTES))

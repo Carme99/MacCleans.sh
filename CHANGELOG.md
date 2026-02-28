@@ -2,6 +2,24 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [4.1.2] - 2026-02-28
+
+### Security Fixes
+
+- **Lock File Race Condition (CRITICAL)**: Replaced check-then-create pattern with atomic lock file creation using `set -o noclobber`. Prevents TOCTOU race condition that could allow concurrent instances to run.
+- **Missing Variable Guards (HIGH)**: Added `${var:?}` guards to rm commands in Gradle, Go, Bun, and pnpm cleanup sections. Prevents accidental deletion of current directory if variable is empty.
+- **Trash Symlink Vulnerability (HIGH)**: Fixed BSD find `-type d` to explicitly exclude symlinks using `! -type l`. BSD/macOS find matches symlinks to directories with `-type d`, contrary to previous assumption.
+- **Blocking Read in Photos Cleanup (HIGH)**: Added TTY check before prompting to close Photos app. Prevents script hang in cron/non-interactive mode.
+
+### Bug Fixes
+
+- **Dry-Run State Modification**: Lock file is now skipped in dry-run mode to ensure truly non-destructive preview.
+- **Config File Validation**: Added validation for all config file values - booleans must be "true"/"false", THRESHOLD must be 0-100, unknown keys are warned and skipped.
+
+### Improvements
+
+- Enhanced error handling and input validation throughout
+
 ## [4.1.1] - 2026-02-23
 
 ### Bug Fixes

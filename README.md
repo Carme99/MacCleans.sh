@@ -1,4 +1,4 @@
-[![Version](https://img.shields.io/badge/Version-4.1.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-4.1.2-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![Tested](https://img.shields.io/badge/Tested%20on-26.4-green.svg)]()
@@ -41,14 +41,19 @@ sudo Mac-Clean --yes
 
 ---
 
-## What's New in v4.1.1
+## What's New in v4.1.2
+
+### Security Fixes
+
+- **Lock File Race Condition (CRITICAL)**: Fixed TOCTOU vulnerability in lock file creation using atomic `set -o noclobber`
+- **Missing Variable Guards (HIGH)**: Added `${var:?}` guards to rm commands in Gradle, Go, Bun, pnpm cleanup
+- **Trash Symlink Vulnerability (HIGH)**: Fixed BSD find `-type d` to exclude symlinks with `! -type l`
+- **Blocking Read in Photos Cleanup (HIGH)**: Added TTY check before prompting, prevents cron hang
 
 ### Bug Fixes
 
-- **Size conversion**: Fixed `size_to_bytes()` for macOS awk compatibility
-- **Non-interactive mode**: No longer hangs in cron/automation
-- **Concurrent runs**: Lock file prevents multiple instances
-- **Safety**: Symlink protection for temp file deletion
+- **Dry-Run**: Lock file now skipped in dry-run mode for truly non-destructive preview
+- **Config Validation**: Added validation for config file values
 
 For full changelog, see [CHANGELOG.md](CHANGELOG.md).
 
