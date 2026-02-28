@@ -179,6 +179,57 @@ validate_config() {
 
 # Load and parse configuration file
 load_config_file() {
+    # Centralized config key-to-variable mapping (single source of truth)
+    # Add new config options here to keep validation and assignment in sync
+    declare -A CONFIG_KEYS=(
+        [DRY_RUN]=DRY_RUN
+        [AUTO_YES]=AUTO_YES
+        [FORCE]=FORCE
+        [QUIET]=QUIET
+        [NO_COLOR]=NO_COLOR
+        [UPDATE]=UPDATE
+        [VERBOSE]=VERBOSE
+        [THRESHOLD]=THRESHOLD
+        [SKIP_SNAPSHOTS]=SKIP_SNAPSHOTS
+        [SKIP_HOMEBREW]=SKIP_HOMEBREW
+        [SKIP_SPOTIFY]=SKIP_SPOTIFY
+        [SKIP_CLAUDE]=SKIP_CLAUDE
+        [SKIP_XCODE]=SKIP_XCODE
+        [SKIP_BROWSERS]=SKIP_BROWSERS
+        [SKIP_NPM]=SKIP_NPM
+        [SKIP_PIP]=SKIP_PIP
+        [SKIP_TRASH]=SKIP_TRASH
+        [SKIP_DSSTORE]=SKIP_DSSTORE
+        [SKIP_DOCKER]=SKIP_DOCKER
+        [SKIP_SIMULATOR]=SKIP_SIMULATOR
+        [SKIP_MAIL]=SKIP_MAIL
+        [SKIP_SIRI_TTS]=SKIP_SIRI_TTS
+        [SKIP_ICLOUD_MAIL]=SKIP_ICLOUD_MAIL
+        [SKIP_PHOTOS_LIBRARY]=SKIP_PHOTOS_LIBRARY
+        [SKIP_ICLOUD_DRIVE]=SKIP_ICLOUD_DRIVE
+        [SKIP_QUICKLOOK]=SKIP_QUICKLOOK
+        [SKIP_DIAGNOSTICS]=SKIP_DIAGNOSTICS
+        [SKIP_IOS_BACKUPS]=SKIP_IOS_BACKUPS
+        [SKIP_IOS_UPDATES]=SKIP_IOS_UPDATES
+        [SKIP_COCOAPODS]=SKIP_COCOAPODS
+        [SKIP_GRADLE]=SKIP_GRADLE
+        [SKIP_GO]=SKIP_GO
+        [SKIP_BUN]=SKIP_BUN
+        [SKIP_PNPM]=SKIP_PNPM
+    )
+    
+    # Boolean config keys (for validation)
+    declare -a BOOLEAN_KEYS=(
+        DRY_RUN AUTO_YES FORCE QUIET NO_COLOR UPDATE VERBOSE
+        SKIP_SNAPSHOTS SKIP_HOMEBREW SKIP_SPOTIFY SKIP_CLAUDE
+        SKIP_XCODE SKIP_BROWSERS SKIP_NPM SKIP_PIP SKIP_TRASH
+        SKIP_DSSTORE SKIP_DOCKER SKIP_SIMULATOR SKIP_MAIL
+        SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_PHOTOS_LIBRARY
+        SKIP_ICLOUD_DRIVE SKIP_QUICKLOOK SKIP_DIAGNOSTICS
+        SKIP_IOS_BACKUPS SKIP_IOS_UPDATES SKIP_COCOAPODS
+        SKIP_GRADLE SKIP_GO SKIP_BUN SKIP_PNPM
+    )
+
     for config_file in "${CONFIG_FILES[@]}"; do
         if [ -f "$config_file" ]; then
             # Use inline echo since log_verbose not defined yet
@@ -197,73 +248,39 @@ load_config_file() {
                 # Skip empty values
                 [[ -z "$value" ]] && continue
 
-                # Validate and assign values based on key type
+                # Check if key is known
+                if [[ -z "${CONFIG_KEYS[$key]:-}" ]]; then
+                    echo "WARNING: Unknown config option: $key, ignoring" >&2
+                    continue
+                fi
+
+                # Get variable name from mapping
+                var_name="${CONFIG_KEYS[$key]}"
+
+                # Validate based on key type
                 case "$key" in
-                    DRY_RUN|AUTO_YES|FORCE|QUIET|NO_COLOR|UPDATE|VERBOSE|\
-                    SKIP_SNAPSHOTS|SKIP_HOMEBREW|SKIP_SPOTIFY|SKIP_CLAUDE|\
-                    SKIP_XCODE|SKIP_BROWSERS|SKIP_NPM|SKIP_PIP|SKIP_TRASH|\
-                    SKIP_DSSTORE|SKIP_DOCKER|SKIP_SIMULATOR|SKIP_MAIL|\
-                    SKIP_SIRI_TTS|SKIP_ICLOUD_MAIL|SKIP_PHOTOS_LIBRARY|\
-                    SKIP_ICLOUD_DRIVE|SKIP_QUICKLOOK|SKIP_DIAGNOSTICS|\
-                    SKIP_IOS_BACKUPS|SKIP_IOS_UPDATES|SKIP_COCOAPODS|\
-                    SKIP_GRADLE|SKIP_GO|SKIP_BUN|SKIP_PNPM)
-                        # Validate boolean values
-                        if [ "$value" != "true" ] && [ "$value" != "false" ]; then
-                            echo "WARNING: Invalid config: $key=$value (must be true/false), ignoring" >&2
-                            continue
-                        fi
-                        ;;
                     THRESHOLD)
-                        # Validate numeric threshold (0-100)
                         if ! [[ "$value" =~ ^[0-9]+$ ]] || [ "$value" -lt 0 ] || [ "$value" -gt 100 ]; then
                             echo "WARNING: Invalid config: $key=$value (must be 0-100), ignoring" >&2
                             continue
                         fi
                         ;;
                     *)
-                        # Unknown key - warn but continue
-                        echo "WARNING: Unknown config option: $key, ignoring" >&2
-                        continue
+                        # Boolean validation
+                        if [ "$value" != "true" ] && [ "$value" != "false" ]; then
+                            echo "WARNING: Invalid config: $key=$value (must be true/false), ignoring" >&2
+                            continue
+                        fi
                         ;;
                 esac
 
-                # Assign validated values
-                case "$key" in
-                    DRY_RUN) DRY_RUN="$value" ;;
-                    AUTO_YES) AUTO_YES="$value" ;;
-                    FORCE) FORCE="$value"; [ "$value" = "true" ] && AUTO_YES="true" ;;
-                    QUIET) QUIET="$value" ;;
-                    NO_COLOR) NO_COLOR="$value" ;;
-                    THRESHOLD) THRESHOLD="$value" ;;
-                    SKIP_SNAPSHOTS) SKIP_SNAPSHOTS="$value" ;;
-                    SKIP_HOMEBREW) SKIP_HOMEBREW="$value" ;;
-                    SKIP_SPOTIFY) SKIP_SPOTIFY="$value" ;;
-                    SKIP_CLAUDE) SKIP_CLAUDE="$value" ;;
-                    SKIP_XCODE) SKIP_XCODE="$value" ;;
-                    SKIP_BROWSERS) SKIP_BROWSERS="$value" ;;
-                    SKIP_NPM) SKIP_NPM="$value" ;;
-                    SKIP_PIP) SKIP_PIP="$value" ;;
-                    SKIP_TRASH) SKIP_TRASH="$value" ;;
-                    SKIP_DSSTORE) SKIP_DSSTORE="$value" ;;
-                    SKIP_DOCKER) SKIP_DOCKER="$value" ;;
-                    SKIP_SIMULATOR) SKIP_SIMULATOR="$value" ;;
-                    SKIP_MAIL) SKIP_MAIL="$value" ;;
-                    SKIP_SIRI_TTS) SKIP_SIRI_TTS="$value" ;;
-                    SKIP_ICLOUD_MAIL) SKIP_ICLOUD_MAIL="$value" ;;
-                    SKIP_PHOTOS_LIBRARY) SKIP_PHOTOS_LIBRARY="$value" ;;
-                    SKIP_ICLOUD_DRIVE) SKIP_ICLOUD_DRIVE="$value" ;;
-                    SKIP_QUICKLOOK) SKIP_QUICKLOOK="$value" ;;
-                    SKIP_DIAGNOSTICS) SKIP_DIAGNOSTICS="$value" ;;
-                    SKIP_IOS_BACKUPS) SKIP_IOS_BACKUPS="$value" ;;
-                    SKIP_IOS_UPDATES) SKIP_IOS_UPDATES="$value" ;;
-                    SKIP_COCOAPODS) SKIP_COCOAPODS="$value" ;;
-                    SKIP_GRADLE) SKIP_GRADLE="$value" ;;
-                    SKIP_GO) SKIP_GO="$value" ;;
-                    SKIP_BUN) SKIP_BUN="$value" ;;
-                    SKIP_PNPM) SKIP_PNPM="$value" ;;
-                    UPDATE) UPDATE="$value" ;;
-                    VERBOSE) VERBOSE="$value" ;;
-                esac
+                # Assign value to variable
+                declare "$var_name=$value"
+                
+                # Handle FORCE -> AUTO_YES propagation
+                if [ "$key" = "FORCE" ] && [ "$value" = "true" ]; then
+                    AUTO_YES=true
+                fi
             done < "$config_file"
             break
         fi
@@ -467,24 +484,29 @@ parse_arguments "$@"
 # Validate configuration after loading and parsing
 validate_config
 
+# Helper function for lockfile removal (handles dry-run logic consistently)
+remove_lockfile() {
+    # Skip lockfile removal in dry-run mode
+    if [ "$DRY_RUN" = true ]; then
+        return 0
+    fi
+    rm -f "${LOCKFILE:-/tmp/mac-clean.lock}" 2>/dev/null || true
+}
+
 # Set up signal handling for graceful interruption
 cleanup_on_interrupt() {
     stop_spinner 2>/dev/null || true
-    # Remove lock file on interrupt (regardless of dry-run)
-    rm -f "${LOCKFILE:-/tmp/mac-clean.lock}" 2>/dev/null || true
-    log_warning "Interrupted by user, cleaning up..."
-    log_always "Cleanup aborted."
+    remove_lockfile
+    echo "WARNING: Interrupted by user, cleaning up..." >&2
+    echo "Cleanup aborted."
     exit 130
 }
 trap cleanup_on_interrupt INT TERM
 
-# Combined cleanup function - stops spinner and removes lock file
+# Cleanup on normal exit
 cleanup_on_exit() {
     stop_spinner 2>/dev/null || true
-    # Only remove lock file if not in dry-run mode
-    if [ "$DRY_RUN" = false ]; then
-        rm -f "${LOCKFILE:-/tmp/mac-clean.lock}" 2>/dev/null || true
-    fi
+    remove_lockfile
 }
 trap cleanup_on_exit EXIT
 
