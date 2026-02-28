@@ -8,7 +8,7 @@ All notable changes to MacCleans.sh are documented in this file.
 
 - **Lock File Race Condition (CRITICAL)**: Replaced check-then-create pattern with atomic lock file creation using `set -o noclobber`. Prevents TOCTOU race condition that could allow concurrent instances to run.
 - **Missing Variable Guards (HIGH)**: Added `${var:?}` guards to rm commands in Gradle, Go, Bun, and pnpm cleanup sections. Prevents accidental deletion of current directory if variable is empty.
-- **Trash Symlink Vulnerability (HIGH)**: Fixed BSD find `-type d` to explicitly exclude symlinks using `! -type l`. BSD/macOS find matches symlinks to directories with `-type d`, contrary to previous assumption.
+- **Trash Symlink Vulnerability (HIGH)**: Added explicit symlink exclusion `! -type l` to trash cleanup as defense-in-depth. Note: BSD/macOS find `-type d` does not match symlinks, so this is redundant but clarifies intent.
 - **Blocking Read in Photos Cleanup (HIGH)**: Added TTY check before prompting to close Photos app. Prevents script hang in cron/non-interactive mode.
 
 ### Bug Fixes

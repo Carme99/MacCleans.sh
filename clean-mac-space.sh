@@ -1696,9 +1696,9 @@ if [ "$SKIP_TRASH" = false ]; then
                 # Safely delete files only (not symlinks) in trash
                 # Note: -type f matches all files including hidden files
                 find "$TRASH_DIR" -maxdepth 1 -type f -delete 2>/dev/null
-                # Delete directories but EXCLUDE symlinks to prevent symlink attack
-                # BSD find: -type d MATCHES symlinks to dirs, so we must explicitly exclude them
-                # Use -type d ! -type l to only match regular directories (not symlinks)
+                # Delete directories while explicitly excluding symlinks to prevent symlink attacks
+                # Note: on BSD/macOS find, -type d does NOT match symlinks (even to directories);
+                # we still include ! -type l as a defensive clarity guard so this command never removes symlink entries from Trash
                 find "$TRASH_DIR" -maxdepth 1 -mindepth 1 -type d ! -type l -print0 | xargs -0 rm -rf 2>/dev/null || true
                 log_success "Trash emptied"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))

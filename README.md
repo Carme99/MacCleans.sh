@@ -47,7 +47,7 @@ sudo Mac-Clean --yes
 
 - **Lock File Race Condition (CRITICAL)**: Fixed TOCTOU vulnerability in lock file creation using atomic `set -o noclobber`
 - **Missing Variable Guards (HIGH)**: Added `${var:?}` guards to rm commands in Gradle, Go, Bun, pnpm cleanup
-- **Trash Symlink Vulnerability (HIGH)**: Fixed BSD find `-type d` to exclude symlinks with `! -type l`
+- **Trash Symlink Vulnerability (HIGH)**: Added explicit symlink exclusion to trash cleanup (defense-in-depth)
 - **Blocking Read in Photos Cleanup (HIGH)**: Added TTY check before prompting, prevents cron hang
 
 ### Bug Fixes
