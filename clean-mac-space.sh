@@ -181,7 +181,10 @@ validate_config() {
 load_config_file() {
     for config_file in "${CONFIG_FILES[@]}"; do
         if [ -f "$config_file" ]; then
-            log_verbose "Loading config from: $config_file"
+            # Use inline echo since log_verbose not defined yet
+            if [ "${VERBOSE:-false}" = true ]; then
+                echo "[VERBOSE] Loading config from: $config_file"
+            fi
             while IFS='=' read -r key value 2>/dev/null || [ -n "$key" ]; do
                 # Skip comments and empty lines
                 [[ "$key" =~ ^[[:space:]]*# ]] && continue
@@ -206,20 +209,20 @@ load_config_file() {
                     SKIP_GRADLE|SKIP_GO|SKIP_BUN|SKIP_PNPM)
                         # Validate boolean values
                         if [ "$value" != "true" ] && [ "$value" != "false" ]; then
-                            log_warning "Invalid config: $key=$value (must be true/false), ignoring"
+                            echo "WARNING: Invalid config: $key=$value (must be true/false), ignoring" >&2
                             continue
                         fi
                         ;;
                     THRESHOLD)
                         # Validate numeric threshold (0-100)
                         if ! [[ "$value" =~ ^[0-9]+$ ]] || [ "$value" -lt 0 ] || [ "$value" -gt 100 ]; then
-                            log_warning "Invalid config: $key=$value (must be 0-100), ignoring"
+                            echo "WARNING: Invalid config: $key=$value (must be 0-100), ignoring" >&2
                             continue
                         fi
                         ;;
                     *)
                         # Unknown key - warn but continue
-                        log_warning "Unknown config option: $key, ignoring"
+                        echo "WARNING: Unknown config option: $key, ignoring" >&2
                         continue
                         ;;
                 esac
@@ -467,15 +470,21 @@ validate_config
 # Set up signal handling for graceful interruption
 cleanup_on_interrupt() {
     stop_spinner 2>/dev/null || true
+    # Remove lock file on interrupt (regardless of dry-run)
+    rm -f "${LOCKFILE:-/tmp/mac-clean.lock}" 2>/dev/null || true
     log_warning "Interrupted by user, cleaning up..."
     log_always "Cleanup aborted."
     exit 130
 }
 trap cleanup_on_interrupt INT TERM
 
-# Also stop spinner on normal exit
+# Combined cleanup function - stops spinner and removes lock file
 cleanup_on_exit() {
     stop_spinner 2>/dev/null || true
+    # Only remove lock file if not in dry-run mode
+    if [ "$DRY_RUN" = false ]; then
+        rm -f "${LOCKFILE:-/tmp/mac-clean.lock}" 2>/dev/null || true
+    fi
 }
 trap cleanup_on_exit EXIT
 
@@ -687,10 +696,6 @@ create_lockfile() {
 }
 
 create_lockfile
-# Only set trap to remove lock file if not in dry-run mode
-if [ "$DRY_RUN" = false ]; then
-    trap 'rm -f "${LOCKFILE:-/tmp/mac-clean.lock}"' EXIT
-fi
 
 # Get and validate actual user
 if [ -n "${SUDO_USER:-}" ]; then
