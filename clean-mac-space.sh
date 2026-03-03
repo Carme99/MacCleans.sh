@@ -7,6 +7,7 @@ VERSION="4.1.2"
 
 # Global variables for caching expensive operations
 BRCTL_STATUS_CACHE=""
+LOCK_OWNED=0
 
 ###############################################################################
 # Mac-Clean: macOS Disk Cleanup Utility
@@ -414,8 +415,8 @@ parse_arguments() {
                 shift 2
                 ;;
             --help|-h)
-                # Extract help text dynamically - reads from line 3 and outputs consecutive comment lines
-                awk 'NR>2 && /^# /{gsub(/^# /,""); print; next} NR>2 && /^#$/||NR>2 && !/^#/{exit}' "$0"
+                # Extract help text: find "# Mac-Clean:" marker, then print consecutive comment lines
+                awk '/^# [A-Za-z]/{found=1} found{print}' "$0" | sed 's/^# //;s/^#$/ /'
                 exit 0
                 ;;
             *)
@@ -445,8 +446,8 @@ trap cleanup_on_interrupt INT TERM
 # Also stop spinner and cleanup lock on normal exit
 cleanup_on_exit() {
     stop_spinner 2>/dev/null || true
-    # Cleanup lock directory if it exists
-    if [ -n "${LOCKDIR:-}" ] && [ -d "$LOCKDIR" ]; then
+    # Cleanup lock directory only if we own it
+    if [ "${LOCK_OWNED:-0}" = 1 ] && [ -n "${LOCKDIR:-}" ] && [ -d "$LOCKDIR" ]; then
         rm -rf "$LOCKDIR" 2>/dev/null || true
     fi
 }
@@ -632,7 +633,7 @@ safe_clear_directory() {
     # Delete empty directories (in reverse depth order)
     find "$dir" -mindepth "$mindepth" -type d -empty -delete || status=1
     # Delete non-empty directories (careful - only for cache dirs)
-    find "$dir" -mindepth "$mindepth" -type d -exec rm -rf {} + 2>/dev/null || status=1
+    find "$dir" -mindepth "$mindepth" -type d -exec rm -rf -- {} + 2>/dev/null || status=1
     
     return $status
 }
@@ -695,6 +696,7 @@ acquire_lock() {
     if mkdir "$LOCKDIR" 2>/dev/null; then
         # Write PID to lock file
         echo $$ > "$LOCKDIR/pid"
+        LOCK_OWNED=1
         return 0
     fi
     
@@ -714,6 +716,7 @@ acquire_lock() {
     
     if mkdir "$LOCKDIR" 2>/dev/null; then
         echo $$ > "$LOCKDIR/pid"
+        LOCK_OWNED=1
         return 0
     fi
     
@@ -2562,17 +2565,12 @@ if [ "$SKIP_GRADLE" = false ]; then
                 if command -v gradle &> /dev/null; then
                     gradle --stop 2>/dev/null || true
                 fi
-                safe_clear_directory "$GRADLE_CACHE_DIR" 2>/dev/null || true
-                log_success "Gradle cache cleared: $GRADLE_SIZE"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GRADLE_BYTES))
-            fi
-                safe_clear_directory "$GRADLE_CACHE_DIR" 2>/dev/null || true
-                log_success "Gradle cache cleared: $GRADLE_SIZE"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GRADLE_BYTES))
-            fi
-                rm -rf "$GRADLE_CACHE_DIR" 2>/dev/null || true
-                log_success "Gradle cache cleared: $GRADLE_SIZE"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GRADLE_BYTES))
+                if safe_clear_directory "$GRADLE_CACHE_DIR"; then
+                    log_success "Gradle cache cleared: $GRADLE_SIZE"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GRADLE_BYTES))
+                else
+                    log_warning "Gradle cache cleanup encountered issues"
+                fi
             fi
         else
             log "Gradle cache is empty"
