@@ -1,4 +1,4 @@
-[![Version](https://img.shields.io/badge/Version-4.1.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-4.1.2-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![Tested](https://img.shields.io/badge/Tested%20on-26.4-green.svg)]()
@@ -41,14 +41,20 @@ sudo Mac-Clean --yes
 
 ---
 
-## What's New in v4.1.1
+## What's New in v4.1.2
 
-### Bug Fixes
+### Security Improvements
 
-- **Size conversion**: Fixed `size_to_bytes()` for macOS awk compatibility
-- **Non-interactive mode**: No longer hangs in cron/automation
-- **Concurrent runs**: Lock file prevents multiple instances
-- **Safety**: Symlink protection for temp file deletion
+- **Atomic Lock File**: Prevents race conditions when running multiple instances
+- **iCloud Sync Validation**: Blocks cleanup if files are pending upload/download
+- **Symlink Protection**: All deletions now use hardened `safe_clear_directory()` helper
+- **Safe Deletion**: Replaced risky glob patterns with `find -delete` operations
+
+### Code Quality
+
+- **Dynamic Help**: `--help` now extracts content automatically
+- **Performance**: iCloud checks now cached for faster execution
+- **Bug Fixes**: Fixed interactive menu cursor, error handling improvements
 
 For full changelog, see [CHANGELOG.md](CHANGELOG.md).
 

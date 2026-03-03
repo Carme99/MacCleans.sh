@@ -2,6 +2,26 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [4.1.2] - 2026-03-03
+
+### Security Improvements
+
+- **Atomic Lock File**: Replaced file-based lock with atomic `mkdir`-based locking to prevent TOCTOU race conditions in concurrent execution
+- **iCloud Sync Validation**: Added `check_icloud_sync_status()` to detect pending uploads/downloads before iCloud Drive cleanup - prevents permanent data loss
+- **Symlink Protection**: All directory operations now use `safe_clear_directory()` helper with explicit symlink checks - prevents privilege escalation via symlink attacks
+- **Safe Deletion**: Replaced all `rm -rf "${VAR:?}"/*` glob patterns with hardened `find -delete` operations
+
+### Code Quality
+
+- **Dynamic Help Text**: `--help` now extracts help content dynamically instead of hardcoded line numbers
+- **Error Handling**: Fixed `safe_clear_directory()` to capture and propagate deletion failures
+- **Performance**: `brctl` command now cached and reused across iCloud folders
+- **POSIX Compatibility**: Fixed interactive menu cursor arithmetic to avoid `set -e` failures
+
+### New Features
+
+- Profile presets now include all skip flags: COCOAPODS, GRADLE, GO, BUN, PNPM
+
 ## [4.1.1] - 2026-02-23
 
 ### Bug Fixes

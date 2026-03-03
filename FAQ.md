@@ -142,10 +142,10 @@ Transparency is a core principle of this project.
 
 | Profile | Best For | What It Skips | Recovery Potential |
 |---------|----------|---------------|-------------------|
-| **Conservative** | Regular users, non-developers | XCode, npm, pip, browsers, Docker, Simulator | 5-20GB |
-| **Developer** | Active developers | Only XCode (avoid rebuild times) | 10-40GB |
+| **Conservative** | Regular users, non-developers | XCode, npm, pip, browsers, Docker, Simulator, iOS backups, CocoaPods, Gradle, Go, Bun, pnpm | 5-20GB |
+| **Developer** | Active developers | Only XCode and iOS backups (avoid rebuild times) | 10-40GB |
 | **Aggressive** | Maximum space recovery | Nothing - cleans everything | 15-100GB+ |
-| **Minimal** | Quick, safe cleanup | All application caches | 2-10GB |
+| **Minimal** | Quick, safe cleanup | All dev caches + all application caches | 2-10GB |
 
 Choose based on your needs:
 
