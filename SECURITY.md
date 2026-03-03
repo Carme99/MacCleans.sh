@@ -36,6 +36,10 @@ Since this script runs with `sudo`, it's fair to ask what it's actually doing. H
 - All variables quoted - no command injection funny business
 - Operations scoped to known cache/temp directories only
 - Validates user context before doing anything
+- **Atomic locking** - Uses `mkdir` for race-free concurrent execution protection
+- **iCloud sync validation** - Checks for pending uploads before iCloud Drive cleanup
+- **Symlink protection** - All deletions use hardened helpers with symlink guards
+- **Safe deletion** - Uses `find -delete` instead of glob expansion to prevent injection
 
 This is a free tool built for fun. It does what other apps charge money for, but without the dodgy data collection. You're welcome.
 
