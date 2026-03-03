@@ -1786,7 +1786,7 @@ if [ "$SKIP_TRASH" = false ]; then
                 # Delete files only (not symlinks to prevent symlink attacks)
                 find "$TRASH_DIR" -maxdepth 1 -type f -delete 2>/dev/null
                 # Delete directories (including non-empty) - BSD find -type d doesn't follow symlinks
-                find "$TRASH_DIR" -maxdepth 1 -mindepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
+                find "$TRASH_DIR" -maxdepth 1 -mindepth 1 -type d -exec rm -rf -- {} + 2>/dev/null || true
                 log_success "Trash emptied"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
             fi

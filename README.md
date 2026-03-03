@@ -139,10 +139,10 @@ This will install `Mac-Clean` to `/usr/local/bin/` and create a symlink for `mac
 
 | Profile | Description |
 |---------|-------------|
-| `conservative` | Skip XCode, Docker, iOS backups |
-| `developer` | Skip iOS backups only |
+| `conservative` | Skip XCode, npm, pip, browsers, Docker, Simulator, iOS backups, CocoaPods, Gradle, Go, Bun, pnpm |
+| `developer` | Skip XCode, iOS backups only |
 | `aggressive` | Clean everything |
-| `minimal` | Only caches and temp files |
+| `minimal` | Skip all development tool caches + application caches |
 
 ### Danger Zone (Requires `--force`)
 
