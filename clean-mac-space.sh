@@ -5,6 +5,9 @@ set -euo pipefail
 
 VERSION="4.1.2"
 
+# Global variables for caching expensive operations
+BRCTL_STATUS_CACHE=""
+
 ###############################################################################
 # Mac-Clean: macOS Disk Cleanup Utility
 # Purpose: Free up space on small SSDs by cleaning safe cache/temp files
@@ -411,7 +414,8 @@ parse_arguments() {
                 shift 2
                 ;;
             --help|-h)
-                head -n 62 "$0" | tail -n +3 | sed 's/^# //'
+                # Extract help text dynamically - reads from line 3 and outputs consecutive comment lines
+                awk 'NR>2 && /^# /{gsub(/^# /,""); print; next} NR>2 && /^#$/||NR>2 && !/^#/{exit}' "$0"
                 exit 0
                 ;;
             *)
@@ -438,9 +442,13 @@ cleanup_on_interrupt() {
 }
 trap cleanup_on_interrupt INT TERM
 
-# Also stop spinner on normal exit
+# Also stop spinner and cleanup lock on normal exit
 cleanup_on_exit() {
     stop_spinner 2>/dev/null || true
+    # Cleanup lock directory if it exists
+    if [ -n "${LOCKDIR:-}" ] && [ -d "$LOCKDIR" ]; then
+        rm -rf "$LOCKDIR" 2>/dev/null || true
+    fi
 }
 trap cleanup_on_exit EXIT
 
@@ -608,6 +616,7 @@ bytes_to_human() {
 safe_clear_directory() {
     local dir="$1"
     local mindepth="${2:-1}"
+    local status=0
     
     # Validate directory exists and is not a symlink
     if [ ! -d "$dir" ]; then
@@ -619,13 +628,13 @@ safe_clear_directory() {
     fi
     
     # Delete files
-    find "$dir" -mindepth "$mindepth" -type f -delete 2>/dev/null || true
+    find "$dir" -mindepth "$mindepth" -type f -delete || status=1
     # Delete empty directories (in reverse depth order)
-    find "$dir" -mindepth "$mindepth" -type d -empty -delete 2>/dev/null || true
+    find "$dir" -mindepth "$mindepth" -type d -empty -delete || status=1
     # Delete non-empty directories (careful - only for cache dirs)
-    find "$dir" -mindepth "$mindepth" -type d -exec rm -rf {} + 2>/dev/null || true
+    find "$dir" -mindepth "$mindepth" -type d -exec rm -rf {} + 2>/dev/null || status=1
     
-    return 0
+    return $status
 }
 
 # Function to check for iCloud sync issues
@@ -640,13 +649,12 @@ check_icloud_sync_status() {
         return 1
     fi
     
-    # Check if brctl is available for sync status
+    # Cache brctl output once and reuse for all folders
     if command -v brctl &> /dev/null; then
-        # brctl status returns sync state - check for pending operations
-        # Note: This is a best-effort check
-        local sync_status
-        sync_status=$(brctl status 2>/dev/null || echo "")
-        if echo "$sync_status" | grep -qi "uploading\|downloading"; then
+        if [ -z "$BRCTL_STATUS_CACHE" ]; then
+            BRCTL_STATUS_CACHE=$(brctl status 2>/dev/null || echo "")
+        fi
+        if echo "$BRCTL_STATUS_CACHE" | grep -qi "uploading\|downloading"; then
             return 1
         fi
     fi
@@ -674,9 +682,9 @@ quit_photos_app() {
 
 # Acquire exclusive lock atomically using mkdir
 # Returns 0 on success, exits with error on failure
+LOCKDIR="/tmp/mac-clean.lock"
+
 acquire_lock() {
-    local lockdir="/tmp/mac-clean.lock"
-    
     # Skip lock acquisition in dry-run mode
     if [ "$DRY_RUN" = true ]; then
         log_verbose "Dry-run mode: skipping lock acquisition"
@@ -684,30 +692,28 @@ acquire_lock() {
     fi
     
     # Try to create lock directory atomically
-    if mkdir "$lockdir" 2>/dev/null; then
+    if mkdir "$LOCKDIR" 2>/dev/null; then
         # Write PID to lock file
-        echo $$ > "$lockdir/pid"
-        trap 'rm -rf "$lockdir"' EXIT
+        echo $$ > "$LOCKDIR/pid"
         return 0
     fi
     
     # Lock directory exists - check if stale
     local lock_pid
-    lock_pid=$(cat "$lockdir/pid" 2>/dev/null || echo "")
+    lock_pid=$(cat "$LOCKDIR/pid" 2>/dev/null || echo "")
     
     if [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null; then
         log_error "Another instance is already running (PID: $lock_pid)"
-        log_always "If you're sure no other instance is running, remove $lockdir"
+        log_always "If you're sure no other instance is running, remove $LOCKDIR"
         exit 1
     fi
     
     # Stale lock - remove and retry
     log_warning "Removing stale lock file (PID: $lock_pid is not running)"
-    rm -rf "$lockdir"
+    rm -rf "$LOCKDIR"
     
-    if mkdir "$lockdir" 2>/dev/null; then
-        echo $$ > "$lockdir/pid"
-        trap 'rm -rf "$lockdir"' EXIT
+    if mkdir "$LOCKDIR" 2>/dev/null; then
+        echo $$ > "$LOCKDIR/pid"
         return 0
     fi
     
@@ -1041,14 +1047,14 @@ interactive_selection() {
             read -rsn2 key
             case $key in
                 '[A') # Up arrow
-                    ((cursor--))
+                    cursor=$((cursor - 1))
                     if [ "$cursor" -lt 0 ]; then
                         cursor=$((total - 1))
                     fi
                     draw_menu
                     ;;
                 '[B') # Down arrow
-                    ((cursor++))
+                    cursor=$((cursor + 1))
                     if [ "$cursor" -ge "$total" ]; then
                         cursor=0
                     fi
@@ -2556,6 +2562,14 @@ if [ "$SKIP_GRADLE" = false ]; then
                 if command -v gradle &> /dev/null; then
                     gradle --stop 2>/dev/null || true
                 fi
+                safe_clear_directory "$GRADLE_CACHE_DIR" 2>/dev/null || true
+                log_success "Gradle cache cleared: $GRADLE_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GRADLE_BYTES))
+            fi
+                safe_clear_directory "$GRADLE_CACHE_DIR" 2>/dev/null || true
+                log_success "Gradle cache cleared: $GRADLE_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GRADLE_BYTES))
+            fi
                 rm -rf "$GRADLE_CACHE_DIR" 2>/dev/null || true
                 log_success "Gradle cache cleared: $GRADLE_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GRADLE_BYTES))
@@ -2614,7 +2628,7 @@ if [ "$SKIP_GO" = false ]; then
             # Fallback: manual deletion
             for CACHE_DIR in "$GO_CACHE_DIR" "$GO_CACHE_DIR_ALT"; do
                 if [ -d "$CACHE_DIR" ] && [ ! -L "$CACHE_DIR" ]; then
-                    rm -rf "$CACHE_DIR" 2>/dev/null || true
+                    safe_clear_directory "$CACHE_DIR" 2>/dev/null || true
                 fi
             done
             log_success "Go module cache cleared: $GO_HUMAN"
@@ -2652,7 +2666,7 @@ if [ "$SKIP_BUN" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BUN_BYTES))
             else
                 log "Cleaning Bun cache..."
-                rm -rf "$BUN_CACHE_DIR" 2>/dev/null || true
+                safe_clear_directory "$BUN_CACHE_DIR" 2>/dev/null || true
                 log_success "Bun cache cleared: $BUN_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BUN_BYTES))
             fi
@@ -2712,7 +2726,7 @@ if [ "$SKIP_PNPM" = false ]; then
                     PNPM_GLOBAL_BYTES=$(size_to_bytes "$PNPM_GLOBAL_SIZE")
                     PNPM_BYTES=$((PNPM_BYTES + PNPM_GLOBAL_BYTES))
                     PNPM_SIZE="$PNPM_SIZE (global: $PNPM_GLOBAL_SIZE)"
-                    rm -rf "$PNPM_GLOBAL_STORE" 2>/dev/null || true
+                    safe_clear_directory "$PNPM_GLOBAL_STORE" 2>/dev/null || true
                 fi
                 log_success "pnpm store pruned: $PNPM_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PNPM_BYTES))
