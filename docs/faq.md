@@ -37,7 +37,7 @@ Comprehensive answers to common questions about MacCleans.sh.
 
 ### Q: How is this different from commercial tools like CleanMyMac?
 
-**A:** See our [Comparison Guide](COMPARISON.md) for detailed comparisons. In short:
+**A:** See our [Comparison Guide](comparison.md) for detailed comparisons. In short:
 - **MacCleans**: Free, open-source, transparent, command-line based
 - **Commercial tools**: Paid, closed-source, GUI-based, additional features
 
@@ -142,10 +142,10 @@ Transparency is a core principle of this project.
 
 | Profile | Best For | What It Skips | Recovery Potential |
 |---------|----------|---------------|-------------------|
-| **Conservative** | Regular users, non-developers | XCode, npm, pip, browsers, Docker, Simulator, iOS backups, CocoaPods, Gradle, Go, Bun, pnpm | 5-20GB |
-| **Developer** | Active developers | Only XCode and iOS backups (avoid rebuild times) | 10-40GB |
+| **Conservative** | Regular users, non-developers | XCode, npm, pip, browsers, Docker, Simulator | 5-20GB |
+| **Developer** | Active developers | Only XCode (avoid rebuild times) | 10-40GB |
 | **Aggressive** | Maximum space recovery | Nothing - cleans everything | 15-100GB+ |
-| **Minimal** | Quick, safe cleanup | All dev caches + all application caches | 2-10GB |
+| **Minimal** | Quick, safe cleanup | All application caches | 2-10GB |
 
 Choose based on your needs:
 
@@ -226,7 +226,7 @@ Perfect for automated cron jobs - it won't waste time cleaning when you have ple
 
 ### Q: Can I automate this to run regularly?
 
-**A:** Yes! See [INSTALL.md](INSTALL.md) for cron and launchd examples. Quick example:
+**A:** Yes! See [install.md](install.md) for cron and launchd examples. Quick example:
 
 ```bash
 # Edit crontab
@@ -521,7 +521,7 @@ Actual disk space freed may vary slightly from reported amounts.
 
 ### Q: Should I use this or CleanMyMac?
 
-**A:** See our [Comparison Guide](COMPARISON.md) for full details. Quick comparison:
+**A:** See our [Comparison Guide](comparison.md) for full details. Quick comparison:
 
 **Use MacCleans if:**
 - You want free, open-source software
@@ -568,9 +568,9 @@ MacCleans **automatically cleans known safe-to-delete locations**.
 
 ## Still Have Questions?
 
-- **Check the docs**: [README](README.md) | [INSTALL](INSTALL.md) | [ADVANCED](ADVANCED.md)
+- **Check the docs**: [README](../README.md) | [Install](install.md) | [Advanced](advanced.md)
 - **Open an issue**: [GitHub Issues](https://github.com/Carme99/MacCleans.sh/issues)
-- **Contribute**: [CONTRIBUTING](CONTRIBUTING.md)
+- **Contribute**: [CONTRIBUTING](../CONTRIBUTING.md)
 - **Report bugs**: Include macOS version, script version, and full error output
 
 ---

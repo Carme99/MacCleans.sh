@@ -18,10 +18,10 @@ In-depth guides for understanding macOS maintenance and getting the most out of 
 
 | Document | Description |
 |----------|-------------|
-| [FAQ](../FAQ.md) | Frequently asked questions |
-| [Troubleshooting](../TROUBLESHOOTING.md) | Common issues and solutions |
-| [Security](../SECURITY.md) | Security policy |
-| [Comparison](../COMPARISON.md) | How we compare to other tools |
+| [FAQ](faq.md) | Frequently asked questions |
+| [Troubleshooting](troubleshooting.md) | Common issues and solutions |
+| [Security](security.md) | Security policy |
+| [Comparison](comparison.md) | How we compare to other tools |
 
 ## By User Type
 
@@ -36,9 +36,9 @@ In-depth guides for understanding macOS maintenance and getting the most out of 
 3. Set up automation with [Automation Guide](guides/automating-macos-maintenance.md)
 
 ### Power Users
-1. Explore [Advanced Usage](../ADVANCED.md)
+1. Explore [Advanced Usage](advanced.md)
 2. Set up [cron or launchd](guides/automating-macos-maintenance.md)
-3. Review [Configuration](../INSTALL.md)
+3. Review [Configuration](install.md)
 
 ## Contributing
 

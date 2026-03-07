@@ -2,39 +2,17 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
-## [4.1.2] - 2026-03-03
-
-### Security Improvements
-
-- **Atomic Lock File**: Replaced file-based lock with atomic `mkdir`-based locking to prevent TOCTOU race conditions in concurrent execution
-- **iCloud Sync Validation**: Added `check_icloud_sync_status()` to detect pending uploads/downloads before iCloud Drive cleanup - prevents permanent data loss
-- **Symlink Protection**: All directory operations now use `safe_clear_directory()` helper with explicit symlink checks - prevents privilege escalation via symlink attacks
-- **Safe Deletion**: Replaced all `rm -rf "${VAR:?}"/*` glob patterns with hardened `find -delete` operations
-
-### Code Quality
-
-- **Dynamic Help Text**: `--help` now extracts help content dynamically instead of hardcoded line numbers
-- **Error Handling**: Fixed `safe_clear_directory()` to capture and propagate deletion failures
-- **Performance**: `brctl` command now cached and reused across iCloud folders
-- **POSIX Compatibility**: Fixed interactive menu cursor arithmetic to avoid `set -e` failures
+## [4.2.0] - 2026-03-07
 
 ### New Features
 
-- Profile presets now include all skip flags: COCOAPODS, GRADLE, GO, BUN, PNPM
+- **JSON Output**: New `--json` / `-j` flag to output cleanup results in JSON format (useful for automation/monitoring)
 
-## [4.1.1] - 2026-02-23
+### Improvements
 
-### Bug Fixes
-
-- **Size conversion error**: Fixed `size_to_bytes()` function for macOS - now uses POSIX-compatible awk (macOS default awk doesn't support regex capture groups in `match()`)
-- **Non-interactive mode**: Script no longer hangs when run from cron/automation - auto-confirms when stdin is not a TTY
-- **Concurrent runs**: Added lock file to prevent multiple instances from running simultaneously
-- **Safety**: Added symlink protection for temp file deletion
-- **Reliability**: Validates disk usage and user existence before operations
-
-### Installer Fixes
-
-- Fixed sudo detection for piped input from curl
+- **Config Parsing**: Replaced fragile `xargs` with bash parameter expansion for more robust whitespace handling
+- **Consistent Safe Deletion**: Trash section now uses `safe_clear_directory()` function for consistent behavior
+- **Documentation Restructure**: Moved detailed documentation to `docs/` folder, README now serves as quick-start hub
 
 ## [4.1.0] - 2026-02-23
 
@@ -62,15 +40,6 @@ All notable changes to MacCleans.sh are documented in this file.
 
 - Fixed section numbering after adding new categories (now 29 total, .DS_Store is section 29)
 - Installer script now creates proper symlinks for backward compatibility
-- **Non-interactive mode**: Script no longer hangs when run from cron/automation - auto-confirms when stdin is not a TTY
-- **Disk usage validation**: Added numeric validation to prevent errors when disk usage cannot be determined
-- **Symlink protection**: Replaced `rm -rf` with `find` commands to avoid following malicious symlinks in temp directories
-- **Concurrent run protection**: Added lock file (`/tmp/mac-clean.lock`) to prevent multiple instances from running simultaneously
-- **User validation**: Added check for valid user before running brew commands with `sudo -u`
-- **Spinner cleanup**: Fixed spinner orphaning on early exit by adding cleanup to all exit traps
-- **Docker daemon check**: Added check for running Docker daemon before attempting cleanup
-- **Size formatting**: Fixed integer truncation in human-readable sizes (now shows "1.5M" instead of "1M")
-- **tmutil availability**: Added check for tmutil availability before using Time Machine commands
 
 ## [4.0.0] - 2026-02-21
 

@@ -3,11 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="4.1.2"
-
-# Global variables for caching expensive operations
-BRCTL_STATUS_CACHE=""
-LOCK_OWNED=0
+VERSION="4.2.0"
 
 ###############################################################################
 # Mac-Clean: macOS Disk Cleanup Utility
@@ -45,6 +41,7 @@ LOCK_OWNED=0
 #   --profile NAME      Use preset profile (conservative, developer, aggressive, minimal)
 #   --update, -u        Run brew update before cleanup
 #   --verbose, -V        Enable verbose debug output
+#   --json, -j          Output results in JSON format (useful for automation/monitoring)
 #   --skip-snapshots    Skip Time Machine snapshot deletion
 #   --skip-homebrew     Skip Homebrew cache cleanup
 #   --skip-spotify      Skip Spotify cache cleanup
@@ -81,6 +78,7 @@ FORCE=false
 QUIET=false
 NO_COLOR=false
 INTERACTIVE=false
+JSON_OUTPUT=false
 PROFILE=""
 THRESHOLD=0
 SKIP_SNAPSHOTS=false
@@ -155,7 +153,7 @@ validate_config() {
     local errors=0
 
     # Validate boolean values
-    for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR UPDATE VERBOSE SKIP_SNAPSHOTS SKIP_HOMEBREW \
+    for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR UPDATE VERBOSE JSON_OUTPUT SKIP_SNAPSHOTS SKIP_HOMEBREW \
                SKIP_SPOTIFY SKIP_CLAUDE SKIP_XCODE SKIP_BROWSERS SKIP_NPM \
                SKIP_PIP SKIP_TRASH SKIP_DSSTORE SKIP_DOCKER SKIP_SIMULATOR SKIP_MAIL \
                SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_PHOTOS_LIBRARY SKIP_ICLOUD_DRIVE SKIP_QUICKLOOK SKIP_DIAGNOSTICS SKIP_IOS_BACKUPS \
@@ -190,9 +188,11 @@ load_config_file() {
                 [[ "$key" =~ ^[[:space:]]*# ]] && continue
                 [[ -z "$key" ]] && continue
 
-                # Trim whitespace
-                key=$(echo "$key" | xargs)
-                value=$(echo "$value" | xargs)
+                # Trim whitespace using bash parameter expansion
+                key=${key#"${key%%[![:space:]]*}"}    # Remove leading whitespace
+                key=${key%"${key##*[![:space:]]}"}    # Remove trailing whitespace
+                value=${value#"${value%%[![:space:]]*}"}  # Remove leading whitespace
+                value=${value%"${value##*[![:space:]]}"}  # Remove trailing whitespace
 
                 case "$key" in
                     DRY_RUN) DRY_RUN="$value" ;;
@@ -200,6 +200,7 @@ load_config_file() {
                     FORCE) FORCE="$value"; [ "$value" = "true" ] && AUTO_YES="true" ;;
                     QUIET) QUIET="$value" ;;
                     NO_COLOR) NO_COLOR="$value" ;;
+                    JSON_OUTPUT) JSON_OUTPUT="$value" ;;
                     THRESHOLD) THRESHOLD="$value" ;;
                     SKIP_SNAPSHOTS) SKIP_SNAPSHOTS="$value" ;;
                     SKIP_HOMEBREW) SKIP_HOMEBREW="$value" ;;
@@ -401,6 +402,10 @@ parse_arguments() {
                 export VERBOSE
                 shift
                 ;;
+            --json|-j)
+                JSON_OUTPUT=true
+                shift
+                ;;
             --photos-library)
                 if [ -z "${2:-}" ]; then
                     echo "ERROR: --photos-library requires an argument (library name or 'all')" >&2
@@ -415,8 +420,7 @@ parse_arguments() {
                 shift 2
                 ;;
             --help|-h)
-                # Extract help text: find "# Mac-Clean:" marker, then print consecutive comment lines
-                awk '/^# [A-Za-z]/{found=1} found{print}' "$0" | sed 's/^# //;s/^#$/ /'
+                head -n 62 "$0" | tail -n +3 | sed 's/^# //'
                 exit 0
                 ;;
             *)
@@ -436,22 +440,71 @@ validate_config
 
 # Set up signal handling for graceful interruption
 cleanup_on_interrupt() {
-    stop_spinner 2>/dev/null || true
     log_warning "Interrupted by user, cleaning up..."
     log_always "Cleanup aborted."
     exit 130
 }
 trap cleanup_on_interrupt INT TERM
 
-# Also stop spinner and cleanup lock on normal exit
-cleanup_on_exit() {
-    stop_spinner 2>/dev/null || true
-    # Cleanup lock directory only if we own it
-    if [ "${LOCK_OWNED:-0}" = 1 ] && [ -n "${LOCKDIR:-}" ] && [ -d "$LOCKDIR" ]; then
-        rm -rf "$LOCKDIR" 2>/dev/null || true
+###############################################################################
+# JSON Output Helper Functions
+###############################################################################
+
+# JSON output state
+declare -a JSON_PROCESSED_CATEGORIES=()
+declare -a JSON_SKIPPED_CATEGORIES=()
+JSON_TOTAL_BYTES_FREED=0
+JSON_DISK_USAGE_BEFORE=0
+JSON_DISK_USAGE_AFTER=0
+JSON_DISK_AVAIL_BEFORE=0
+JSON_DISK_AVAIL_AFTER=0
+
+log_json_final() {
+    if [ "$JSON_OUTPUT" = true ]; then
+        local processed_list=$(printf '%s\n' "${JSON_PROCESSED_CATEGORIES[@]}" | sed 's/$/,/' | sed '$ s/,$//' | sed 's/^/                /')
+        local skipped_list=$(printf '%s\n' "${JSON_SKIPPED_CATEGORIES[@]}" | sed 's/$/,/' | sed '$ s/,$//' | sed 's/^/                /')
+        local freed_human=$(awk -v b="$JSON_TOTAL_BYTES_FREED" 'BEGIN {
+            if (b < 1024) printf "%.0f B", b
+            else if (b < 1048576) printf "%.2f KB", b/1024
+            else if (b < 1073741824) printf "%.2f MB", b/1048576
+            else if (b < 1099511627776) printf "%.2f GB", b/1073741824
+            else printf "%.2f TB", b/1099511627776
+        }')
+
+        # Build JSON output
+        cat <<EOF
+{
+    "version": "$VERSION",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "dry_run": $DRY_RUN,
+    "results": {
+        "categories": {
+            "processed": [
+$processed_list
+            ],
+            "skipped": [
+$skipped_list
+            ]
+        },
+        "disk_usage": {
+            "before": {
+                "usage_percent": ${JSON_DISK_USAGE_BEFORE:-0},
+                "available_bytes": ${JSON_DISK_AVAIL_BEFORE:-0}
+            },
+            "after": {
+                "usage_percent": ${JSON_DISK_USAGE_AFTER:-0},
+                "available_bytes": ${JSON_DISK_AVAIL_AFTER:-0}
+            }
+        },
+        "space_freed": {
+            "bytes": $JSON_TOTAL_BYTES_FREED,
+            "human": "$freed_human"
+        }
+    }
+}
+EOF
     fi
 }
-trap cleanup_on_exit EXIT
 
 # Color definitions
 if [ "$NO_COLOR" = true ] || [ ! -t 1 ]; then
@@ -502,7 +555,7 @@ log_section() {
 
 # Function to log with timestamp
 log() {
-    if [ "$QUIET" = false ]; then
+    if [ "$QUIET" = false ] && [ "$JSON_OUTPUT" = false ]; then
         echo -e "${DIM}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $1"
     fi
 }
@@ -516,14 +569,16 @@ log_verbose() {
 
 # Function to log without timestamp
 log_plain() {
-    if [ "$QUIET" = false ]; then
+    if [ "$QUIET" = false ] && [ "$JSON_OUTPUT" = false ]; then
         echo -e "$1"
     fi
 }
 
 # Function to always log (even in quiet mode)
 log_always() {
-    echo -e "$1"
+    if [ "$JSON_OUTPUT" = false ]; then
+        echo -e "$1"
+    fi
 }
 
 # Function to log success
@@ -549,45 +604,17 @@ log_error() {
 # Uses awk to avoid bash integer overflow on large sizes (TB+)
 size_to_bytes() {
     local size="$1"
-    
-    # Handle empty or null input
-    if [ -z "$size" ] || [ "$size" = "0B" ]; then
-        echo 0
-        return
-    fi
-    
-    # If pure numeric (no unit), assume bytes
-    if [[ "$size" =~ ^[0-9]+$ ]]; then
-        echo "$size"
-        return
-    fi
-    
-    # Use POSIX-compatible awk (macOS default awk doesn't support regex capture groups)
-    echo "$size" | awk '{
-        # Extract number and unit
-        if (match($0, /^[0-9.]+/)) {
-            n = substr($0, RSTART, RLENGTH)
-        } else {
-            n = 0
-        }
-        # Extract unit (everything after the number)
-        if (match($0, /[A-Za-z]+$/)) {
-            u = substr($0, RSTART, RLENGTH)
-        } else {
-            u = ""
-        }
-        # Remove any spaces
-        gsub(/[ \t]/, "", u)
-        
-        # Convert
-        if (u == "K" || u == "k" || u == "KB" || u == "kb") n *= 1024
-        else if (u == "M" || u == "m" || u == "MB" || u == "mb") n *= 1048576
-        else if (u == "G" || u == "g" || u == "GB" || u == "gb") n *= 1073741824
-        else if (u == "T" || u == "t" || u == "TB" || u == "tb") n *= 1099511627776
-        else if (u == "P" || u == "p" || u == "PB" || u == "pb") n *= 1125899906842624
-        else if (u == "E" || u == "e" || u == "EB" || u == "eb") n *= 1152921504606846976
-        # If no unit recognized, assume bytes (n stays as-is)
-        printf "%.0f", n
+    awk -v s="$size" 'BEGIN {
+        if (match(s, /^([0-9.]+)([KMGT]?)/, m)) {
+            n = m[1]; u = m[2]
+            if (u == "K" || u == "k" || u == "KB" || u == "kb") n *= 1024
+            else if (u == "M" || u == "m" || u == "MB" || u == "mb") n *= 1048576
+            else if (u == "G" || u == "g" || u == "GB" || u == "gb") n *= 1073741824
+            else if (u == "T" || u == "t" || u == "TB" || u == "tb") n *= 1099511627776
+            else if (u == "P" || u == "p" || u == "PB" || u == "pb") n *= 1125899906842624
+            else if (u == "E" || u == "e" || u == "EB" || u == "eb") n *= 1152921504606846976
+            printf "%.0f", n
+        } else print 0
     }'
 }
 
@@ -601,66 +628,15 @@ bytes_to_human() {
     fi
     if [ "$bytes" -lt 1024 ]; then
         echo "${bytes}B"
+    elif [ "$bytes" -lt 1048576 ]; then
+        echo "$((bytes / 1024))K"
     elif [ "$bytes" -lt 1073741824 ]; then
-        # Use awk to avoid integer division truncation (e.g., show 1.5M instead of 1M)
-        echo "$(awk -v b="$bytes" 'BEGIN {printf "%.2f", b / 1048576}')M"
+        echo "$((bytes / 1048576))M"
     elif [ "$bytes" -lt 1099511627776 ]; then
         echo "$(awk -v b="$bytes" 'BEGIN {printf "%.2f", b / 1073741824}')G"
     else
         echo "$(awk -v b="$bytes" 'BEGIN {printf "%.2f", b / 1099511627776}')T"
     fi
-}
-
-# Helper function to safely clear directory contents
-# Uses find -delete instead of rm -rf with glob expansion
-# Arguments: $1 = directory path, $2 = optional mindepth (default 1)
-safe_clear_directory() {
-    local dir="$1"
-    local mindepth="${2:-1}"
-    local status=0
-    
-    # Validate directory exists and is not a symlink
-    if [ ! -d "$dir" ]; then
-        return 1
-    fi
-    if [ -L "$dir" ]; then
-        log_warning "Skipping symlink: $dir"
-        return 1
-    fi
-    
-    # Delete files
-    find "$dir" -mindepth "$mindepth" -type f -delete || status=1
-    # Delete empty directories (in reverse depth order)
-    find "$dir" -mindepth "$mindepth" -type d -empty -delete || status=1
-    # Delete non-empty directories (careful - only for cache dirs)
-    find "$dir" -mindepth "$mindepth" -type d -exec rm -rf -- {} + 2>/dev/null || status=1
-    
-    return $status
-}
-
-# Function to check for iCloud sync issues
-# Returns 0 if safe to proceed, 1 if pending uploads detected
-check_icloud_sync_status() {
-    local folder="$1"
-    
-    # Check for .icloud placeholder files (indicates pending download)
-    local placeholders
-    placeholders=$(find "$folder" -name "*.icloud" 2>/dev/null | wc -l | tr -d ' ')
-    if [ "$placeholders" -gt 0 ]; then
-        return 1
-    fi
-    
-    # Cache brctl output once and reuse for all folders
-    if command -v brctl &> /dev/null; then
-        if [ -z "$BRCTL_STATUS_CACHE" ]; then
-            BRCTL_STATUS_CACHE=$(brctl status 2>/dev/null || echo "")
-        fi
-        if echo "$BRCTL_STATUS_CACHE" | grep -qi "uploading\|downloading"; then
-            return 1
-        fi
-    fi
-    
-    return 0
 }
 
 # Function to safely quit Photos app and poll for exit
@@ -681,49 +657,6 @@ quit_photos_app() {
     return 1
 }
 
-# Acquire exclusive lock atomically using mkdir
-# Returns 0 on success, exits with error on failure
-LOCKDIR="/tmp/mac-clean.lock"
-
-acquire_lock() {
-    # Skip lock acquisition in dry-run mode
-    if [ "$DRY_RUN" = true ]; then
-        log_verbose "Dry-run mode: skipping lock acquisition"
-        return 0
-    fi
-    
-    # Try to create lock directory atomically
-    if mkdir "$LOCKDIR" 2>/dev/null; then
-        # Write PID to lock file
-        echo $$ > "$LOCKDIR/pid"
-        LOCK_OWNED=1
-        return 0
-    fi
-    
-    # Lock directory exists - check if stale
-    local lock_pid
-    lock_pid=$(cat "$LOCKDIR/pid" 2>/dev/null || echo "")
-    
-    if [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null; then
-        log_error "Another instance is already running (PID: $lock_pid)"
-        log_always "If you're sure no other instance is running, remove $LOCKDIR"
-        exit 1
-    fi
-    
-    # Stale lock - remove and retry
-    log_warning "Removing stale lock file (PID: $lock_pid is not running)"
-    rm -rf "$LOCKDIR"
-    
-    if mkdir "$LOCKDIR" 2>/dev/null; then
-        echo $$ > "$LOCKDIR/pid"
-        LOCK_OWNED=1
-        return 0
-    fi
-    
-    log_error "Failed to acquire lock after removing stale lock"
-    exit 1
-}
-
 ###############################################################################
 # System Validation and Health Checks
 ###############################################################################
@@ -735,7 +668,7 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Get and validate actual user BEFORE acquiring lock (lock needs to know DRY_RUN)
+# Get and validate actual user
 if [ -n "${SUDO_USER:-}" ]; then
     ACTUAL_USER="$SUDO_USER"
     # Use getent for safer home directory lookup instead of eval
@@ -767,22 +700,14 @@ fi
 if [[ ! "$USER_HOME" =~ ^/Users/ ]] && [[ ! "$USER_HOME" =~ ^/home/ ]]; then
     log_warning "User home directory is not in standard location: $USER_HOME"
     if [ "$AUTO_YES" = false ] && [ "$QUIET" = false ]; then
-        # Check if running non-interactively
-        if [ ! -t 0 ]; then
-            log_plain "Non-interactive mode detected, auto-confirming"
-        else
-            read -p "Continue anyway? [y/N] " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-                log_always "Aborted by user"
-                exit 0
-            fi
+        read -p "Continue anyway? [y/N] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log_always "Aborted by user"
+            exit 0
         fi
     fi
 fi
-
-# Acquire lock (after all validation, and after DRY_RUN is set)
-acquire_lock
 
 # System health checks
 perform_health_checks() {
@@ -839,11 +764,6 @@ load_profile() {
             SKIP_SIMULATOR=true
             SKIP_IOS_BACKUPS=true
             SKIP_IOS_UPDATES=true
-            SKIP_COCOAPODS=true
-            SKIP_GRADLE=true
-            SKIP_GO=true
-            SKIP_BUN=true
-            SKIP_PNPM=true
             ;;
         developer)
             log "Loading developer profile (skipping only XCode and iOS backups)"
@@ -867,11 +787,6 @@ load_profile() {
             SKIP_MAIL=true
             SKIP_IOS_BACKUPS=true
             SKIP_IOS_UPDATES=true
-            SKIP_COCOAPODS=true
-            SKIP_GRADLE=true
-            SKIP_GO=true
-            SKIP_BUN=true
-            SKIP_PNPM=true
             ;;
         "")
             # No profile specified
@@ -1002,7 +917,48 @@ interactive_selection() {
         clear
         log_plain ""
         log_plain "${BOLD}Interactive Category Selection${NC}"
-        log_plain "================================================"
+log_plain "================================================"
+
+# Output JSON if requested
+if [ "$JSON_OUTPUT" = true ]; then
+    local processed_list=$(printf '%s\n' "${PROCESSED_CATEGORIES[@]}" | sed 's/$/,/' | sed '$ s/,$//' | sed 's/^/ "/' | sed 's/$/"/' | sed 's/^/                /')
+    local skipped_list=$(printf '%s\n' "${SKIPPED_CATEGORIES[@]}" | sed 's/$/,/' | sed '$ s/,$//' | sed 's/^/ "/' | sed 's/$/"/' | sed 's/^/                /')
+    local freed_human=$(awk -v b="$TOTAL_BYTES_FREED" 'BEGIN {
+        if (b < 1024) printf "%.0f B", b
+        else if (b < 1048576) printf "%.2f KB", b/1024
+        else if (b < 1073741824) printf "%.2f MB", b/1048576
+        else if (b < 1099511627776) printf "%.2f GB", b/1073741824
+        else printf "%.2f TB", b/1099511627776
+    }')
+    local disk_after=${DISK_USAGE_AFTER:-0}
+    local disk_before=${DISK_USAGE:-0}
+
+    cat <<EOF
+{
+    "version": "$VERSION",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "dry_run": $DRY_RUN,
+    "results": {
+        "categories": {
+            "processed": [
+$processed_list
+            ],
+            "skipped": [
+$skipped_list
+            ]
+        },
+        "disk_usage": {
+            "before": $disk_before,
+            "after": $disk_after
+        },
+        "space_freed": {
+            "bytes": $TOTAL_BYTES_FREED,
+            "human": "$freed_human"
+        }
+    }
+}
+EOF
+fi
         log_plain ""
         log_plain "Use ${CYAN}↑↓${NC} arrow keys to navigate, ${CYAN}Space/Enter${NC} to toggle"
         log_plain "Press ${CYAN}a${NC}=all, ${CYAN}n${NC}=none, ${CYAN}d${NC}=done, ${CYAN}q${NC}=cancel"
@@ -1050,14 +1006,14 @@ interactive_selection() {
             read -rsn2 key
             case $key in
                 '[A') # Up arrow
-                    cursor=$((cursor - 1))
-                    if [ "$cursor" -lt 0 ]; then
+                    ((cursor--))
+                    if [ $cursor -lt 0 ]; then
                         cursor=$((total - 1))
                     fi
                     draw_menu
                     ;;
                 '[B') # Down arrow
-                    cursor=$((cursor + 1))
+                    ((cursor++))
                     if [ "$cursor" -ge "$total" ]; then
                         cursor=0
                     fi
@@ -1067,27 +1023,23 @@ interactive_selection() {
         else
             case $key in
                 ' '|'') # Space or Enter - toggle current selection
-                    toggle_category "$cursor"
+                    toggle_category $cursor
                     draw_menu
                     ;;
                 a|A) # Select all
                     SKIP_SNAPSHOTS=false SKIP_HOMEBREW=false SKIP_SPOTIFY=false SKIP_CLAUDE=false
                     SKIP_XCODE=false SKIP_BROWSERS=false SKIP_NPM=false SKIP_PIP=false
                     SKIP_TRASH=false SKIP_DSSTORE=false SKIP_DOCKER=false SKIP_SIMULATOR=false
-                    SKIP_MAIL=false SKIP_SIRI_TTS=false SKIP_ICLOUD_MAIL=false SKIP_PHOTOS_LIBRARY=false
-                    SKIP_ICLOUD_DRIVE=false SKIP_QUICKLOOK=false
+                    SKIP_MAIL=false SKIP_SIRI_TTS=false SKIP_ICLOUD_MAIL=false SKIP_QUICKLOOK=false
                     SKIP_DIAGNOSTICS=false SKIP_IOS_BACKUPS=false SKIP_IOS_UPDATES=false
-                    SKIP_COCOAPODS=false SKIP_GRADLE=false SKIP_GO=false SKIP_BUN=false SKIP_PNPM=false
                     draw_menu
                     ;;
                 n|N) # Deselect all
                     SKIP_SNAPSHOTS=true SKIP_HOMEBREW=true SKIP_SPOTIFY=true SKIP_CLAUDE=true
                     SKIP_XCODE=true SKIP_BROWSERS=true SKIP_NPM=true SKIP_PIP=true
                     SKIP_TRASH=true SKIP_DSSTORE=true SKIP_DOCKER=true SKIP_SIMULATOR=true
-                    SKIP_MAIL=true SKIP_SIRI_TTS=true SKIP_ICLOUD_MAIL=true SKIP_PHOTOS_LIBRARY=true
-                    SKIP_ICLOUD_DRIVE=true SKIP_QUICKLOOK=true
+                    SKIP_MAIL=true SKIP_SIRI_TTS=true SKIP_ICLOUD_MAIL=true SKIP_QUICKLOOK=true
                     SKIP_DIAGNOSTICS=true SKIP_IOS_BACKUPS=true SKIP_IOS_UPDATES=true
-                    SKIP_COCOAPODS=true SKIP_GRADLE=true SKIP_GO=true SKIP_BUN=true SKIP_PNPM=true
                     draw_menu
                     ;;
                 d|D) # Done
@@ -1166,20 +1118,7 @@ DISK_USAGE=$(df -h / 2>/dev/null | awk 'NR==2 {print $5}' | sed 's/%//')
 DISK_AVAIL=$(df -h / 2>/dev/null | awk 'NR==2 {print $4}')
 DISK_USED=$(df -h / 2>/dev/null | awk 'NR==2 {print $3}')
 DISK_AVAIL_BYTES=$(df -k / 2>/dev/null | awk 'NR==2 {print $4}')  # Get KB
-
-# Validate disk usage - ensure it's numeric
-DISK_USAGE=${DISK_USAGE:-0}
-if [[ ! "$DISK_USAGE" =~ ^[0-9]+$ ]]; then
-    log_warning "Could not determine disk usage, proceeding anyway"
-    DISK_USAGE=0
-fi
-
-# Validate available bytes
-if [[ ! "$DISK_AVAIL_BYTES" =~ ^[0-9]+$ ]]; then
-    DISK_AVAIL_BYTES=0
-else
-    DISK_AVAIL_BYTES=$((DISK_AVAIL_BYTES * 1024))  # Convert KB to bytes
-fi
+DISK_AVAIL_BYTES=$((DISK_AVAIL_BYTES * 1024))  # Convert KB to bytes
 
 log "Running as user: $ACTUAL_USER"
 log "Home directory: $USER_HOME"
@@ -1218,24 +1157,18 @@ TOTAL_BYTES_FREED=0
 declare -a PROCESSED_CATEGORIES=()
 declare -a SKIPPED_CATEGORIES=()
 
-# Confirmation prompt (skip in dry-run, if --yes flag, or non-interactive)
+# Confirmation prompt (skip in dry-run or if --yes flag)
 if [ "$DRY_RUN" = false ] && [ "$AUTO_YES" = false ]; then
-    # Check if running non-interactively (cron, pipe, etc.) - skip prompt
-    if [ ! -t 0 ]; then
-        log_plain "Non-interactive mode detected, auto-confirming"
-        AUTO_YES=true
-    else
-        log_plain "This will clean cache files, temporary files, and old logs."
-        log_plain "Safari and browser data will NOT be touched."
-        log_plain ""
-        read -p "Continue with cleanup? [y/N] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log_always "Cleanup cancelled."
-            exit 0
-        fi
-        log_plain ""
+    log_plain "This will clean cache files, temporary files, and old logs."
+    log_plain "Safari and browser data will NOT be touched."
+    log_plain ""
+    read -p "Continue with cleanup? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_always "Cleanup cancelled."
+        exit 0
     fi
+    log_plain ""
 fi
 
 ###############################################################################
@@ -1248,32 +1181,28 @@ if [ "$SKIP_SNAPSHOTS" = false ]; then
     log_plain "================================================"
 
     # Check if Time Machine backup is currently running
-    if command -v tmutil &> /dev/null; then
-        if tmutil status 2>/dev/null | grep -q "Running = 1"; then
-            log_warning "Time Machine backup is currently running"
-            log "Skipping snapshot deletion for safety"
-        else
-            SNAPSHOTS=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c "com.apple.TimeMachine" || echo "0")
-            if [ "$SNAPSHOTS" -gt 0 ]; then
-                # Note: macOS doesn't expose snapshot sizes directly
-                # Only showing count as accurate size calculation isn't possible
-
-                # Display snapshot information (count only - macOS doesn't expose snapshot sizes)
-                log "Found $SNAPSHOTS local Time Machine snapshot(s)"
-
-                if [ "$DRY_RUN" = true ]; then
-                    log "Would delete $SNAPSHOTS snapshot(s)"
-                else
-                    log "Deleting snapshots..."
-                    tmutil deletelocalsnapshots / 2>/dev/null || log_warning "Some snapshots could not be deleted"
-                    log_success "Local snapshots deleted successfully"
-                fi
-            else
-                log "No local snapshots found"
-            fi
-        fi
+    if tmutil status 2>/dev/null | grep -q "Running = 1"; then
+        log_warning "Time Machine backup is currently running"
+        log "Skipping snapshot deletion for safety"
     else
-        log "Time Machine (tmutil) not available, skipping"
+        SNAPSHOTS=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c "com.apple.TimeMachine" || echo "0")
+        if [ "$SNAPSHOTS" -gt 0 ]; then
+            # Note: macOS doesn't expose snapshot sizes directly
+            # Only showing count as accurate size calculation isn't possible
+
+            # Display snapshot information (count only - macOS doesn't expose snapshot sizes)
+            log "Found $SNAPSHOTS local Time Machine snapshot(s)"
+
+            if [ "$DRY_RUN" = true ]; then
+                log "Would delete $SNAPSHOTS snapshot(s)"
+            else
+                log "Deleting snapshots..."
+                tmutil deletelocalsnapshots / 2>/dev/null || log_warning "Some snapshots could not be deleted"
+                log_success "Local snapshots deleted successfully"
+            fi
+        else
+            log "No local snapshots found"
+        fi
     fi
     log_plain ""
 else
@@ -1302,14 +1231,10 @@ if [ "$SKIP_HOMEBREW" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BREW_BYTES))
             else
                 log "Cleaning Homebrew cache..."
-                # Validate user exists before running sudo -u
-                if id "$ACTUAL_USER" &>/dev/null; then
-                    sudo -u "$ACTUAL_USER" brew cleanup -s 2>/dev/null || log_warning "Homebrew cleanup encountered issues"
-                    log "Removing unused dependencies..."
-                    sudo -u "$ACTUAL_USER" brew autoremove 2>/dev/null || log_warning "Homebrew autoremove encountered issues"
-                else
-                    log_warning "User $ACTUAL_USER not found, skipping Homebrew cleanup"
-                fi
+                sudo -u "$ACTUAL_USER" brew cleanup -s 2>/dev/null || log_warning "Homebrew cleanup encountered issues"
+
+                log "Removing unused dependencies..."
+                sudo -u "$ACTUAL_USER" brew autoremove 2>/dev/null || log_warning "Homebrew autoremove encountered issues"
 
                 log_success "Homebrew cleaned"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BREW_BYTES))
@@ -1336,7 +1261,7 @@ log_plain "================================================"
 if [ "$SKIP_SPOTIFY" = false ]; then
     PROCESSED_CATEGORIES+=("Spotify Cache")
     SPOTIFY_CACHE="$USER_HOME/Library/Caches/com.spotify.client"
-    if [ -d "$SPOTIFY_CACHE" ] && [ ! -L "$SPOTIFY_CACHE" ]; then
+    if [ -d "$SPOTIFY_CACHE" ]; then
         SPOTIFY_SIZE=$(du -sh "$SPOTIFY_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
 
         if [ -n "$SPOTIFY_SIZE" ] && [ "$SPOTIFY_SIZE" != "0B" ]; then
@@ -1348,15 +1273,13 @@ if [ "$SKIP_SPOTIFY" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SPOTIFY_BYTES))
             else
                 log "Cleaning Spotify cache..."
-                safe_clear_directory "$SPOTIFY_CACHE"
+                rm -rf "${SPOTIFY_CACHE:?}"/* 2>/dev/null
                 log_success "Spotify cache cleared"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SPOTIFY_BYTES))
             fi
         else
             log "Spotify cache is empty"
         fi
-    elif [ -L "$SPOTIFY_CACHE" ]; then
-        log_warning "Skipping symlink: $SPOTIFY_CACHE"
     else
         log "No Spotify cache found"
     fi
@@ -1368,7 +1291,7 @@ fi
 if [ "$SKIP_CLAUDE" = false ]; then
     PROCESSED_CATEGORIES+=("Claude Desktop Cache")
     CLAUDE_SHIPIT="$USER_HOME/Library/Caches/com.anthropic.claudefordesktop.ShipIt"
-    if [ -d "$CLAUDE_SHIPIT" ] && [ ! -L "$CLAUDE_SHIPIT" ]; then
+    if [ -d "$CLAUDE_SHIPIT" ]; then
         CLAUDE_SIZE=$(du -sh "$CLAUDE_SHIPIT" 2>/dev/null | awk '{print $1}' || echo "0B")
 
         if [ -n "$CLAUDE_SIZE" ] && [ "$CLAUDE_SIZE" != "0B" ]; then
@@ -1380,15 +1303,13 @@ if [ "$SKIP_CLAUDE" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + CLAUDE_BYTES))
             else
                 log "Cleaning Claude update cache..."
-                safe_clear_directory "$CLAUDE_SHIPIT"
+                rm -rf "${CLAUDE_SHIPIT:?}"/* 2>/dev/null
                 log_success "Claude update cache cleared"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + CLAUDE_BYTES))
             fi
         else
             log "Claude cache is empty"
         fi
-    elif [ -L "$CLAUDE_SHIPIT" ]; then
-        log_warning "Skipping symlink: $CLAUDE_SHIPIT"
     fi
 else
     SKIPPED_CATEGORIES+=("Claude Desktop Cache")
@@ -1415,7 +1336,7 @@ SAFE_CACHES=(
 OLD_CACHE_COUNT=0
 for CACHE_DIR in "${SAFE_CACHES[@]}"; do
     CACHE_PATH="$USER_HOME/Library/Caches/$CACHE_DIR"
-    if [ -d "$CACHE_PATH" ] && [ ! -L "$CACHE_PATH" ]; then
+    if [ -d "$CACHE_PATH" ]; then
         COUNT=$(find "$CACHE_PATH" -type f -mtime +30 2>/dev/null | wc -l | tr -d ' ')
         OLD_CACHE_COUNT=$((OLD_CACHE_COUNT + COUNT))
     fi
@@ -1425,7 +1346,7 @@ if [ "$OLD_CACHE_COUNT" -gt 0 ]; then
     CACHE_BYTES=0
     for CACHE_DIR in "${SAFE_CACHES[@]}"; do
         CACHE_PATH="$USER_HOME/Library/Caches/$CACHE_DIR"
-        if [ -d "$CACHE_PATH" ] && [ ! -L "$CACHE_PATH" ]; then
+        if [ -d "$CACHE_PATH" ]; then
             PARTIAL_SIZE=$(find "$CACHE_PATH" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
             if [ -n "$PARTIAL_SIZE" ] && [ "$PARTIAL_SIZE" != "0B" ]; then
                 CACHE_BYTES=$((CACHE_BYTES + $(size_to_bytes "$PARTIAL_SIZE")))
@@ -1442,7 +1363,7 @@ if [ "$OLD_CACHE_COUNT" -gt 0 ]; then
         log "Cleaning cache files older than 30 days..."
         for CACHE_DIR in "${SAFE_CACHES[@]}"; do
             CACHE_PATH="$USER_HOME/Library/Caches/$CACHE_DIR"
-            if [ -d "$CACHE_PATH" ] && [ ! -L "$CACHE_PATH" ]; then
+            if [ -d "$CACHE_PATH" ]; then
                 find "$CACHE_PATH" -type f -mtime +30 -delete 2>/dev/null
             fi
         done
@@ -1462,28 +1383,24 @@ log_plain "================================================"
 log "5. Old Log Files"
 log_plain "================================================"
 
-if [ -d "$USER_HOME/Library/Logs" ] && [ ! -L "$USER_HOME/Library/Logs" ]; then
-    OLD_LOG_COUNT=$(find "$USER_HOME/Library/Logs" -type f -name "*.log*" -mtime +7 2>/dev/null | wc -l | tr -d ' ')
+OLD_LOG_COUNT=$(find "$USER_HOME/Library/Logs" -type f -name "*.log*" -mtime +7 2>/dev/null | wc -l | tr -d ' ')
 
-    if [ "$OLD_LOG_COUNT" -gt 0 ]; then
-        OLD_LOG_SIZE=$(find "$USER_HOME/Library/Logs" -type f -name "*.log*" -mtime +7 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
-        log "Found $OLD_LOG_COUNT old log file(s) (>7 days): $OLD_LOG_SIZE"
-        LOG_BYTES=$(size_to_bytes "$OLD_LOG_SIZE")
+if [ "$OLD_LOG_COUNT" -gt 0 ]; then
+    OLD_LOG_SIZE=$(find "$USER_HOME/Library/Logs" -type f -name "*.log*" -mtime +7 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+    log "Found $OLD_LOG_COUNT old log file(s) (>7 days): $OLD_LOG_SIZE"
+    LOG_BYTES=$(size_to_bytes "$OLD_LOG_SIZE")
 
-        if [ "$DRY_RUN" = true ]; then
-            log "Would delete $OLD_LOG_COUNT log file(s): $OLD_LOG_SIZE"
-            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + LOG_BYTES))
-        else
-            log "Cleaning log files older than 7 days..."
-            find "$USER_HOME/Library/Logs" -type f -name "*.log*" -mtime +7 -delete 2>/dev/null
-            log_success "Old logs cleaned"
-            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + LOG_BYTES))
-        fi
+    if [ "$DRY_RUN" = true ]; then
+        log "Would delete $OLD_LOG_COUNT log file(s): $OLD_LOG_SIZE"
+        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + LOG_BYTES))
     else
-        log "No old log files found (>7 days)"
+        log "Cleaning log files older than 7 days..."
+        find "$USER_HOME/Library/Logs" -type f -name "*.log*" -mtime +7 -delete 2>/dev/null
+        log_success "Old logs cleaned"
+        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + LOG_BYTES))
     fi
 else
-    log "Log directory not found or is symlink"
+    log "No old log files found (>7 days)"
 fi
 log_plain ""
 
@@ -1495,48 +1412,25 @@ log_plain "================================================"
 log "6. System Temporary Files"
 log_plain "================================================"
 
-# Note: macOS manages /tmp automatically. This section is intentionally minimal
-# to avoid symlink attacks and let the OS handle temp file cleanup.
-# Only clean files older than 3 days to avoid deleting in-use files.
-
-TMP_COUNT=0
-TMP_BYTES=0
-
-for tmp_dir in /private/var/tmp /private/tmp; do
-    if [ -d "$tmp_dir" ] && [ ! -L "$tmp_dir" ]; then
-        count=$(find "$tmp_dir" -maxdepth 1 -type f -mtime +3 2>/dev/null | wc -l | tr -d ' ')
-        TMP_COUNT=$((TMP_COUNT + count))
-    fi
-done
+TMP_COUNT=$(find /private/var/tmp /private/tmp -type f 2>/dev/null | wc -l | tr -d ' ')
 
 if [ "$TMP_COUNT" -gt 0 ]; then
-    for tmp_dir in /private/var/tmp /private/tmp; do
-        if [ -d "$tmp_dir" ] && [ ! -L "$tmp_dir" ]; then
-            partial=$(find "$tmp_dir" -maxdepth 1 -type f -mtime +3 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
-            if [ -n "$partial" ] && [ "$partial" != "0B" ]; then
-                TMP_BYTES=$((TMP_BYTES + $(size_to_bytes "$partial")))
-            fi
-        fi
-    done
-    
-    TMP_SIZE=$(bytes_to_human "$TMP_BYTES")
-    log "Found $TMP_COUNT temporary file(s) >3 days old: $TMP_SIZE"
+    TMP_SIZE=$(find /private/var/tmp /private/tmp -type f -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+    TMP_BYTES=$(size_to_bytes "$TMP_SIZE")
+    log "Found $TMP_COUNT temporary file(s): $TMP_SIZE"
 
     if [ "$DRY_RUN" = true ]; then
         log "Would clean $TMP_COUNT temporary file(s)"
         TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TMP_BYTES))
     else
-        log "Cleaning system temporary files (>3 days old)..."
-        for tmp_dir in /private/var/tmp /private/tmp; do
-            if [ -d "$tmp_dir" ] && [ ! -L "$tmp_dir" ]; then
-                find "$tmp_dir" -maxdepth 1 -type f -mtime +3 -delete 2>/dev/null || true
-            fi
-        done
+        log "Cleaning system temporary files..."
+        rm -rf /private/var/tmp/* 2>/dev/null
+        rm -rf /private/tmp/* 2>/dev/null
         log_success "Temporary files cleaned"
         TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TMP_BYTES))
     fi
 else
-    log "No old temporary files found (>3 days)"
+    log "No temporary files found"
 fi
 log_plain ""
 
@@ -1553,7 +1447,7 @@ if [ "$SKIP_BROWSERS" = false ]; then
 
     # Chrome
     CHROME_CACHE="$USER_HOME/Library/Caches/Google/Chrome"
-    if [ -d "$CHROME_CACHE" ] && [ ! -L "$CHROME_CACHE" ]; then
+    if [ -d "$CHROME_CACHE" ]; then
         CHROME_SIZE=$(du -sh "$CHROME_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
         if [ -n "$CHROME_SIZE" ] && [ "$CHROME_SIZE" != "0B" ]; then
             log "Chrome cache: $CHROME_SIZE"
@@ -1561,14 +1455,14 @@ if [ "$SKIP_BROWSERS" = false ]; then
             BROWSER_TOTAL_BYTES=$((BROWSER_TOTAL_BYTES + CHROME_BYTES))
 
             if [ "$DRY_RUN" = false ]; then
-                safe_clear_directory "$CHROME_CACHE"
+                rm -rf "${CHROME_CACHE:?}"/* 2>/dev/null
             fi
         fi
     fi
 
     # Firefox
     FIREFOX_CACHE="$USER_HOME/Library/Caches/Firefox"
-    if [ -d "$FIREFOX_CACHE" ] && [ ! -L "$FIREFOX_CACHE" ]; then
+    if [ -d "$FIREFOX_CACHE" ]; then
         FIREFOX_SIZE=$(du -sh "$FIREFOX_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
         if [ -n "$FIREFOX_SIZE" ] && [ "$FIREFOX_SIZE" != "0B" ]; then
             log "Firefox cache: $FIREFOX_SIZE"
@@ -1576,14 +1470,14 @@ if [ "$SKIP_BROWSERS" = false ]; then
             BROWSER_TOTAL_BYTES=$((BROWSER_TOTAL_BYTES + FIREFOX_BYTES))
 
             if [ "$DRY_RUN" = false ]; then
-                safe_clear_directory "$FIREFOX_CACHE"
+                rm -rf "${FIREFOX_CACHE:?}"/* 2>/dev/null
             fi
         fi
     fi
 
     # Microsoft Edge
     EDGE_CACHE="$USER_HOME/Library/Caches/com.microsoft.edgemac"
-    if [ -d "$EDGE_CACHE" ] && [ ! -L "$EDGE_CACHE" ]; then
+    if [ -d "$EDGE_CACHE" ]; then
         EDGE_SIZE=$(du -sh "$EDGE_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
         if [ -n "$EDGE_SIZE" ] && [ "$EDGE_SIZE" != "0B" ]; then
             log "Edge cache: $EDGE_SIZE"
@@ -1591,7 +1485,7 @@ if [ "$SKIP_BROWSERS" = false ]; then
             BROWSER_TOTAL_BYTES=$((BROWSER_TOTAL_BYTES + EDGE_BYTES))
 
             if [ "$DRY_RUN" = false ]; then
-                safe_clear_directory "$EDGE_CACHE"
+                rm -rf "${EDGE_CACHE:?}"/* 2>/dev/null
             fi
         fi
     fi
@@ -1622,7 +1516,7 @@ if [ "$SKIP_XCODE" = false ]; then
     log_plain "================================================"
 
     XCODE_DD="$USER_HOME/Library/Developer/Xcode/DerivedData"
-    if [ -d "$XCODE_DD" ] && [ ! -L "$XCODE_DD" ]; then
+    if [ -d "$XCODE_DD" ]; then
         XCODE_SIZE=$(du -sh "$XCODE_DD" 2>/dev/null | awk '{print $1}' || echo "0B")
 
         if [ -n "$XCODE_SIZE" ] && [ "$XCODE_SIZE" != "0B" ]; then
@@ -1643,7 +1537,7 @@ if [ "$SKIP_XCODE" = false ]; then
                     log_plain ""
                 else
                     log "Cleaning XCode derived data..."
-                    safe_clear_directory "$XCODE_DD"
+                    rm -rf "${XCODE_DD:?}"/* 2>/dev/null
                     log_success "XCode derived data cleared"
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
                 fi
@@ -1652,7 +1546,7 @@ if [ "$SKIP_XCODE" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
             else
                 log "Cleaning XCode derived data..."
-                safe_clear_directory "$XCODE_DD"
+                rm -rf "${XCODE_DD:?}"/* 2>/dev/null
                 log_success "XCode derived data cleared"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
             fi
@@ -1660,7 +1554,7 @@ if [ "$SKIP_XCODE" = false ]; then
             log "XCode derived data is empty"
         fi
     else
-        log "XCode not installed or path is symlink"
+        log "XCode not installed, skipping"
     fi
     log_plain ""
 else
@@ -1680,7 +1574,7 @@ if [ "$SKIP_NPM" = false ]; then
 
     # npm cache
     NPM_CACHE="$USER_HOME/.npm"
-    if [ -d "$NPM_CACHE" ] && [ ! -L "$NPM_CACHE" ]; then
+    if [ -d "$NPM_CACHE" ]; then
         NPM_SIZE=$(du -sh "$NPM_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
         if [ -n "$NPM_SIZE" ] && [ "$NPM_SIZE" != "0B" ]; then
             log "npm cache: $NPM_SIZE"
@@ -1688,14 +1582,14 @@ if [ "$SKIP_NPM" = false ]; then
             NODE_TOTAL_BYTES=$((NODE_TOTAL_BYTES + NPM_BYTES))
 
             if [ "$DRY_RUN" = false ]; then
-                safe_clear_directory "$NPM_CACHE"
+                rm -rf "${NPM_CACHE:?}"/* 2>/dev/null
             fi
         fi
     fi
 
     # Yarn cache
     YARN_CACHE="$USER_HOME/.yarn/cache"
-    if [ -d "$YARN_CACHE" ] && [ ! -L "$YARN_CACHE" ]; then
+    if [ -d "$YARN_CACHE" ]; then
         YARN_SIZE=$(du -sh "$YARN_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
         if [ -n "$YARN_SIZE" ] && [ "$YARN_SIZE" != "0B" ]; then
             log "Yarn cache: $YARN_SIZE"
@@ -1703,7 +1597,7 @@ if [ "$SKIP_NPM" = false ]; then
             NODE_TOTAL_BYTES=$((NODE_TOTAL_BYTES + YARN_BYTES))
 
             if [ "$DRY_RUN" = false ]; then
-                safe_clear_directory "$YARN_CACHE"
+                rm -rf "${YARN_CACHE:?}"/* 2>/dev/null
             fi
         fi
     fi
@@ -1734,7 +1628,7 @@ if [ "$SKIP_PIP" = false ]; then
     log_plain "================================================"
 
     PIP_CACHE="$USER_HOME/Library/Caches/pip"
-    if [ -d "$PIP_CACHE" ] && [ ! -L "$PIP_CACHE" ]; then
+    if [ -d "$PIP_CACHE" ]; then
         PIP_SIZE=$(du -sh "$PIP_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
 
         if [ -n "$PIP_SIZE" ] && [ "$PIP_SIZE" != "0B" ]; then
@@ -1746,7 +1640,7 @@ if [ "$SKIP_PIP" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PIP_BYTES))
             else
                 log "Cleaning pip cache..."
-                safe_clear_directory "$PIP_CACHE"
+                rm -rf "${PIP_CACHE:?}"/* 2>/dev/null
                 log_success "pip cache cleared"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PIP_BYTES))
             fi
@@ -1754,7 +1648,7 @@ if [ "$SKIP_PIP" = false ]; then
             log "pip cache is empty"
         fi
     else
-        log "pip cache not found or is symlink"
+        log "pip cache not found"
     fi
     log_plain ""
 else
@@ -1771,7 +1665,7 @@ if [ "$SKIP_TRASH" = false ]; then
     log_plain "================================================"
 
     TRASH_DIR="$USER_HOME/.Trash"
-    if [ -d "$TRASH_DIR" ] && [ ! -L "$TRASH_DIR" ]; then
+    if [ -d "$TRASH_DIR" ]; then
         TRASH_SIZE=$(du -sh "$TRASH_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
 
         if [ -n "$TRASH_SIZE" ] && [ "$TRASH_SIZE" != "0B" ]; then
@@ -1783,18 +1677,14 @@ if [ "$SKIP_TRASH" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
             else
                 log "Emptying trash..."
-                # Delete files only (not symlinks to prevent symlink attacks)
-                find "$TRASH_DIR" -maxdepth 1 -type f -delete 2>/dev/null
-                # Delete directories (including non-empty) - BSD find -type d doesn't follow symlinks
-                find "$TRASH_DIR" -maxdepth 1 -mindepth 1 -type d -exec rm -rf -- {} + 2>/dev/null || true
+                # Use safe_clear_directory for consistent safe deletion
+                safe_clear_directory "$TRASH_DIR" 0 2>/dev/null || true
                 log_success "Trash emptied"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
             fi
         else
             log "Trash is already empty"
         fi
-    else
-        log "Trash directory not found or is symlink"
     fi
     log_plain ""
 else
@@ -1811,43 +1701,38 @@ if [ "$SKIP_DOCKER" = false ]; then
     log_plain "================================================"
 
     if command -v docker &> /dev/null; then
-        # Check if Docker daemon is running
-        if ! docker info &>/dev/null; then
-            log_warning "Docker daemon is not running, skipping"
-        else
-            # Get docker disk usage (with proper error handling)
-            DOCKER_INFO=$(docker system df 2>/dev/null || echo "")
+        # Get docker disk usage (with proper error handling)
+        DOCKER_INFO=$(docker system df 2>/dev/null || echo "")
 
-            if [ -n "$DOCKER_INFO" ] && [ -n "${DOCKER_INFO// }" ]; then
-                log "Docker system disk usage:"
-                echo "$DOCKER_INFO" | tail -n +2 | while read -r line; do
-                    log "  $line"
-                done
+        if [ -n "$DOCKER_INFO" ] && [ -n "${DOCKER_INFO// }" ]; then
+            log "Docker system disk usage:"
+            echo "$DOCKER_INFO" | tail -n +2 | while read -r line; do
+                log "  $line"
+            done
 
-                # Estimate reclaimable space using docker's format option
-                DOCKER_RECLAIM_SIZE=$(docker system df --format '{{.Reclaimable}}' 2>/dev/null | head -1 || echo "0B")
-                # Validate and sanitize - handle empty, 0B, or N/A
-                if [ -z "$DOCKER_RECLAIM_SIZE" ] || [ "$DOCKER_RECLAIM_SIZE" = "0B" ] || [ "$DOCKER_RECLAIM_SIZE" = "N/A" ]; then
-                    DOCKER_RECLAIM=0
-                else
-                    # Strip any trailing parenthetical percentage e.g. "3.2GB (45%)" -> "3.2GB"
-                    DOCKER_RECLAIM_SIZE=$(echo "$DOCKER_RECLAIM_SIZE" | awk '{print $1}')
-                    DOCKER_RECLAIM=$(size_to_bytes "$DOCKER_RECLAIM_SIZE")
-                fi
-
-                if [ "$DRY_RUN" = true ]; then
-                    log "Would clean Docker cache (dangling images, stopped containers, unused networks)"
-                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
-                else
-                    log "Cleaning Docker cache..."
-                    log_warning "Note: Named volumes are preserved. Use 'docker volume prune' manually if needed."
-                    docker system prune -af 2>/dev/null || log_warning "Docker cleanup encountered issues"
-                    log_success "Docker cache cleared"
-                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
-                fi
+            # Estimate reclaimable space using docker's format option
+            DOCKER_RECLAIM_SIZE=$(docker system df --format '{{.Reclaimable}}' 2>/dev/null | head -1 || echo "0B")
+            # Validate and sanitize - handle empty, 0B, or N/A
+            if [ -z "$DOCKER_RECLAIM_SIZE" ] || [ "$DOCKER_RECLAIM_SIZE" = "0B" ] || [ "$DOCKER_RECLAIM_SIZE" = "N/A" ]; then
+                DOCKER_RECLAIM=0
             else
-                log "Docker has no data to clean"
+                # Strip any trailing parenthetical percentage e.g. "3.2GB (45%)" -> "3.2GB"
+                DOCKER_RECLAIM_SIZE=$(echo "$DOCKER_RECLAIM_SIZE" | awk '{print $1}')
+                DOCKER_RECLAIM=$(size_to_bytes "$DOCKER_RECLAIM_SIZE")
             fi
+
+            if [ "$DRY_RUN" = true ]; then
+                log "Would clean Docker cache (dangling images, stopped containers, unused networks)"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
+            else
+                log "Cleaning Docker cache..."
+                log_warning "Note: Named volumes are preserved. Use 'docker volume prune' manually if needed."
+                docker system prune -af 2>/dev/null || log_warning "Docker cleanup encountered issues"
+                log_success "Docker cache cleared"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
+            fi
+        else
+            log "Docker is not running or has no data"
         fi
     else
         log "Docker not installed, skipping"
@@ -1867,7 +1752,7 @@ if [ "$SKIP_SIMULATOR" = false ]; then
     log_plain "================================================"
 
     SIMULATOR_DIR="$USER_HOME/Library/Developer/CoreSimulator"
-    if [ -d "$SIMULATOR_DIR" ] && [ ! -L "$SIMULATOR_DIR" ]; then
+    if [ -d "$SIMULATOR_DIR" ]; then
         SIM_SIZE=$(du -sh "$SIMULATOR_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
 
         if [ -n "$SIM_SIZE" ] && [ "$SIM_SIZE" != "0B" ]; then
@@ -1893,7 +1778,7 @@ if [ "$SKIP_SIMULATOR" = false ]; then
             log "iOS Simulator data is empty"
         fi
     else
-        log "iOS Simulator not found or path is symlink"
+        log "iOS Simulator not found"
     fi
     log_plain ""
 else
@@ -1910,7 +1795,7 @@ if [ "$SKIP_MAIL" = false ]; then
     log_plain "================================================"
 
     MAIL_CACHE="$USER_HOME/Library/Caches/com.apple.mail"
-    if [ -d "$MAIL_CACHE" ] && [ ! -L "$MAIL_CACHE" ]; then
+    if [ -d "$MAIL_CACHE" ]; then
         MAIL_SIZE=$(du -sh "$MAIL_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
 
         if [ -n "$MAIL_SIZE" ] && [ "$MAIL_SIZE" != "0B" ]; then
@@ -1922,7 +1807,7 @@ if [ "$SKIP_MAIL" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + MAIL_BYTES))
             else
                 log "Cleaning Mail app cache..."
-                safe_clear_directory "$MAIL_CACHE"
+                rm -rf "${MAIL_CACHE:?}"/* 2>/dev/null
                 log_success "Mail app cache cleared"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + MAIL_BYTES))
             fi
@@ -1930,7 +1815,7 @@ if [ "$SKIP_MAIL" = false ]; then
             log "Mail app cache is empty"
         fi
     else
-        log "Mail app cache not found or is symlink"
+        log "Mail app cache not found"
     fi
     log_plain ""
 else
@@ -1947,7 +1832,7 @@ if [ "$SKIP_SIRI_TTS" = false ]; then
     log_plain "================================================"
 
     SIRI_CACHE="$USER_HOME/Library/Caches/SiriTTS"
-    if [ -d "$SIRI_CACHE" ] && [ ! -L "$SIRI_CACHE" ]; then
+    if [ -d "$SIRI_CACHE" ]; then
         SIRI_SIZE=$(du -sh "$SIRI_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
 
         if [ -n "$SIRI_SIZE" ] && [ "$SIRI_SIZE" != "0B" ]; then
@@ -1959,7 +1844,7 @@ if [ "$SKIP_SIRI_TTS" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SIRI_BYTES))
             else
                 log "Cleaning Siri TTS cache..."
-                safe_clear_directory "$SIRI_CACHE"
+                rm -rf "${SIRI_CACHE:?}"/* 2>/dev/null
                 log_success "Siri TTS cache cleared"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SIRI_BYTES))
             fi
@@ -1967,7 +1852,7 @@ if [ "$SKIP_SIRI_TTS" = false ]; then
             log "Siri TTS cache is empty"
         fi
     else
-        log "Siri TTS cache not found or is symlink"
+        log "Siri TTS cache not found"
     fi
     log_plain ""
 else
@@ -1984,7 +1869,7 @@ if [ "$SKIP_ICLOUD_MAIL" = false ]; then
     log_plain "================================================"
 
     ICLOUD_MAIL_CACHE="$USER_HOME/Library/Caches/icloudmailagent"
-    if [ -d "$ICLOUD_MAIL_CACHE" ] && [ ! -L "$ICLOUD_MAIL_CACHE" ]; then
+    if [ -d "$ICLOUD_MAIL_CACHE" ]; then
         ICLOUD_MAIL_SIZE=$(du -sh "$ICLOUD_MAIL_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
 
         if [ -n "$ICLOUD_MAIL_SIZE" ] && [ "$ICLOUD_MAIL_SIZE" != "0B" ]; then
@@ -1996,7 +1881,7 @@ if [ "$SKIP_ICLOUD_MAIL" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_MAIL_BYTES))
             else
                 log "Cleaning iCloud Mail cache..."
-                safe_clear_directory "$ICLOUD_MAIL_CACHE"
+                rm -rf "${ICLOUD_MAIL_CACHE:?}"/* 2>/dev/null
                 log_success "iCloud Mail cache cleared"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_MAIL_BYTES))
             fi
@@ -2004,7 +1889,7 @@ if [ "$SKIP_ICLOUD_MAIL" = false ]; then
             log "iCloud Mail cache is empty"
         fi
     else
-        log "iCloud Mail cache not found or is symlink"
+        log "iCloud Mail cache not found"
     fi
     log_plain ""
 else
@@ -2114,7 +1999,7 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
                     LIB_TYPE="iCloud Photos"
                 fi
 
-                if [ -d "$RESOURCES_DIR" ] && [ ! -L "$RESOURCES_DIR" ]; then
+                if [ -d "$RESOURCES_DIR" ]; then
                     LIB_KB=$(du -sk "$RESOURCES_DIR" 2>/dev/null | awk '{print $1}' || echo "0")
                     
                     if [ "$LIB_KB" -gt 0 ]; then
@@ -2127,20 +2012,23 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
                         if [ "$DRY_RUN" = true ]; then
                             log "  Would clear: $LIB_HUMAN"
                         else
-                            # Only clear known cache subdirectories, skip cpl/ (iCloud sync state)
-                            for cache_dir in derivatives renders caches proxies; do
-                                target="$RESOURCES_DIR/$cache_dir"
-                                if [ -d "$target" ] && [ ! -L "$target" ]; then
-                                    find "$target" -mindepth 1 -delete 2>/dev/null || true
-                                fi
-                            done
+                            # Check for symlink before deleting (security)
+                            if [ -d "$RESOURCES_DIR" ] && [ ! -L "$RESOURCES_DIR" ]; then
+                                # Only clear known cache subdirectories, skip cpl/ (iCloud sync state)
+                                for cache_dir in derivatives renders caches proxies; do
+                                    target="$RESOURCES_DIR/$cache_dir"
+                                    if [ -d "$target" ] && [ ! -L "$target" ]; then
+                                        find "$target" -mindepth 1 -delete 2>/dev/null || true
+                                    fi
+                                done
+                            fi
                             log_success "  Cleared: $LIB_HUMAN"
                         fi
                     else
                         log "${LIB_NAME}.photoslibrary: cache is empty"
                     fi
                 else
-                    log "${LIB_NAME}.photoslibrary: resources folder not found or is symlink"
+                    log "${LIB_NAME}.photoslibrary: resources folder not found"
                 fi
             done
 
@@ -2174,11 +2062,11 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
     ICLOUD_DRIVE_BYTES=0
 
     # Check if CloudStorage directory exists
-    if [ -d "$CLOUD_STORAGE_DIR" ] && [ ! -L "$CLOUD_STORAGE_DIR" ]; then
+    if [ -d "$CLOUD_STORAGE_DIR" ]; then
         # Find only iCloud Drive folders (not OneDrive, Google Drive, Box, etc.)
         ICLOUD_FOLDERS=()
         for dir in "$CLOUD_STORAGE_DIR"/*; do
-            if [ -d "$dir" ] && [ ! -L "$dir" ]; then
+            if [ -d "$dir" ]; then
                 dirname=$(basename "$dir")
                 # Match iCloud Drive folders (various language versions)
                 if [[ "$dirname" == iCloud\ Drive* ]]; then
@@ -2201,53 +2089,38 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
                 log "${YELLOW}Warning: This bypasses iCloud sync and may cause data loss!${NC}"
                 log "${YELLOW}Files pending upload or in conflict state may be permanently lost.${NC}"
                 
-                # Check for iCloud sync issues before proceeding
-                SYNC_ISSUES=false
-                for folder in "${ICLOUD_FOLDERS[@]}"; do
-                    if ! check_icloud_sync_status "$folder"; then
-                        SYNC_ISSUES=true
-                        log_error "Pending iCloud operations detected in: $folder"
-                        break
-                    fi
-                done
-                
-                if [ "$SYNC_ISSUES" = true ]; then
-                    log "${RED}Cannot proceed: Files are pending iCloud sync. Complete sync before cleanup.${NC}"
-                    SKIPPED_CATEGORIES+=("iCloud Drive Offline Files (pending sync)")
-                    log_plain ""
-                else
-                    # Require --force flag for this dangerous operation
-                    if [ "$FORCE" = true ]; then
-                        log "${YELLOW}Running with --force: proceeding with deletion${NC}"
-                        PROCESSED_CATEGORIES+=("iCloud Drive Offline Files")
-                        ICLOUD_DRIVE_BYTES=$((ICLOUD_DRIVE_SIZE_KB * 1024))
+                # Require --force flag for this dangerous operation
+                if [ "$FORCE" = true ]; then
+                    log "${YELLOW}Running with --force: proceeding with deletion${NC}"
+                    PROCESSED_CATEGORIES+=("iCloud Drive Offline Files")
+                    ICLOUD_DRIVE_BYTES=$((ICLOUD_DRIVE_SIZE_KB * 1024))
 
-                        if [ "$DRY_RUN" = true ]; then
-                            log "Would remove iCloud Drive files: $ICLOUD_DRIVE_SIZE"
-                            log "${DIM}(Files will be PERMANENTLY DELETED - local-only files cannot be recovered)${NC}"
-                            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
-                        else
-                            log "Removing iCloud Drive files (PERMANENTLY DELETED from iCloud)..."
-                            for folder in "${ICLOUD_FOLDERS[@]}"; do
-                                # Safety: skip symlinks to prevent symlink attacks
-                                if [ -L "$folder" ]; then
-                                    log_warning "Skipping symlink: $folder"
-                                    continue
-                                fi
-                                # Use find -delete instead of rm -rf to avoid following symlinks
-                                find "$folder" -type f -mindepth 1 -delete 2>/dev/null || true
-                                find "$folder" -type d -mindepth 1 -empty -delete 2>/dev/null || true
-                            done
-                            log_success "iCloud Drive files removed"
-                            log "${RED}WARNING: Files pending upload are PERMANENTLY LOST!${NC}"
-                            log "${RED}Check System Settings > iCloud > iCloud Drive for pending uploads before running.${NC}"
-                            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
-                        fi
+                    if [ "$DRY_RUN" = true ]; then
+                        log "Would remove iCloud Drive files: $ICLOUD_DRIVE_SIZE"
+                        log "${DIM}(Files will be PERMANENTLY DELETED - local-only files cannot be recovered)${NC}"
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
                     else
-                        log "${RED}Skipping: Use --force to enable iCloud Drive cleanup${NC}"
-                        log "${RED}This operation bypasses iCloud sync and can cause data loss.${NC}"
-                        SKIPPED_CATEGORIES+=("iCloud Drive Offline Files (requires --force)")
+                        log "Removing iCloud Drive files (PERMANENTLY DELETED from iCloud)..."
+                        for folder in "${ICLOUD_FOLDERS[@]}"; do
+                            # Safety: skip symlinks to prevent symlink attacks
+                            if [ -L "$folder" ]; then
+                                log_warning "Skipping symlink: $folder"
+                                continue
+                            fi
+                            # Note: -type f/d excludes symlinks (safety feature), 
+                            # so du -sk accounting may slightly overstate freed space
+                            find "$folder" -type f -mindepth 1 -delete 2>/dev/null || true
+                            find "$folder" -type d -mindepth 1 -depth -empty -delete 2>/dev/null || true
+                        done
+                        log_success "iCloud Drive files removed"
+                        log "${RED}WARNING: Files pending upload are PERMANENTLY LOST!${NC}"
+                        log "${RED}Check System Settings > iCloud > iCloud Drive for pending uploads before running.${NC}"
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + ICLOUD_DRIVE_BYTES))
                     fi
+                else
+                    log "${RED}Skipping: Use --force to enable iCloud Drive cleanup${NC}"
+                    log "${RED}This operation bypasses iCloud sync and can cause data loss.${NC}"
+                    SKIPPED_CATEGORIES+=("iCloud Drive Offline Files (requires --force)")
                 fi
             else
                 log "iCloud Drive has no offline files"
@@ -2256,7 +2129,7 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
             log "iCloud Drive not configured or no iCloud Drive folder found"
         fi
     else
-        log "CloudStorage directory not found or is symlink (iCloud Drive not configured)"
+        log "CloudStorage directory not found (iCloud Drive not configured)"
     fi
     log_plain ""
 else
@@ -2273,7 +2146,7 @@ if [ "$SKIP_QUICKLOOK" = false ]; then
     log_plain "================================================"
 
     QUICKLOOK_CACHE="$USER_HOME/Library/Caches/com.apple.QuickLook.thumbnailcache"
-    if [ -d "$QUICKLOOK_CACHE" ] && [ ! -L "$QUICKLOOK_CACHE" ]; then
+    if [ -d "$QUICKLOOK_CACHE" ]; then
         QUICKLOOK_SIZE=$(du -sh "$QUICKLOOK_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
 
         if [ -n "$QUICKLOOK_SIZE" ] && [ "$QUICKLOOK_SIZE" != "0B" ]; then
@@ -2285,7 +2158,7 @@ if [ "$SKIP_QUICKLOOK" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + QUICKLOOK_BYTES))
             else
                 log "Cleaning QuickLook thumbnails..."
-                safe_clear_directory "$QUICKLOOK_CACHE"
+                rm -rf "${QUICKLOOK_CACHE:?}"/* 2>/dev/null
                 log_success "QuickLook thumbnails cleared"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + QUICKLOOK_BYTES))
             fi
@@ -2293,7 +2166,7 @@ if [ "$SKIP_QUICKLOOK" = false ]; then
             log "QuickLook cache is empty"
         fi
     else
-        log "QuickLook cache not found or is symlink"
+        log "QuickLook cache not found"
     fi
     log_plain ""
 else
@@ -2316,7 +2189,7 @@ if [ "$SKIP_DIAGNOSTICS" = false ]; then
     DIAG_SIZE_BYTES=0
 
     # Count user diagnostic reports older than 30 days
-    if [ -d "$DIAG_USER" ] && [ ! -L "$DIAG_USER" ]; then
+    if [ -d "$DIAG_USER" ]; then
         USER_COUNT=$(find "$DIAG_USER" -type f -mtime +30 2>/dev/null | wc -l | tr -d ' ')
         DIAG_COUNT=$((DIAG_COUNT + USER_COUNT))
         if [ "$USER_COUNT" -gt 0 ]; then
@@ -2328,7 +2201,7 @@ if [ "$SKIP_DIAGNOSTICS" = false ]; then
     fi
 
     # Count system diagnostic reports older than 30 days (requires sudo)
-    if [ -d "$DIAG_SYSTEM" ] && [ ! -L "$DIAG_SYSTEM" ]; then
+    if [ -d "$DIAG_SYSTEM" ]; then
         SYS_COUNT=$(find "$DIAG_SYSTEM" -type f -mtime +30 2>/dev/null | wc -l | tr -d ' ')
         DIAG_COUNT=$((DIAG_COUNT + SYS_COUNT))
         if [ "$SYS_COUNT" -gt 0 ]; then
@@ -2348,7 +2221,8 @@ if [ "$SKIP_DIAGNOSTICS" = false ]; then
             TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DIAG_SIZE_BYTES))
         else
             log "Cleaning old diagnostic reports..."
-            # Safety: check for symlinks before deleting
+            # Safety: skip symlinks to prevent symlink attacks
+            # Note: -type f already excludes symlinks; ! -L is invalid in BSD find
             [ -d "$DIAG_USER" ] && [ ! -L "$DIAG_USER" ] && find "$DIAG_USER" -type f -mtime +30 -delete 2>/dev/null || true
             [ -d "$DIAG_SYSTEM" ] && [ ! -L "$DIAG_SYSTEM" ] && find "$DIAG_SYSTEM" -type f -mtime +30 -delete 2>/dev/null || true
             log_success "Old diagnostic reports cleaned"
@@ -2371,7 +2245,7 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
     log_plain "================================================"
 
     IOS_BACKUP_DIR="$USER_HOME/Library/Application Support/MobileSync/Backup"
-    if [ -d "$IOS_BACKUP_DIR" ] && [ ! -L "$IOS_BACKUP_DIR" ]; then
+    if [ -d "$IOS_BACKUP_DIR" ]; then
         IOS_BACKUP_COUNT=$(find "$IOS_BACKUP_DIR" -maxdepth 1 -type d -not -path "$IOS_BACKUP_DIR" 2>/dev/null | wc -l | tr -d ' ')
 
         if [ "$IOS_BACKUP_COUNT" -gt 0 ]; then
@@ -2392,7 +2266,7 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
                 else
                     log "Deleting iOS device backups..."
-                    safe_clear_directory "$IOS_BACKUP_DIR"
+                    rm -rf "${IOS_BACKUP_DIR:?}"/* 2>/dev/null
                     log_success "iOS device backups deleted"
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
                 fi
@@ -2406,7 +2280,7 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
             log "No iOS device backups found"
         fi
     else
-        log "iOS backup directory not found or is symlink"
+        log "iOS backup directory not found"
     fi
     log_plain ""
 else
@@ -2433,7 +2307,7 @@ if [ "$SKIP_IOS_UPDATES" = false ]; then
     IPSW_TOTAL_COUNT=0
 
     for UPDATE_DIR in "${IOS_UPDATE_DIRS[@]}"; do
-        if [ -d "$UPDATE_DIR" ] && [ ! -L "$UPDATE_DIR" ]; then
+        if [ -d "$UPDATE_DIR" ]; then
             while IFS= read -r -d '' ipsw_file; do
                 IPSW_SIZE=$(du -sk "$ipsw_file" 2>/dev/null | awk '{print $1}')
                 # Validate numeric before arithmetic
@@ -2462,7 +2336,7 @@ if [ "$SKIP_IOS_UPDATES" = false ]; then
         else
             log "Deleting iOS/iPadOS update files..."
             for UPDATE_DIR in "${IOS_UPDATE_DIRS[@]}"; do
-                if [ -d "$UPDATE_DIR" ] && [ ! -L "$UPDATE_DIR" ]; then
+                if [ -d "$UPDATE_DIR" ]; then
                     find "$UPDATE_DIR" -name "*.ipsw" -type f -delete 2>/dev/null
                 fi
             done
@@ -2489,25 +2363,30 @@ if [ "$SKIP_COCOAPODS" = false ]; then
     # CocoaPods cache locations
     COCOAPODS_DIRS=(
         "$USER_HOME/Library/Caches/CocoaPods"
+        "$USER_HOME/Library/Developer/Xcode/DerivedData"
     )
 
     COCOAPODS_TOTAL_BYTES=0
     COCOAPODS_TOTAL_COUNT=0
 
     for DIR in "${COCOAPODS_DIRS[@]}"; do
-        if [ -d "$DIR" ] && [ ! -L "$DIR" ]; then
-            while IFS= read -r -d '' file; do
-                FILE_SIZE=$(du -sk "$file" 2>/dev/null | awk '{print $1}')
-                if ! [[ "$FILE_SIZE" =~ ^[0-9]+$ ]]; then
-                    FILE_SIZE=0
-                fi
-                FILE_BYTES=$((FILE_SIZE * 1024))
-                COCOAPODS_TOTAL_BYTES=$((COCOAPODS_TOTAL_BYTES + FILE_BYTES))
-                COCOAPODS_TOTAL_COUNT=$((COCOAPODS_TOTAL_COUNT + 1))
-            done < <(find "$DIR" -type f -print0 2>/dev/null)
+        if [ -d "$DIR" ]; then
+            # Count and size for Pods cache (not DerivedData to be safe)
+            if [[ "$DIR" == *"Caches/CocoaPods" ]]; then
+                while IFS= read -r -d '' file; do
+                    FILE_SIZE=$(du -sk "$file" 2>/dev/null | awk '{print $1}')
+                    if ! [[ "$FILE_SIZE" =~ ^[0-9]+$ ]]; then
+                        FILE_SIZE=0
+                    fi
+                    FILE_BYTES=$((FILE_SIZE * 1024))
+                    COCOAPODS_TOTAL_BYTES=$((COCOAPODS_TOTAL_BYTES + FILE_BYTES))
+                    COCOAPODS_TOTAL_COUNT=$((COCOAPODS_TOTAL_COUNT + 1))
+                done < <(find "$DIR" -type f -print0 2>/dev/null)
+            fi
         fi
     done
 
+    # Also check for Pods directory in projects (optional, user can specify)
     if [ "$COCOAPODS_TOTAL_COUNT" -gt 0 ]; then
         COCOAPODS_HUMAN=$(bytes_to_human "$COCOAPODS_TOTAL_BYTES")
         log "Found $COCOAPODS_TOTAL_COUNT item(s): $COCOAPODS_HUMAN"
@@ -2522,11 +2401,9 @@ if [ "$SKIP_COCOAPODS" = false ]; then
                 pod cache clean --all 2>/dev/null || true
             fi
             # Also clean the caches directory manually
-            for DIR in "${COCOAPODS_DIRS[@]}"; do
-                if [ -d "$DIR" ] && [ ! -L "$DIR" ]; then
-                    find "$DIR" -type f -delete 2>/dev/null || true
-                fi
-            done
+            if [ -d "$USER_HOME/Library/Caches/CocoaPods" ]; then
+                find "$USER_HOME/Library/Caches/CocoaPods" -type f -delete 2>/dev/null || true
+            fi
             log_success "CocoaPods cache cleared: $COCOAPODS_HUMAN"
             TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + COCOAPODS_TOTAL_BYTES))
         fi
@@ -2549,7 +2426,7 @@ if [ "$SKIP_GRADLE" = false ]; then
 
     GRADLE_CACHE_DIR="$USER_HOME/.gradle/caches"
 
-    if [ -d "$GRADLE_CACHE_DIR" ] && [ ! -L "$GRADLE_CACHE_DIR" ]; then
+    if [ -d "$GRADLE_CACHE_DIR" ]; then
         GRADLE_SIZE=$(du -sh "$GRADLE_CACHE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
         GRADLE_BYTES=$(size_to_bytes "$GRADLE_SIZE")
 
@@ -2565,12 +2442,9 @@ if [ "$SKIP_GRADLE" = false ]; then
                 if command -v gradle &> /dev/null; then
                     gradle --stop 2>/dev/null || true
                 fi
-                if safe_clear_directory "$GRADLE_CACHE_DIR"; then
-                    log_success "Gradle cache cleared: $GRADLE_SIZE"
-                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GRADLE_BYTES))
-                else
-                    log_warning "Gradle cache cleanup encountered issues"
-                fi
+                rm -rf "$GRADLE_CACHE_DIR" 2>/dev/null || true
+                log_success "Gradle cache cleared: $GRADLE_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GRADLE_BYTES))
             fi
         else
             log "Gradle cache is empty"
@@ -2599,7 +2473,7 @@ if [ "$SKIP_GO" = false ]; then
     GO_TOTAL_BYTES=0
 
     for CACHE_DIR in "$GO_CACHE_DIR" "$GO_CACHE_DIR_ALT"; do
-        if [ -d "$CACHE_DIR" ] && [ ! -L "$CACHE_DIR" ]; then
+        if [ -d "$CACHE_DIR" ]; then
             GO_SIZE=$(du -sh "$CACHE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
             GO_BYTES=$(size_to_bytes "$GO_SIZE")
 
@@ -2625,8 +2499,8 @@ if [ "$SKIP_GO" = false ]; then
             fi
             # Fallback: manual deletion
             for CACHE_DIR in "$GO_CACHE_DIR" "$GO_CACHE_DIR_ALT"; do
-                if [ -d "$CACHE_DIR" ] && [ ! -L "$CACHE_DIR" ]; then
-                    safe_clear_directory "$CACHE_DIR" 2>/dev/null || true
+                if [ -d "$CACHE_DIR" ]; then
+                    rm -rf "$CACHE_DIR" 2>/dev/null || true
                 fi
             done
             log_success "Go module cache cleared: $GO_HUMAN"
@@ -2652,7 +2526,7 @@ if [ "$SKIP_BUN" = false ]; then
     # Bun cache location
     BUN_CACHE_DIR="$USER_HOME/.bun/install/cache"
 
-    if [ -d "$BUN_CACHE_DIR" ] && [ ! -L "$BUN_CACHE_DIR" ]; then
+    if [ -d "$BUN_CACHE_DIR" ]; then
         BUN_SIZE=$(du -sh "$BUN_CACHE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
         BUN_BYTES=$(size_to_bytes "$BUN_SIZE")
 
@@ -2664,7 +2538,7 @@ if [ "$SKIP_BUN" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BUN_BYTES))
             else
                 log "Cleaning Bun cache..."
-                safe_clear_directory "$BUN_CACHE_DIR" 2>/dev/null || true
+                rm -rf "$BUN_CACHE_DIR" 2>/dev/null || true
                 log_success "Bun cache cleared: $BUN_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BUN_BYTES))
             fi
@@ -2701,7 +2575,7 @@ if [ "$SKIP_PNPM" = false ]; then
         PNPM_STORE_DIR="$USER_HOME/Library/pnpm/store"
     fi
 
-    if [ -d "$PNPM_STORE_DIR" ] && [ ! -L "$PNPM_STORE_DIR" ]; then
+    if [ -d "$PNPM_STORE_DIR" ]; then
         PNPM_SIZE=$(du -sh "$PNPM_STORE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
         PNPM_BYTES=$(size_to_bytes "$PNPM_SIZE")
 
@@ -2719,12 +2593,12 @@ if [ "$SKIP_PNPM" = false ]; then
                 fi
                 # Also check for the global store
                 PNPM_GLOBAL_STORE="$USER_HOME/.pnpm-store"
-                if [ -d "$PNPM_GLOBAL_STORE" ] && [ ! -L "$PNPM_GLOBAL_STORE" ]; then
+                if [ -d "$PNPM_GLOBAL_STORE" ]; then
                     PNPM_GLOBAL_SIZE=$(du -sh "$PNPM_GLOBAL_STORE" 2>/dev/null | awk '{print $1}' || echo "0B")
                     PNPM_GLOBAL_BYTES=$(size_to_bytes "$PNPM_GLOBAL_SIZE")
                     PNPM_BYTES=$((PNPM_BYTES + PNPM_GLOBAL_BYTES))
                     PNPM_SIZE="$PNPM_SIZE (global: $PNPM_GLOBAL_SIZE)"
-                    safe_clear_directory "$PNPM_GLOBAL_STORE" 2>/dev/null || true
+                    rm -rf "$PNPM_GLOBAL_STORE" 2>/dev/null || true
                 fi
                 log_success "pnpm store pruned: $PNPM_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PNPM_BYTES))
@@ -2793,7 +2667,7 @@ if [ "$DRY_RUN" = true ]; then
     # Special warning for iOS backups if they would be deleted
     if [ "$SKIP_IOS_BACKUPS" = false ]; then
         IOS_BACKUP_DIR="$USER_HOME/Library/Application Support/MobileSync/Backup"
-        if [ -d "$IOS_BACKUP_DIR" ] && [ ! -L "$IOS_BACKUP_DIR" ]; then
+        if [ -d "$IOS_BACKUP_DIR" ]; then
             IOS_BACKUP_COUNT=$(find "$IOS_BACKUP_DIR" -maxdepth 1 -type d -not -path "$IOS_BACKUP_DIR" 2>/dev/null | wc -l | tr -d ' ')
             if [ "$IOS_BACKUP_COUNT" -gt 0 ]; then
                 log_always "${RED}${BOLD}⚠️  CRITICAL: iOS Device Backups Will Be Deleted!${NC}"
@@ -2812,48 +2686,43 @@ else
     log_plain ""
 
     # Get final disk usage
-    DISK_USAGE_AFTER=$(df -h / 2>/dev/null | awk 'NR==2 {print $5}' | sed 's/%//')
-    DISK_AVAIL_AFTER=$(df -h / 2>/dev/null | awk 'NR==2 {print $4}')
-    DISK_USED_AFTER=$(df -h / 2>/dev/null | awk 'NR==2 {print $3}')
-    DISK_AVAIL_BYTES_AFTER=$(df -k / 2>/dev/null | awk 'NR==2 {print $4}')  # Get KB
-    
-    if [[ "$DISK_AVAIL_BYTES_AFTER" =~ ^[0-9]+$ ]]; then
-        DISK_AVAIL_BYTES_AFTER=$((DISK_AVAIL_BYTES_AFTER * 1024))  # Convert KB to bytes
+    DISK_USAGE_AFTER=$(df -h / | tail -1 | awk '{print $5}' | sed 's/%//')
+    DISK_AVAIL_AFTER=$(df -h / | tail -1 | awk '{print $4}')
+    DISK_USED_AFTER=$(df -h / | tail -1 | awk '{print $3}')
+    DISK_AVAIL_BYTES_AFTER=$(df -k / | tail -1 | awk '{print $4}')  # Get KB
+    DISK_AVAIL_BYTES_AFTER=$((DISK_AVAIL_BYTES_AFTER * 1024))  # Convert KB to bytes
 
-        log "Initial disk usage: ${DISK_USAGE}% (${DISK_USED} used, ${DISK_AVAIL} available)"
-        log "Final disk usage:   ${DISK_USAGE_AFTER}% (${DISK_USED_AFTER} used, ${DISK_AVAIL_AFTER} available)"
+    log "Initial disk usage: ${DISK_USAGE}% (${DISK_USED} used, ${DISK_AVAIL} available)"
+    log "Final disk usage:   ${DISK_USAGE_AFTER}% (${DISK_USED_AFTER} used, ${DISK_AVAIL_AFTER} available)"
 
-        # Calculate actual space freed (difference in available space)
-        ACTUAL_BYTES_FREED=$((DISK_AVAIL_BYTES_AFTER - DISK_AVAIL_BYTES))
-        if [ "$ACTUAL_BYTES_FREED" -gt 0 ]; then
-            ACTUAL_FREED=$(bytes_to_human "$ACTUAL_BYTES_FREED")
-            log_always ""
-            log_always "${GREEN}✓ Actual space freed: $ACTUAL_FREED${NC}"
+    # Calculate actual space freed (difference in available space)
+    ACTUAL_BYTES_FREED=$((DISK_AVAIL_BYTES_AFTER - DISK_AVAIL_BYTES))
+    if [ "$ACTUAL_BYTES_FREED" -gt 0 ]; then
+        ACTUAL_FREED=$(bytes_to_human "$ACTUAL_BYTES_FREED")
+        log_always ""
+        log_always "${GREEN}✓ Actual space freed: $ACTUAL_FREED${NC}"
 
-            # Show estimate vs actual if significantly different
-            if [ "$TOTAL_BYTES_FREED" -gt 0 ]; then
-                ESTIMATED_FREED=$(bytes_to_human "$TOTAL_BYTES_FREED")
-                DIFFERENCE=$((ACTUAL_BYTES_FREED - TOTAL_BYTES_FREED))
-                DIFF_ABS=${DIFFERENCE#-}  # Absolute value
+        # Show estimate vs actual if significantly different
+        if [ "$TOTAL_BYTES_FREED" -gt 0 ]; then
+            ESTIMATED_FREED=$(bytes_to_human "$TOTAL_BYTES_FREED")
+            DIFFERENCE=$((ACTUAL_BYTES_FREED - TOTAL_BYTES_FREED))
+            DIFF_ABS=${DIFFERENCE#-}  # Absolute value
 
-                # Only show comparison if difference is significant (>1GB or >10%)
-                if [ "$DIFF_ABS" -gt 1073741824 ]; then
-                    DIFF_HUMAN=$(bytes_to_human "$DIFF_ABS")
-                    if [ "$ACTUAL_BYTES_FREED" -gt "$TOTAL_BYTES_FREED" ]; then
-                        log "${DIM}(Estimated: $ESTIMATED_FREED, freed $DIFF_HUMAN more than expected)${NC}"
-                    else
-                        log "${DIM}(Estimated: $ESTIMATED_FREED, actual freed $DIFF_HUMAN less due to APFS snapshot sharing)${NC}"
-                    fi
+            # Only show comparison if difference is significant (>1GB or >10%)
+            if [ "$DIFF_ABS" -gt 1073741824 ]; then
+                DIFF_HUMAN=$(bytes_to_human "$DIFF_ABS")
+                if [ "$ACTUAL_BYTES_FREED" -gt "$TOTAL_BYTES_FREED" ]; then
+                    log "${DIM}(Estimated: $ESTIMATED_FREED, freed $DIFF_HUMAN more than expected)${NC}"
+                else
+                    log "${DIM}(Estimated: $ESTIMATED_FREED, actual freed $DIFF_HUMAN less due to APFS snapshot sharing)${NC}"
                 fi
             fi
-        elif [ "$ACTUAL_BYTES_FREED" -lt 0 ]; then
-            # Available space decreased (shouldn't happen, but handle it)
-            log_warning "Available space decreased - this may be due to system activity during cleanup"
-        else
-            log "No measurable space freed"
         fi
+    elif [ "$ACTUAL_BYTES_FREED" -lt 0 ]; then
+        # Available space decreased (shouldn't happen, but handle it)
+        log_warning "Available space decreased - this may be due to system activity during cleanup"
     else
-        log "Could not calculate final disk usage"
+        log "No measurable space freed"
     fi
 fi
 

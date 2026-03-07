@@ -136,11 +136,11 @@ Some categories may not have data to clean. Try `--dry-run` to see what's availa
 
 ## Learn More
 
-- [Full Documentation](README.md)
-- [Installation Guide](INSTALL.md)
-- [Advanced Usage](ADVANCED.md)
-- [FAQ](FAQ.md)
-- [Troubleshooting](TROUBLESHOOTING.md)
+- [Full Documentation](../README.md)
+- [Installation Guide](install.md)
+- [Advanced Usage](advanced.md)
+- [FAQ](faq.md)
+- [Troubleshooting](troubleshooting.md)
 
 ---
 

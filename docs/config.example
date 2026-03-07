@@ -1,4 +1,4 @@
-# MacCleans Configuration File (v4.0.0)
+# MacCleans Configuration File (v4.2.0)
 # Copy this file to one of these locations:
 #   ~/.maccleans.conf (recommended)
 #   ~/.config/maccleans/config
@@ -15,6 +15,7 @@
 # FORCE=false                # Skip ALL prompts (including XCode warning)
 # QUIET=false                # Minimal output (useful for cron jobs)
 # NO_COLOR=false             # Disable colored output
+# JSON_OUTPUT=false          # Output results in JSON format (useful for automation)
 # THRESHOLD=0                # Only run if disk usage is above this % (0 = always run)
 
 # Skip Categories
