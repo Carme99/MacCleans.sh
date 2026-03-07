@@ -53,10 +53,20 @@ if ! command -v curl &> /dev/null && ! command -v wget &> /dev/null; then
 fi
 
 # Check if we can write to /usr/local/bin
+# Detect if running from stdin (curl | bash) vs a real file
+is_stdin() {
+    [ ! -t 0 ] && [ -z "${BASH_SOURCE[0]:-}" ]
+}
+
 if [ ! -w "$INSTALL_DIR" ] && [ "$EUID" -ne 0 ]; then
+    if is_stdin; then
+        log_error "Cannot auto-escalate when running from stdin (curl | bash)"
+        log_info "Please run with: curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/installer.sh | sudo bash"
+        exit 1
+    fi
     log_warning "Cannot write to $INSTALL_DIR without sudo"
     log_info "Re-running with sudo..."
-    exec sudo "$0" "$@"
+    exec sudo "${BASH_SOURCE[0]}" "$@"
 fi
 
 # Create backup if script already exists

@@ -24,6 +24,40 @@ All notable changes to MacCleans.sh are documented in this file.
   - Better symlink protection
 - **Config File Updates**: Updated `config.example` to v4.2.0 with `JSON_OUTPUT=false` option added
 
+### Security Restorations (Critical)
+
+- **Lock File Prevention**: Restored `acquire_lock()` function to prevent multiple instances running simultaneously
+  - Uses atomic mkdir-based locking
+  - Prevents race conditions and potential corruption
+- **Symlink Protection Restored**: Added `! -L` checks to all 15+ deletion sites
+  - Prevents symlink attacks where malicious symlinks could redirect deletions
+  - Uses `safe_clear_directory()` for all cache cleanups
+- **iCloud Sync Check Restored**: Reintroduced `check_icloud_sync_status()` function
+  - Checks for `.icloud` placeholder files before deletion
+  - Uses `brctl` to detect active uploads/downloads
+  - Prevents permanent data loss from iCloud
+- **Age-Based tmp Deletion Restored**: System temp files now use `mtime +3` (3 days old)
+  - Changed from blanket `rm -rf /private/tmp/*` to `find -mtime +3 -delete`
+  - Prevents breaking running processes that have active temp files
+- **Cleanup on Exit**: Restored `cleanup_on_exit()` function
+  - Ensures lock files are properly released on script exit
+  - Prevents stale locks from blocking future runs
+
+### JSON Output Improvements
+
+- **Fixed JSON Validity**: Resolved issues with unquoted booleans and strings
+  - `dry_run` now outputs proper JSON boolean (`true`/`false`)
+  - Category names are now properly escaped for JSON
+- **Consolidated JSON**: Removed fragmented JSON implementations
+  - Single JSON output at script end
+  - Cleaner code structure
+
+### Installer Improvements
+
+- **curl|bash Safety**: Fixed auto-sudo escalation when running via `curl | bash`
+  - Detects stdin execution and provides clear error message
+  - Prevents unexpected behavior from re-execing from stdin
+
 #### Documentation Restructure
 
 - **Moved to docs/ folder**: 7 documentation files relocated to maintain cleaner repository root
