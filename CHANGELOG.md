@@ -7,13 +7,78 @@ All notable changes to MacCleans.sh are documented in this file.
 ### New Features
 
 - **JSON Output**: New `--json` / `-j` flag to output cleanup results in JSON format (useful for automation/monitoring)
+  - Outputs version, timestamp, dry-run status, processed/skipped categories, disk usage before/after, and space freed
+  - Perfect for CI/CD pipelines, monitoring scripts, and logging systems
+  - JSON output suppressed all normal log messages for clean programmatic consumption
 
 ### Improvements
 
+#### Code Quality & Security
+
 - **Config Parsing**: Replaced fragile `xargs` with bash parameter expansion for more robust whitespace handling
+  - Old: `key=$(echo "$key" | xargs)` - could fail on edge cases
+  - New: Bash parameter expansion `${key#"${key%%[![:space:]]*}"}` - pure bash, more reliable
 - **Consistent Safe Deletion**: Trash section now uses `safe_clear_directory()` function for consistent behavior
-- **Documentation Restructure**: Moved detailed documentation to `docs/` folder, README now serves as quick-start hub
-- **README Visual Enhancements**: Added ASCII art logo and terminal output examples for better user experience
+  - Aligns with other cleanup sections
+  - Uses `find -delete` operations instead of risky glob patterns
+  - Better symlink protection
+- **Config File Updates**: Updated `config.example` to v4.2.0 with `JSON_OUTPUT=false` option added
+
+#### Documentation Restructure
+
+- **Moved to docs/ folder**: 7 documentation files relocated to maintain cleaner repository root
+  - `ADVANCED.md` → `docs/advanced.md`
+  - `FAQ.md` → `docs/faq.md`
+  - `INSTALL.md` → `docs/install.md`
+  - `QUICKSTART.md` → `docs/quickstart.md`
+  - `SECURITY.md` → `docs/security.md`
+  - `TROUBLESHOOTING.md` → `docs/troubleshooting.md`
+  - `COMPARISON.md` → `docs/comparison.md`
+  - `maccleans.conf.example` → `docs/config.example`
+- **README Rewrite**: Transformed from 530-line comprehensive manual to 174-line quick-start hub
+  - Added ASCII art logo with lightning bolt branding
+  - Added 2 terminal output examples (--dry-run and --json)
+  - Condensed and scannable for new users
+  - Links to detailed docs for in-depth information
+- **Internal Links Updated**: All cross-document links updated to reflect new `docs/` folder structure
+  - Updated `CONTRIBUTING.md` doc references
+  - Fixed links in all 7 moved documentation files
+  - Updated `docs/index.md` navigation hub
+- **Testing Documentation**: Added JSON output testing instructions to `CONTRIBUTING.md`
+  - Added "Test JSON Output" section with examples
+  - Updated manual testing checklist to include JSON validation
+
+#### README Visual Enhancements
+
+- **ASCII Art Logo**: Added branded header with lightning bolt icon
+  - Professional and instantly recognizable
+  - Version number prominently displayed
+- **Terminal Output Examples**: Added 2 practical code blocks
+  - `--dry-run`: Shows discovery process, category scans, and space calculation
+  - `--json`: Demonstrates programmatic output structure for automation
+  - Builds user trust by showing exactly what they'll see
+- **Better User Experience**: Transformed from boring text-heavy to visually engaging with personality
+
+### Repository Structure
+
+- **Root Files**: Simplified to essential files only
+  - `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE` kept at root
+  - `clean-mac-space.sh`, `installer.sh` at root
+  - All detailed docs in `docs/` folder
+
+### Technical Details
+
+- **Version Bump**: 4.1.2 → 4.2.0 (minor version for new functionality)
+- **No Breaking Changes**: All existing CLI flags and behavior preserved
+- **Backward Compatible**: Existing config files work without modification
+- **Code Size**: README reduced by 67% while improving usability
+
+### Community Impact
+
+- **Better Onboarding**: New users can understand and use MacCleans in seconds
+- **Improved Safety**: More robust code reduces edge case failures
+- **Automation Ready**: JSON output enables programmatic usage
+- **Easier Maintenance**: Cleaner repository structure reduces cognitive load
 
 ## [4.1.0] - 2026-02-23
 
