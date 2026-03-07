@@ -1,6 +1,7 @@
-# MacCleans
+     ⚡  MacCleans  ⚡
+           v4.2.0
 
-> Free 10-50GB on your Mac with one command.
+Free 10-50GB on your Mac with one command.
 
 [![Version](https://img.shields.io/badge/Version-4.2.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -20,6 +21,49 @@ sudo Mac-Clean --dry-run
 
 # Clean everything (non-interactive)
 sudo Mac-Clean --yes
+```
+
+---
+
+## Example Output
+
+```bash
+$ sudo Mac-Clean --dry-run
+[!] Disk usage: 85% - scanning...
+[✓] XCode Derived Data: 12.3 GB
+[✓] Homebrew Cache: 2.1 GB
+[✓] Docker Cache: 8.5 GB
+[✓] npm/Yarn Cache: 1.2 GB
+[⚡] Would reclaim: ~23 GB
+```
+
+```bash
+$ sudo Mac-Clean --json
+{
+  "version": "4.2.0",
+  "timestamp": "2026-03-07T10:30:00Z",
+  "dry_run": false,
+  "results": {
+    "categories": {
+      "processed": [
+        "XCode Derived Data",
+        "Homebrew Cache",
+        "Docker Cache"
+      ],
+      "skipped": [
+        "Time Machine Snapshots"
+      ]
+    },
+    "disk_usage": {
+      "before": 85,
+      "after": 77
+    },
+    "space_freed": {
+      "bytes": 24696061952,
+      "human": "23.00 GB"
+    }
+  }
+}
 ```
 
 ---

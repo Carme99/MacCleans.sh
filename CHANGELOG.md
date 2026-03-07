@@ -13,6 +13,7 @@ All notable changes to MacCleans.sh are documented in this file.
 - **Config Parsing**: Replaced fragile `xargs` with bash parameter expansion for more robust whitespace handling
 - **Consistent Safe Deletion**: Trash section now uses `safe_clear_directory()` function for consistent behavior
 - **Documentation Restructure**: Moved detailed documentation to `docs/` folder, README now serves as quick-start hub
+- **README Visual Enhancements**: Added ASCII art logo and terminal output examples for better user experience
 
 ## [4.1.0] - 2026-02-23
 
