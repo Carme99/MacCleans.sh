@@ -530,6 +530,9 @@ safe_clear_directory() {
 
 # Function to check for iCloud sync issues
 # Returns 0 if safe to proceed, 1 if pending uploads detected
+# Initialize BRCTL_STATUS_CACHE to avoid unbound variable with set -u
+BRCTL_STATUS_CACHE=""
+
 check_icloud_sync_status() {
     local folder="$1"
     
@@ -542,7 +545,7 @@ check_icloud_sync_status() {
     
     # Cache brctl output once and reuse for all folders
     if command -v brctl &> /dev/null; then
-        if [ -z "$BRCTL_STATUS_CACHE" ]; then
+        if [ -z "${BRCTL_STATUS_CACHE:-}" ]; then
             BRCTL_STATUS_CACHE=$(brctl status 2>/dev/null || echo "")
         fi
         if echo "$BRCTL_STATUS_CACHE" | grep -qi "uploading\|downloading"; then
@@ -653,19 +656,27 @@ log_error() {
 
 # Function to convert human-readable size to bytes
 # Uses awk to avoid bash integer overflow on large sizes (TB+)
+# POSIX-compatible: uses match() with RSTART/RLENGTH instead of GNU-only capture groups
 size_to_bytes() {
     local size="$1"
     awk -v s="$size" 'BEGIN {
-        if (match(s, /^([0-9.]+)([KMGT]?)/, m)) {
-            n = m[1]; u = m[2]
-            if (u == "K" || u == "k" || u == "KB" || u == "kb") n *= 1024
-            else if (u == "M" || u == "m" || u == "MB" || u == "mb") n *= 1048576
-            else if (u == "G" || u == "g" || u == "GB" || u == "gb") n *= 1073741824
-            else if (u == "T" || u == "t" || u == "TB" || u == "tb") n *= 1099511627776
-            else if (u == "P" || u == "p" || u == "PB" || u == "pb") n *= 1125899906842624
-            else if (u == "E" || u == "e" || u == "EB" || u == "eb") n *= 1152921504606846976
-            printf "%.0f", n
-        } else print 0
+        # Extract numeric part (everything at start)
+        if (match(s, /^[0-9.]+/)) {
+            n = substr(s, RSTART, RLENGTH)
+        }
+        # Extract unit (K, M, G, T, P, E or their KB, MB variants)
+        if (match(s, /[KMGT]B?$/i)) {
+            u = substr(s, RSTART, RLENGTH)
+        }
+        # Convert
+        if (u == "K" || u == "k" || u == "KB" || u == "kb") n *= 1024
+        else if (u == "M" || u == "m" || u == "MB" || u == "mb") n *= 1048576
+        else if (u == "G" || u == "g" || u == "GB" || u == "gb") n *= 1073741824
+        else if (u == "T" || u == "t" || u == "TB" || u == "tb") n *= 1099511627776
+        else if (u == "P" || u == "p" || u == "PB" || u == "pb") n *= 1125899906842624
+        else if (u == "E" || u == "e" || u == "EB" || u == "eb") n *= 1152921504606846976
+        # If no unit, assume bytes (n stays as-is)
+        printf "%.0f", n + 0
     }'
 }
 
@@ -1081,14 +1092,14 @@ fi
             read -rsn2 key
             case $key in
                 '[A') # Up arrow
-                    ((cursor--))
+                    cursor=$((cursor - 1))
                     if [ $cursor -lt 0 ]; then
                         cursor=$((total - 1))
                     fi
                     draw_menu
                     ;;
                 '[B') # Down arrow
-                    ((cursor++))
+                    cursor=$((cursor + 1))
                     if [ "$cursor" -ge "$total" ]; then
                         cursor=0
                     fi
@@ -2554,7 +2565,12 @@ if [ "$SKIP_GRADLE" = false ]; then
                 if command -v gradle &> /dev/null; then
                     gradle --stop 2>/dev/null || true
                 fi
-                rm -rf "$GRADLE_CACHE_DIR" 2>/dev/null || true
+                # Symlink protection: only delete if not a symlink
+                if [ -d "$GRADLE_CACHE_DIR" ] && [ ! -L "$GRADLE_CACHE_DIR" ]; then
+                    rm -rf "$GRADLE_CACHE_DIR" 2>/dev/null || true
+                else
+                    log_warning "Skipping Gradle cache - is a symlink or not a directory"
+                fi
                 log_success "Gradle cache cleared: $GRADLE_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + GRADLE_BYTES))
             fi
@@ -2611,6 +2627,11 @@ if [ "$SKIP_GO" = false ]; then
             fi
             # Fallback: manual deletion
             for CACHE_DIR in "$GO_CACHE_DIR" "$GO_CACHE_DIR_ALT"; do
+                # Symlink protection: skip if symlink
+                if [ -L "$CACHE_DIR" ]; then
+                    log_warning "Skipping $CACHE_DIR - is a symlink"
+                    continue
+                fi
                 if [ -d "$CACHE_DIR" ]; then
                     rm -rf "$CACHE_DIR" 2>/dev/null || true
                 fi
@@ -2650,7 +2671,12 @@ if [ "$SKIP_BUN" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BUN_BYTES))
             else
                 log "Cleaning Bun cache..."
-                rm -rf "$BUN_CACHE_DIR" 2>/dev/null || true
+                # Symlink protection: only delete if not a symlink
+                if [ -L "$BUN_CACHE_DIR" ]; then
+                    log_warning "Skipping Bun cache - is a symlink"
+                else
+                    rm -rf "$BUN_CACHE_DIR" 2>/dev/null || true
+                fi
                 log_success "Bun cache cleared: $BUN_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BUN_BYTES))
             fi
@@ -2705,12 +2731,14 @@ if [ "$SKIP_PNPM" = false ]; then
                 fi
                 # Also check for the global store
                 PNPM_GLOBAL_STORE="$USER_HOME/.pnpm-store"
-                if [ -d "$PNPM_GLOBAL_STORE" ]; then
+                if [ -d "$PNPM_GLOBAL_STORE" ] && [ ! -L "$PNPM_GLOBAL_STORE" ]; then
                     PNPM_GLOBAL_SIZE=$(du -sh "$PNPM_GLOBAL_STORE" 2>/dev/null | awk '{print $1}' || echo "0B")
                     PNPM_GLOBAL_BYTES=$(size_to_bytes "$PNPM_GLOBAL_SIZE")
                     PNPM_BYTES=$((PNPM_BYTES + PNPM_GLOBAL_BYTES))
                     PNPM_SIZE="$PNPM_SIZE (global: $PNPM_GLOBAL_SIZE)"
                     rm -rf "$PNPM_GLOBAL_STORE" 2>/dev/null || true
+                elif [ -L "$PNPM_GLOBAL_STORE" ]; then
+                    log_warning "Skipping pnpm global store - is a symlink"
                 fi
                 log_success "pnpm store pruned: $PNPM_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PNPM_BYTES))
