@@ -9,7 +9,7 @@ All notable changes to MacCleans.sh are documented in this file.
 - **JSON Output**: New `--json` / `-j` flag to output cleanup results in JSON format (useful for automation/monitoring)
   - Outputs version, timestamp, dry-run status, processed/skipped categories, disk usage before/after, and space freed
   - Perfect for CI/CD pipelines, monitoring scripts, and logging systems
-  - JSON output suppressed all normal log messages for clean programmatic consumption
+  - JSON output suppresses all normal log messages for clean programmatic consumption
 
 ### Improvements
 
