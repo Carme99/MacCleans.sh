@@ -420,7 +420,17 @@ parse_arguments() {
                 shift 2
                 ;;
             --help|-h)
-                head -n 62 "$0" | tail -n +3 | sed 's/^# //'
+                # Extract header comment block dynamically - find first non-comment line
+                line_num=0
+                while IFS= read -r line; do
+                    line_num=$((line_num + 1))
+                    # Stop at first non-comment line
+                    if [[ ! "$line" =~ ^[[:space:]]*# ]]; then
+                        break
+                    fi
+                    # Print with # prefix stripped
+                    echo "${line#\# }"
+                done < "$0"
                 exit 0
                 ;;
             *)
@@ -616,7 +626,7 @@ log() {
 
 # Function to log verbose debug output (only when --verbose is used)
 log_verbose() {
-    if [ "$VERBOSE" = true ] && [ "$QUIET" = false ]; then
+    if [ "$VERBOSE" = true ] && [ "$QUIET" = false ] && [ "$JSON_OUTPUT" = false ]; then
         echo -e "${DIM}[$(date '+%Y-%m-%d %H:%M:%S')] [DEBUG]${NC} $1"
     fi
 }
@@ -637,21 +647,23 @@ log_always() {
 
 # Function to log success
 log_success() {
-    if [ "$QUIET" = false ]; then
+    if [ "$QUIET" = false ] && [ "$JSON_OUTPUT" = false ]; then
         echo -e "${GREEN}✓${NC} $1"
     fi
 }
 
 # Function to log warning
 log_warning() {
-    if [ "$QUIET" = false ]; then
+    if [ "$QUIET" = false ] && [ "$JSON_OUTPUT" = false ]; then
         echo -e "${YELLOW}⚠${NC} $1"
     fi
 }
 
 # Function to log error
 log_error() {
-    echo -e "${RED}✗${NC} $1" >&2
+    if [ "$JSON_OUTPUT" = false ]; then
+        echo -e "${RED}✗${NC} $1" >&2
+    fi
 }
 
 # Function to convert human-readable size to bytes
@@ -982,69 +994,8 @@ interactive_selection() {
         clear
         log_plain ""
         log_plain "${BOLD}Interactive Category Selection${NC}"
-log_plain "================================================"
+        log_plain "================================================"
 
-# Output JSON if requested
-if [ "$JSON_OUTPUT" = true ]; then
-    freed_human=$(awk -v b="$TOTAL_BYTES_FREED" 'BEGIN {
-        if (b < 1024) printf "%.0f B", b
-        else if (b < 1048576) printf "%.2f KB", b/1024
-        else if (b < 1073741824) printf "%.2f MB", b/1048576
-        else if (b < 1099511627776) printf "%.2f GB", b/1073741824
-        else printf "%.2f TB", b/1099511627776
-    }')
-    disk_after=${DISK_USAGE_AFTER:-0}
-    disk_before=${DISK_USAGE:-0}
-    
-    # Convert DRY_RUN to JSON boolean
-    if [ "$DRY_RUN" = true ]; then
-        json_dry_run="true"
-    else
-        json_dry_run="false"
-    fi
-    
-    # Build processed array with proper JSON quoting
-    json_processed=""
-    for cat in "${PROCESSED_CATEGORIES[@]}"; do
-        escaped_cat="${cat//\"/\\\"}"
-        json_processed="$json_processed\"$escaped_cat\","
-    done
-    json_processed="${json_processed%,}"
-    
-    # Build skipped array with proper JSON quoting
-    json_skipped=""
-    for cat in "${SKIPPED_CATEGORIES[@]}"; do
-        escaped_cat="${cat//\"/\\\"}"
-        json_skipped="$json_skipped\"$escaped_cat\","
-    done
-    json_skipped="${json_skipped%,}"
-
-    cat <<EOF
-{
-    "version": "$VERSION",
-    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-    "dry_run": $json_dry_run,
-    "results": {
-        "categories": {
-            "processed": [
-                $json_processed
-            ],
-            "skipped": [
-                $json_skipped
-            ]
-        },
-        "disk_usage": {
-            "before": $disk_before,
-            "after": $disk_after
-        },
-        "space_freed": {
-            "bytes": $TOTAL_BYTES_FREED,
-            "human": "$freed_human"
-        }
-    }
-}
-EOF
-fi
         log_plain ""
         log_plain "Use ${CYAN}↑↓${NC} arrow keys to navigate, ${CYAN}Space/Enter${NC} to toggle"
         log_plain "Press ${CYAN}a${NC}=all, ${CYAN}n${NC}=none, ${CYAN}d${NC}=done, ${CYAN}q${NC}=cancel"
@@ -1118,6 +1069,8 @@ fi
                     SKIP_TRASH=false SKIP_DSSTORE=false SKIP_DOCKER=false SKIP_SIMULATOR=false
                     SKIP_MAIL=false SKIP_SIRI_TTS=false SKIP_ICLOUD_MAIL=false SKIP_QUICKLOOK=false
                     SKIP_DIAGNOSTICS=false SKIP_IOS_BACKUPS=false SKIP_IOS_UPDATES=false
+                    SKIP_PHOTOS_LIBRARY=false SKIP_ICLOUD_DRIVE=false
+                    SKIP_COCOAPODS=false SKIP_GRADLE=false SKIP_GO=false SKIP_BUN=false SKIP_PNPM=false
                     draw_menu
                     ;;
                 n|N) # Deselect all
@@ -1126,6 +1079,8 @@ fi
                     SKIP_TRASH=true SKIP_DSSTORE=true SKIP_DOCKER=true SKIP_SIMULATOR=true
                     SKIP_MAIL=true SKIP_SIRI_TTS=true SKIP_ICLOUD_MAIL=true SKIP_QUICKLOOK=true
                     SKIP_DIAGNOSTICS=true SKIP_IOS_BACKUPS=true SKIP_IOS_UPDATES=true
+                    SKIP_PHOTOS_LIBRARY=true SKIP_ICLOUD_DRIVE=true
+                    SKIP_COCOAPODS=true SKIP_GRADLE=true SKIP_GO=true SKIP_BUN=true SKIP_PNPM=true
                     draw_menu
                     ;;
                 d|D) # Done
@@ -1635,7 +1590,9 @@ if [ "$SKIP_XCODE" = false ]; then
                     log_plain ""
                 else
                     log "Cleaning XCode derived data..."
-                    rm -rf "${XCODE_DD:?}"/* 2>/dev/null
+                    if [ -d "$XCODE_DD" ] && [ ! -L "$XCODE_DD" ]; then
+                        safe_clear_directory "$XCODE_DD"
+                    fi
                     log_success "XCode derived data cleared"
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
                 fi
@@ -1784,7 +1741,7 @@ if [ "$SKIP_TRASH" = false ]; then
             else
                 log "Emptying trash..."
                 # Use safe_clear_directory for consistent safe deletion
-                safe_clear_directory "$TRASH_DIR" 0 2>/dev/null || true
+                safe_clear_directory "$TRASH_DIR" 2>/dev/null || true
                 log_success "Trash emptied"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
             fi
@@ -2896,3 +2853,65 @@ log_plain "  - Application settings or configurations"
 log_plain "  - User documents or media files"
 log_plain "  - Active application data"
 log_plain "================================================"
+
+# Output JSON if requested (at program exit)
+if [ "$JSON_OUTPUT" = true ]; then
+    freed_human=$(awk -v b="$TOTAL_BYTES_FREED" 'BEGIN {
+        if (b < 1024) printf "%.0f B", b
+        else if (b < 1048576) printf "%.2f KB", b/1024
+        else if (b < 1073741824) printf "%.2f MB", b/1048576
+        else if (b < 1099511627776) printf "%.2f GB", b/1073741824
+        else printf "%.2f TB", b/1099511627776
+    }')
+    disk_after=${DISK_USAGE_AFTER:-0}
+    disk_before=${DISK_USAGE:-0}
+    
+    # Convert DRY_RUN to JSON boolean
+    if [ "$DRY_RUN" = true ]; then
+        json_dry_run="true"
+    else
+        json_dry_run="false"
+    fi
+    
+    # Build processed array with proper JSON quoting
+    json_processed=""
+    for cat in "${PROCESSED_CATEGORIES[@]}"; do
+        escaped_cat="${cat//\"/\\\"}"
+        json_processed="$json_processed\"$escaped_cat\","
+    done
+    json_processed="${json_processed%,}"
+    
+    # Build skipped array with proper JSON quoting
+    json_skipped=""
+    for cat in "${SKIPPED_CATEGORIES[@]}"; do
+        escaped_cat="${cat//\"/\\\"}"
+        json_skipped="$json_skipped\"$escaped_cat\","
+    done
+    json_skipped="${json_skipped%,}"
+
+    cat <<EOF
+{
+    "version": "$VERSION",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "dry_run": $json_dry_run,
+    "results": {
+        "categories": {
+            "processed": [
+                $json_processed
+            ],
+            "skipped": [
+                $json_skipped
+            ]
+        },
+        "disk_usage": {
+            "before": $disk_before,
+            "after": $disk_after
+        },
+        "space_freed": {
+            "bytes": $TOTAL_BYTES_FREED,
+            "human": "$freed_human"
+        }
+    }
+}
+EOF
+fi
