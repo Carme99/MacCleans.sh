@@ -286,5 +286,5 @@ SKIP_XCODE = true
 ## Getting Help
 
 - View all options: `sudo clean-mac-space --help`
-- Check the [README](README.md) for usage examples
+- Check the [README](../README.md) for usage examples
 - Report issues at: https://github.com/Carme99/MacCleans.sh/issues

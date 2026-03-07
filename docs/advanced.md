@@ -458,6 +458,85 @@ FREED=$(echo "$OUTPUT" | grep -o "Approximate space freed: [0-9.]*[GM]" | cut -d
 osascript -e "display notification \"Freed: $FREED\" with title \"MacCleans Complete\" sound name \"Glass\""
 ```
 
+### JSON Output for Automation
+
+The `--json` flag outputs cleanup results in structured JSON format, perfect for programmatic integration:
+
+```bash
+# Get JSON output
+sudo Mac-Clean --dry-run --json
+
+# Example output:
+{
+  "version": "4.1.3",
+  "timestamp": "2026-03-07T10:30:00Z",
+  "dry_run": true,
+  "results": {
+    "categories": {
+      "processed": [
+        "Time Machine Snapshots",
+        "Homebrew Cache",
+        "Spotify Cache"
+      ],
+      "skipped": [
+        "XCode Derived Data",
+        "Browser Caches"
+      ]
+    },
+    "disk_usage": {
+      "before": 85,
+      "after": 82
+    },
+    "space_freed": {
+      "bytes": 5368709120,
+      "human": "5.00 GB"
+    }
+  }
+}
+```
+
+#### Integration Examples
+
+**Extract freed space for monitoring:**
+```bash
+FREED=$(sudo Mac-Clean -- dry-run --json | jq '.results.space_freed.bytes')
+echo "Would free $FREED bytes"
+```
+
+**Log to monitoring system:**
+```bash
+sudo Mac-Clean --yes --json | jq '.results' | tee /var/log/cleanup-$(date +%Y%m%d).json
+```
+
+**Conditional cleanup based on expected savings:**
+```bash
+EXPECTED=$(sudo Mac-Clean --dry-run --json | jq '.results.space_freed.bytes')
+if [ $EXPECTED -gt 10737418240 ]; then  # 10 GB threshold
+    echo "Worth it: Would free $EXPECTED bytes"
+    sudo Mac-Clean --yes
+else
+    echo "Not worth it: Only $EXPECTED bytes"
+fi
+```
+
+**Send to webhook:**
+```bash
+curl -X POST https://hooks.slack.com/services/YOUR/WEBHOOK \
+  -H "Content-Type: application/json" \
+  -d "$(sudo Mac-Clean --yes --json | jq '{text: "Disk cleanup complete", ...}')"
+```
+
+**Parse and export metrics:**
+```bash
+sudo Mac-Clean --yes --json | jq -r '
+  "disk_cleanup_version=" + .version,
+  "disk_cleanup_freed_bytes=" + (.results.space_freed.bytes | tostring),
+  "disk_cleanup_freed_human=" + .results.space_freed.human,
+  "disk_usage_before=" + (.results.disk_usage.before | tostring),
+  "disk_usage_after=" + (.results.disk_usage.after | tostring)
+'
+```
+
 ## Custom Cleanup Categories
 
 ### Forking and Adding Custom Categories
@@ -739,4 +818,4 @@ sudo tmutil restore /path/to/deleted/item
 
 ---
 
-Need help with advanced scenarios? [Open an issue](https://github.com/Carme99/MacCleans.sh/issues) or check the [FAQ](FAQ.md).
+Need help with advanced scenarios? [Open an issue](https://github.com/Carme99/MacCleans.sh/issues) or check the [FAQ](faq.md).

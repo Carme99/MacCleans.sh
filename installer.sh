@@ -7,23 +7,6 @@
 
 set -euo pipefail
 
-# Detect if input is from pipe (curl | bash) or terminal
-if [ "$EUID" -ne 0 ]; then
-    # Check if stdin is a pipe (from curl)
-    if [ ! -t 0 ]; then
-        # Piped input - cannot re-run with sudo, ask user to run with sudo
-        echo "[*] This script requires sudo to install to /usr/local/bin"
-        echo "[*] Please run with sudo:"
-        echo ""
-        echo "    curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/installer.sh | sudo bash"
-        echo ""
-        exit 1
-    else
-        # Terminal input - re-run with sudo
-        exec sudo bash "$0" "$@"
-    fi
-fi
-
 # Configuration
 INSTALL_DIR="/usr/local/bin"
 SCRIPT_NAME="Mac-Clean"
@@ -69,10 +52,21 @@ if ! command -v curl &> /dev/null && ! command -v wget &> /dev/null; then
     exit 1
 fi
 
-# Check if we can write to /usr/local/bin (should already be root due to early check)
-if [ ! -w "$INSTALL_DIR" ]; then
-    log_error "Cannot write to $INSTALL_DIR. Check permissions."
-    exit 1
+# Check if we can write to /usr/local/bin
+# Detect if running from stdin (curl | bash) vs a real file
+is_stdin() {
+    [ ! -t 0 ] && [ -z "${BASH_SOURCE[0]:-}" ]
+}
+
+if [ ! -w "$INSTALL_DIR" ] && [ "$EUID" -ne 0 ]; then
+    if is_stdin; then
+        log_error "Cannot auto-escalate when running from stdin (curl | bash)"
+        log_info "Please run with: curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/installer.sh | sudo bash"
+        exit 1
+    fi
+    log_warning "Cannot write to $INSTALL_DIR without sudo"
+    log_info "Re-running with sudo..."
+    exec sudo "${BASH_SOURCE[0]}" "$@"
 fi
 
 # Create backup if script already exists

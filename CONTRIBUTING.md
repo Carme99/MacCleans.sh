@@ -96,9 +96,41 @@ git checkout -b feature/your-feature-name
 # Or for bug fixes
 git checkout -b fix/issue-description
 
+### Create a Branch
+
+```bash
+# Create a feature branch
+git checkout -b feature/your-feature-name
+
+# Or for bug fixes
+git checkout -b fix/issue-description
+
 # Or for documentation
 git checkout -b docs/documentation-update
 ```
+
+### Running Tests and CI Validation
+
+This project uses GitHub Actions for automated testing. Run tests locally before pushing:
+
+```bash
+# Syntax validation
+bash -n clean-mac-space.sh
+
+# ShellCheck linting (if installed)
+shellcheck clean-mac-space.sh
+
+# Run with verbose mode for debugging
+bash -x clean-mac-space.sh --dry-run 2>&1 | head -50
+
+# Test JSON output validation
+./clean-mac-space.sh --help 2>&1 | grep -q "json" && echo "JSON flag present" || echo "JSON flag missing"
+```
+
+The GitHub Actions workflow automatically:
+- Runs ShellCheck on all shell scripts
+- Validates script syntax
+- Runs on push to main and pull requests
 
 ## Testing Your Changes
 
@@ -174,7 +206,24 @@ cp maccleans.conf.example ~/.maccleans.conf
 sudo ./clean-mac-space.sh --dry-run
 ```
 
-### 8. Manual Testing Checklist
+### 8. Test JSON Output
+
+When adding new features or making changes, ensure JSON output is tested:
+
+```bash
+# Test basic JSON output
+sudo ./clean-mac-space.sh --dry-run --json | jq '.'
+
+# Verify JSON structure
+sudo ./clean-mac-space.sh --dry-run --json | jq '.version'
+sudo ./clean-mac-space.sh --dry-run --json | jq '.results.categories.processed'
+sudo ./clean-mac-space.sh --dry-run --json | jq '.results.space_freed'
+
+# Parse and validate with jq
+sudo ./clean-mac-space.sh --dry-run --json | jq -e 'if .version and .timestamp and .results then empty else error("Invalid structure") end'
+```
+
+### 9. Manual Testing Checklist
 
 - [ ] Script runs without errors in dry-run mode
 - [ ] New category shows in summary report
@@ -185,6 +234,7 @@ sudo ./clean-mac-space.sh --dry-run
 - [ ] No ShellCheck warnings
 - [ ] Config file options work
 - [ ] Error handling works (test with invalid paths)
+- [ ] JSON output validates with `jq` (if JSON feature affected)
 - [ ] Cleanup actually works (run without --dry-run on test system)
 
 ## Code Style Guidelines
@@ -564,8 +614,8 @@ We follow [Semantic Versioning](https://semver.org/):
 
 - Open an issue for questions
 - Check existing issues and discussions
-- Read the [FAQ](FAQ.md)
-- Review [Advanced Usage Guide](ADVANCED.md)
+- Read the [FAQ](docs/faq.md)
+- Review [Advanced Usage Guide](docs/advanced.md)
 
 ## License
 
