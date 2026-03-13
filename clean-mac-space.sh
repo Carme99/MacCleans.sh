@@ -456,15 +456,39 @@ cleanup_on_interrupt() {
 }
 trap cleanup_on_interrupt INT TERM
 
-# Cleanup on exit - ensure lock is released
+# Track current operation for rollback/interruption handling
+CURRENT_OPERATION=""
+
+# Cleanup on exit - ensure lock is released and log partial completion
 cleanup_on_exit() {
+    local exit_code=$?
     stop_spinner 2>/dev/null || true
+    
+    # Log partial completion if interrupted
+    if [ $exit_code -ne 0 ] && [ -n "$CURRENT_OPERATION" ]; then
+        echo ""
+        log_warning "Script interrupted during: $CURRENT_OPERATION"
+        log_warning "Partial cleanup may have occurred. Run again to complete."
+        
+        if [ ${#PROCESSED_CATEGORIES[@]} -gt 0 ]; then
+            log "Categories processed before interruption: ${PROCESSED_CATEGORIES[*]}"
+        fi
+    fi
+    
     # Cleanup lock directory only if we own it
     if [ "${LOCK_OWNED:-0}" = 1 ] && [ -n "${LOCKDIR:-}" ] && [ -d "$LOCKDIR" ]; then
         rm -rf "$LOCKDIR" 2>/dev/null || true
     fi
 }
 trap cleanup_on_exit EXIT
+
+# Trap for signals to handle interruption gracefully
+handle_interrupt() {
+    echo ""
+    log_warning "Received interrupt signal. Cleaning up..."
+    exit 130
+}
+trap handle_interrupt INT TERM
 
 # Lock directory for preventing parallel runs
 LOCKDIR="/tmp/mac-clean.lock"
@@ -473,11 +497,8 @@ LOCK_OWNED=0
 # Acquire exclusive lock atomically using mkdir
 # Returns 0 on success, exits with error on failure
 acquire_lock() {
-    # Skip lock acquisition in dry-run mode
-    if [ "$DRY_RUN" = true ]; then
-        log_verbose "Dry-run mode: skipping lock acquisition"
-        return 0
-    fi
+    # Always acquire lock to prevent parallel runs (even in dry-run mode)
+    # This prevents race conditions where two instances could interfere
     
     # Try to create lock directory atomically
     if mkdir "$LOCKDIR" 2>/dev/null; then
@@ -492,9 +513,15 @@ acquire_lock() {
     lock_pid=$(cat "$LOCKDIR/pid" 2>/dev/null || echo "")
     
     if [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null; then
-        log_error "Another instance is already running (PID: $lock_pid)"
-        log_always "If you're sure no other instance is running, remove $LOCKDIR"
-        exit 1
+        if [ "$DRY_RUN" = true ]; then
+            log_warning "Another instance is running in dry-run mode (PID: $lock_pid)"
+            log_warning "Proceeding anyway in dry-run mode - no actual changes will be made"
+            return 0
+        else
+            log_error "Another instance is already running (PID: $lock_pid)"
+            log_always "If you're sure no other instance is running, remove $LOCKDIR"
+            exit 1
+        fi
     fi
     
     # Stale lock - remove and retry
@@ -528,12 +555,29 @@ safe_clear_directory() {
         return 1
     fi
     
-    # Delete files
-    find "$dir" -mindepth "$mindepth" -type f -delete || status=1
-    # Delete empty directories (in reverse depth order)
-    find "$dir" -mindepth "$mindepth" -type d -empty -delete || status=1
+    # Check write permissions before attempting deletion
+    if [ ! -w "$dir" ] && [ ! -w "$(dirname "$dir")" ]; then
+        log_error "Permission denied: cannot write to $dir"
+        return 1
+    fi
+    
+    # Delete files with error tracking
+    local delete_failed=0
+    while IFS= read -r -d '' file; do
+        if ! rm -f "$file" 2>/dev/null; then
+            delete_failed=1
+            log_warning "Failed to delete: $file (permission denied or in use)"
+        fi
+    done < <(find "$dir" -mindepth "$mindepth" -type f -print0 2>/dev/null)
+    
+    # Delete empty directories
+    find "$dir" -mindepth "$mindepth" -type d -empty -delete 2>/dev/null || true
+    
     # Delete non-empty directories (careful - only for cache dirs)
-    find "$dir" -mindepth "$mindepth" -type d -exec rm -rf -- {} + 2>/dev/null || status=1
+    if ! find "$dir" -mindepth "$mindepth" -type d -exec rm -rf -- {} + 2>/dev/null; then
+        log_warning "Some directories could not be deleted (permission denied or in use)"
+        status=1
+    fi
     
     return $status
 }
@@ -545,12 +589,40 @@ BRCTL_STATUS_CACHE=""
 
 check_icloud_sync_status() {
     local folder="$1"
+    local skip_recent_files="${2:-true}"  # Default to checking for recent files
+    
+    # Safety: Check if folder exists and is not a symlink
+    if [ ! -d "$folder" ] || [ -L "$folder" ]; then
+        log_warning "Invalid folder: $folder (does not exist or is a symlink)"
+        return 1
+    fi
     
     # Check for .icloud placeholder files (indicates pending download)
     local placeholders
     placeholders=$(find "$folder" -name "*.icloud" 2>/dev/null | wc -l | tr -d ' ')
     if [ "$placeholders" -gt 0 ]; then
+        log_warning "Found $placeholders .icloud placeholder file(s) in $folder"
         return 1
+    fi
+    
+    # Check for conflict files (files with "Conflict" in name)
+    # These occur when iCloud detects conflicting changes
+    local conflicts
+    conflicts=$(find "$folder" -type f -name "*Conflict*" 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$conflicts" -gt 0 ]; then
+        log_warning "Found $conflicts conflict file(s) in $folder"
+        return 1
+    fi
+    
+    # Check for files being actively written (mtime within last 5 minutes)
+    if [ "$skip_recent_files" = "true" ]; then
+        local recent_files
+        recent_files=$(find "$folder" -type f -mtime -0.00347 2>/dev/null | wc -l | tr -d ' ')
+        # 0.00347 days = 5 minutes (5/1440)
+        if [ "$recent_files" -gt 0 ]; then
+            log_warning "Found $recent_files recently modified file(s) in $folder (within 5 minutes)"
+            return 1
+        fi
     fi
     
     # Cache brctl output once and reuse for all folders
@@ -559,11 +631,46 @@ check_icloud_sync_status() {
             BRCTL_STATUS_CACHE=$(brctl status 2>/dev/null || echo "")
         fi
         if echo "$BRCTL_STATUS_CACHE" | grep -qi "uploading\|downloading"; then
+            log_warning "iCloud sync in progress (uploading/downloading detected)"
             return 1
         fi
     fi
     
     return 0
+}
+
+# Function to check if iCloud backup is enabled for iOS devices
+# Returns 0 if iCloud backup is enabled, 1 if not or cannot determine
+check_icloud_backup_enabled() {
+    # Try to check iCloud backup status using defaults
+    # Note: This is a best-effort check - we look for signs that iCloud backup is configured
+    
+    # Check if iCloud account is signed in
+    if ! defaults read MobileMeAccounts Accounts 2>/dev/null | grep -q "AccountID"; then
+        # No iCloud account signed in, so iCloud backup is definitely not enabled
+        return 1
+    fi
+    
+    # Check for com.apple.preferences.icloud.backup settings
+    # If the key exists and is set to 1, backup is enabled
+    local backup_enabled
+    backup_enabled=$(defaults read com.apple.preferences.icloud.backup Enabled 2>/dev/null || echo "0")
+    
+    if [ "$backup_enabled" = "1" ]; then
+        return 0
+    fi
+    
+    # Also check if there's evidence of recent iCloud backups in the log
+    # This is a secondary check to be more permissive
+    if [ -f "$HOME/Library/Logs/MobileBackup/Backup.log" ]; then
+        local recent_backup
+        recent_backup=$(find "$HOME/Library/Logs/MobileBackup" -name "Backup.log" -mtime -30 2>/dev/null | wc -l)
+        if [ "$recent_backup" -gt 0 ]; then
+            return 0
+        fi
+    fi
+    
+    return 1
 }
 
 ###############################################################################
@@ -711,6 +818,29 @@ bytes_to_human() {
     else
         echo "$(awk -v b="$bytes" 'BEGIN {printf "%.2f", b / 1099511627776}')T"
     fi
+}
+
+# Function to check disk space before operations
+# Warn if disk space is critically low (<5% or <2GB)
+check_disk_space() {
+    local min_required_gb="${1:-2}"  # Default minimum 2GB
+    local current_avail_gb=$((DISK_AVAIL_BYTES / 1073741824))
+    
+    if [ "$current_avail_gb" -lt "$min_required_gb" ]; then
+        log_warning "CRITICAL: Only ${current_avail_gb}GB available (minimum recommended: ${min_required_gb}GB)"
+        log_warning "Cleanup operations may fail due to insufficient disk space"
+        
+        if [ "$DISK_USAGE" -gt 95 ]; then
+            log_error "Disk is nearly full (${DISK_USAGE}%). Consider freeing up more space first."
+        fi
+        return 1
+    fi
+    
+    if [ "$DISK_USAGE" -gt 90 ]; then
+        log_warning "Disk space is low (${DISK_USAGE}% used). Operations may be slow."
+    fi
+    
+    return 0
 }
 
 # Function to safely quit Photos app and poll for exit
@@ -1174,6 +1304,19 @@ if [ "$THRESHOLD" -gt 0 ] && [ "$DISK_USAGE" -lt "$THRESHOLD" ]; then
     exit 0
 fi
 
+# Validate disk space before operations (Issue #27)
+if ! check_disk_space 2; then
+    if [ "$FORCE" = false ]; then
+        log_warning "Low disk space detected. Use --force to proceed anyway."
+        read -p "Continue with cleanup despite low disk space? [y/N] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log "Cleanup cancelled due to low disk space"
+            exit 0
+        fi
+    fi
+fi
+
 # Run brew update if --update flag is set
 if [ "$UPDATE" = true ]; then
     log_plain "================================================"
@@ -1576,9 +1719,36 @@ if [ "$SKIP_XCODE" = false ]; then
             log "XCode derived data: $XCODE_SIZE"
             XCODE_BYTES=$(size_to_bytes "$XCODE_SIZE")
 
-            # WARNING for non-dry-run, non-auto-yes mode
-            # FORCE skips all prompts including XCode warning
-            if [ "$DRY_RUN" = false ] && [ "$FORCE" = false ] && [ "$AUTO_YES" = false ]; then
+            # XCode cleanup has special consideration: long rebuild times
+            # --yes shows warning but proceeds (for scripting with awareness)
+            # --force skips warning entirely (for automation)
+            # No flags: interactive prompt
+            
+            if [ "$DRY_RUN" = true ]; then
+                log "Would clear XCode derived data: $XCODE_SIZE"
+                # Always show warning in dry-run mode for awareness
+                log_warning "NOTE: XCode cleanup requires 5-30 min rebuild for active projects"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
+            elif [ "$FORCE" = true ]; then
+                # --force: skip all warnings (automation mode)
+                log "Cleaning XCode derived data..."
+                if [ -d "$XCODE_DD" ] && [ ! -L "$XCODE_DD" ]; then
+                    safe_clear_directory "$XCODE_DD"
+                fi
+                log_success "XCode derived data cleared"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
+            elif [ "$AUTO_YES" = true ]; then
+                # --yes: show warning but proceed (scripting with awareness)
+                log_warning "XCODE CLEANUP: This will delete build cache."
+                log_warning "Active projects will need to rebuild (5-30 min first build)."
+                log "Cleaning XCode derived data..."
+                if [ -d "$XCODE_DD" ] && [ ! -L "$XCODE_DD" ]; then
+                    safe_clear_directory "$XCODE_DD"
+                fi
+                log_success "XCode derived data cleared"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
+            else
+                # No flags: interactive prompt
                 log_always ""
                 log_warning "WARNING: This will delete XCode build cache."
                 log_always "   Active projects will need to rebuild (5-30 min first build)."
@@ -1596,16 +1766,6 @@ if [ "$SKIP_XCODE" = false ]; then
                     log_success "XCode derived data cleared"
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
                 fi
-            elif [ "$DRY_RUN" = true ]; then
-                log "Would clear XCode derived data: $XCODE_SIZE"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
-            else
-                log "Cleaning XCode derived data..."
-                if [ -d "$XCODE_DD" ] && [ ! -L "$XCODE_DD" ]; then
-                    safe_clear_directory "$XCODE_DD"
-                fi
-                log_success "XCode derived data cleared"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
             fi
         else
             log "XCode derived data is empty"
@@ -1739,11 +1899,36 @@ if [ "$SKIP_TRASH" = false ]; then
                 log "Would empty trash: $TRASH_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
             else
-                log "Emptying trash..."
-                # Use safe_clear_directory for consistent safe deletion
-                safe_clear_directory "$TRASH_DIR" 2>/dev/null || true
-                log_success "Trash emptied"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
+                # Trash deletion requires explicit confirmation (Issue #19)
+                log_warning "TRASH BIN DELETION - This action cannot be undone!"
+                log "Items in trash: $TRASH_SIZE of data will be permanently deleted."
+                
+                CONFIRM_TRASH=false
+                if [ "$FORCE" = true ]; then
+                    log "Running with --force: skipping confirmation"
+                    CONFIRM_TRASH=true
+                elif [ "$AUTO_YES" = true ]; then
+                    log "Running with --yes: skipping confirmation (use --force to skip without prompt)"
+                    CONFIRM_TRASH=true
+                else
+                    # Interactive confirmation
+                    printf "%s" "Are you sure you want to permanently delete all items in the trash? [y/N] "
+                    read -r response
+                    if [[ "$response" =~ ^[Yy]$ ]]; then
+                        CONFIRM_TRASH=true
+                    fi
+                fi
+                
+                if [ "$CONFIRM_TRASH" = true ]; then
+                    log "Emptying trash..."
+                    # Use safe_clear_directory for consistent safe deletion
+                    safe_clear_directory "$TRASH_DIR" 2>/dev/null || true
+                    log_success "Trash emptied"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
+                else
+                    log "Skipping trash deletion (user cancelled)"
+                    SKIPPED_CATEGORIES+=("Trash Bin (user cancelled)")
+                fi
             fi
         else
             log "Trash is already empty"
@@ -1764,38 +1949,44 @@ if [ "$SKIP_DOCKER" = false ]; then
     log_plain "================================================"
 
     if command -v docker &> /dev/null; then
-        # Get docker disk usage (with proper error handling)
-        DOCKER_INFO=$(docker system df 2>/dev/null || echo "")
-
-        if [ -n "$DOCKER_INFO" ] && [ -n "${DOCKER_INFO// }" ]; then
-            log "Docker system disk usage:"
-            echo "$DOCKER_INFO" | tail -n +2 | while read -r line; do
-                log "  $line"
-            done
-
-            # Estimate reclaimable space using docker's format option
-            DOCKER_RECLAIM_SIZE=$(docker system df --format '{{.Reclaimable}}' 2>/dev/null | head -1 || echo "0B")
-            # Validate and sanitize - handle empty, 0B, or N/A
-            if [ -z "$DOCKER_RECLAIM_SIZE" ] || [ "$DOCKER_RECLAIM_SIZE" = "0B" ] || [ "$DOCKER_RECLAIM_SIZE" = "N/A" ]; then
-                DOCKER_RECLAIM=0
-            else
-                # Strip any trailing parenthetical percentage e.g. "3.2GB (45%)" -> "3.2GB"
-                DOCKER_RECLAIM_SIZE=$(echo "$DOCKER_RECLAIM_SIZE" | awk '{print $1}')
-                DOCKER_RECLAIM=$(size_to_bytes "$DOCKER_RECLAIM_SIZE")
-            fi
-
-            if [ "$DRY_RUN" = true ]; then
-                log "Would clean Docker cache (dangling images, stopped containers, unused networks)"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
-            else
-                log "Cleaning Docker cache..."
-                log_warning "Note: Named volumes are preserved. Use 'docker volume prune' manually if needed."
-                docker system prune -af 2>/dev/null || log_warning "Docker cleanup encountered issues"
-                log_success "Docker cache cleared"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
-            fi
+        # Check if Docker daemon is running
+        if ! docker info &>/dev/null; then
+            log_warning "Docker daemon is not running"
+            log "Start Docker Desktop to clean up Docker resources"
         else
-            log "Docker is not running or has no data"
+            # Get docker disk usage (with proper error handling)
+            DOCKER_INFO=$(docker system df 2>/dev/null || echo "")
+
+            if [ -n "$DOCKER_INFO" ] && [ -n "${DOCKER_INFO// }" ]; then
+                log "Docker system disk usage:"
+                echo "$DOCKER_INFO" | tail -n +2 | while read -r line; do
+                    log "  $line"
+                done
+
+                # Estimate reclaimable space using docker's format option
+                DOCKER_RECLAIM_SIZE=$(docker system df --format '{{.Reclaimable}}' 2>/dev/null | head -1 || echo "0B")
+                # Validate and sanitize - handle empty, 0B, or N/A
+                if [ -z "$DOCKER_RECLAIM_SIZE" ] || [ "$DOCKER_RECLAIM_SIZE" = "0B" ] || [ "$DOCKER_RECLAIM_SIZE" = "N/A" ]; then
+                    DOCKER_RECLAIM=0
+                else
+                    # Strip any trailing parenthetical percentage e.g. "3.2GB (45%)" -> "3.2GB"
+                    DOCKER_RECLAIM_SIZE=$(echo "$DOCKER_RECLAIM_SIZE" | awk '{print $1}')
+                    DOCKER_RECLAIM=$(size_to_bytes "$DOCKER_RECLAIM_SIZE")
+                fi
+
+                if [ "$DRY_RUN" = true ]; then
+                    log "Would clean Docker cache (dangling images, stopped containers, unused networks)"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
+                else
+                    log "Cleaning Docker cache..."
+                    log_warning "Note: Named volumes are preserved. Use 'docker volume prune' manually if needed."
+                    docker system prune -af 2>/dev/null || log_warning "Docker cleanup encountered issues"
+                    log_success "Docker cache cleared"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
+                fi
+            else
+                log "Docker has no data to clean"
+            fi
         fi
     else
         log "Docker not installed, skipping"
@@ -2332,28 +2523,63 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
 
             log "Found $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
             log_warning "These are local iTunes/Finder device backups"
-            log "${YELLOW}Warning: Deleting backups without iCloud backup may cause data loss!${NC}"
+            
+            # Check if iCloud backup is enabled
+            ICLOUD_BACKUP_ENABLED=false
+            if check_icloud_backup_enabled; then
+                ICLOUD_BACKUP_ENABLED=true
+                log_success "iCloud backup appears to be enabled"
+            else
+                log_warning "iCloud backup does NOT appear to be enabled"
+                log "${RED}CRITICAL: Deleting local backups without iCloud backup will cause PERMANENT data loss!${NC}"
+            fi
             
             # Require --force for this dangerous operation
+            # If iCloud backup is NOT enabled, require explicit acknowledgment
             if [ "$FORCE" = true ]; then
-                log "${YELLOW}Running with --force: proceeding with deletion${NC}"
-                PROCESSED_CATEGORIES+=("iOS Device Backups")
-                
-                if [ "$DRY_RUN" = true ]; then
-                    log "Would delete $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
-                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
-                else
-                    log "Deleting iOS device backups..."
-                    if [ -d "$IOS_BACKUP_DIR" ] && [ ! -L "$IOS_BACKUP_DIR" ]; then
-                        safe_clear_directory "$IOS_BACKUP_DIR"
+                if [ "$ICLOUD_BACKUP_ENABLED" = true ]; then
+                    log "${YELLOW}Running with --force: iCloud backup detected, proceeding${NC}"
+                    PROCESSED_CATEGORIES+=("iOS Device Backups")
+                    
+                    if [ "$DRY_RUN" = true ]; then
+                        log "Would delete $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
+                    else
+                        log "Deleting iOS device backups..."
+                        if [ -d "$IOS_BACKUP_DIR" ] && [ ! -L "$IOS_BACKUP_DIR" ]; then
+                            safe_clear_directory "$IOS_BACKUP_DIR"
+                        fi
+                        log_success "iOS device backups deleted"
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
                     fi
-                    log_success "iOS device backups deleted"
-                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
+                else
+                    log "${RED}WARNING: Running with --force but iCloud backup NOT detected!${NC}"
+                    log "${RED}Set FORCE_IOS_BACKUPS=true environment variable to proceed anyway.${NC}"
+                    if [ "${FORCE_IOS_BACKUPS:-false}" = "true" ]; then
+                        PROCESSED_CATEGORIES+=("iOS Device Backups")
+                        
+                        if [ "$DRY_RUN" = true ]; then
+                            log "Would delete $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
+                            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
+                        else
+                            log "Deleting iOS device backups..."
+                            if [ -d "$IOS_BACKUP_DIR" ] && [ ! -L "$IOS_BACKUP_DIR" ]; then
+                                safe_clear_directory "$IOS_BACKUP_DIR"
+                            fi
+                            log_success "iOS device backups deleted"
+                            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
+                        fi
+                    else
+                        log "${RED}Skipping: iOS backup deletion blocked without iCloud backup.${NC}"
+                        SKIPPED_CATEGORIES+=("iOS Device Backups (no iCloud backup detected)")
+                    fi
                 fi
             else
                 # Not --force: require manual confirmation
                 log "${RED}Skipping: Use --force to enable iOS backup deletion${NC}"
-                log "${RED}This operation can cause data loss without iCloud backup.${NC}"
+                if [ "$ICLOUD_BACKUP_ENABLED" = false ]; then
+                    log "${RED}iCloud backup not detected - set FORCE_IOS_BACKUPS=true to override${NC}"
+                fi
                 SKIPPED_CATEGORIES+=("iOS Device Backups (requires --force)")
             fi
         else
@@ -2524,7 +2750,7 @@ if [ "$SKIP_GRADLE" = false ]; then
                 fi
                 # Symlink protection: only delete if not a symlink
                 if [ -d "$GRADLE_CACHE_DIR" ] && [ ! -L "$GRADLE_CACHE_DIR" ]; then
-                    rm -rf "$GRADLE_CACHE_DIR" 2>/dev/null || true
+                    safe_clear_directory "$GRADLE_CACHE_DIR"
                 else
                     log_warning "Skipping Gradle cache - is a symlink or not a directory"
                 fi
@@ -2582,7 +2808,7 @@ if [ "$SKIP_GO" = false ]; then
             if command -v go &> /dev/null; then
                 go clean -modcache 2>/dev/null || true
             fi
-            # Fallback: manual deletion
+            # Fallback: manual deletion with safe function
             for CACHE_DIR in "$GO_CACHE_DIR" "$GO_CACHE_DIR_ALT"; do
                 # Symlink protection: skip if symlink
                 if [ -L "$CACHE_DIR" ]; then
@@ -2590,7 +2816,7 @@ if [ "$SKIP_GO" = false ]; then
                     continue
                 fi
                 if [ -d "$CACHE_DIR" ]; then
-                    rm -rf "$CACHE_DIR" 2>/dev/null || true
+                    safe_clear_directory "$CACHE_DIR"
                 fi
             done
             log_success "Go module cache cleared: $GO_HUMAN"
@@ -2632,7 +2858,7 @@ if [ "$SKIP_BUN" = false ]; then
                 if [ -L "$BUN_CACHE_DIR" ]; then
                     log_warning "Skipping Bun cache - is a symlink"
                 else
-                    rm -rf "$BUN_CACHE_DIR" 2>/dev/null || true
+                    safe_clear_directory "$BUN_CACHE_DIR"
                 fi
                 log_success "Bun cache cleared: $BUN_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BUN_BYTES))
@@ -2693,7 +2919,7 @@ if [ "$SKIP_PNPM" = false ]; then
                     PNPM_GLOBAL_BYTES=$(size_to_bytes "$PNPM_GLOBAL_SIZE")
                     PNPM_BYTES=$((PNPM_BYTES + PNPM_GLOBAL_BYTES))
                     PNPM_SIZE="$PNPM_SIZE (global: $PNPM_GLOBAL_SIZE)"
-                    rm -rf "$PNPM_GLOBAL_STORE" 2>/dev/null || true
+                    safe_clear_directory "$PNPM_GLOBAL_STORE"
                 elif [ -L "$PNPM_GLOBAL_STORE" ]; then
                     log_warning "Skipping pnpm global store - is a symlink"
                 fi

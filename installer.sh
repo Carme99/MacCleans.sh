@@ -42,9 +42,28 @@ if [ ! -t 1 ]; then
     RED='' GREEN='' YELLOW='' CYAN='' BOLD='' NC=''
 fi
 
-echo -e "${BOLD}Mac-Clean Installer v1.0.0${NC}"
+echo -e "${BOLD}Mac-Clean Installer v1.1.0${NC}"
 echo -e "${BOLD}=============================${NC}"
 echo ""
+
+# Parse arguments
+NO_VERIFY=false
+for arg in "$@"; do
+    case "$arg" in
+        --no-verify)
+            NO_VERIFY=true
+            log_warning "--no-verify flag set: skipping script verification"
+            ;;
+        --help|-h)
+            echo "Usage: $0 [options]"
+            echo ""
+            echo "Options:"
+            echo "  --no-verify    Skip SHA256 checksum verification (for air-gapped installs)"
+            echo "  --help, -h     Show this help message"
+            exit 0
+            ;;
+    esac
+done
 
 # Check for curl or wget
 if ! command -v curl &> /dev/null && ! command -v wget &> /dev/null; then
@@ -69,6 +88,58 @@ if [ ! -w "$INSTALL_DIR" ] && [ "$EUID" -ne 0 ]; then
     exec sudo "${BASH_SOURCE[0]}" "$@"
 fi
 
+# Function to calculate SHA256 hash
+calculate_sha256() {
+    local file="$1"
+    if command -v shasum &> /dev/null; then
+        shasum -a 256 "$file" | awk '{print $1}'
+    elif command -v sha256sum &> /dev/null; then
+        sha256sum "$file" | awk '{print $1}'
+    else
+        echo ""
+    fi
+}
+
+# Function to verify script integrity
+verify_script() {
+    local script_path="$1"
+    
+    if [ "$NO_VERIFY" = true ]; then
+        log_warning "Skipping script verification (--no-verify)"
+        return 0
+    fi
+    
+    # Check if script exists
+    if [ ! -f "$script_path" ]; then
+        log_error "Script not found: $script_path"
+        return 1
+    fi
+    
+    # Check for strict mode (set -euo pipefail)
+    if ! grep -q "set -euo pipefail" "$script_path" 2>/dev/null; then
+        log_error "Script verification failed: 'set -euo pipefail' not found"
+        log_error "Script may not be the official Mac-Clean script"
+        return 1
+    fi
+    
+    # Calculate and display fingerprint
+    local sha256_hash
+    sha256_hash=$(calculate_sha256 "$script_path")
+    
+    if [ -n "$sha256_hash" ]; then
+        log_success "Script downloaded successfully"
+        log_info "SHA256 fingerprint: ${sha256_hash:0:16}..."
+        log_info "Full hash: $sha256_hash"
+        echo ""
+        log_info "To verify manually, compare this hash with the official release"
+        log_info "Visit: https://github.com/Carme99/MacCleans.sh/releases"
+    else
+        log_warning "Could not calculate SHA256 hash (shasum/sha256sum not available)"
+    fi
+    
+    return 0
+}
+
 # Create backup if script already exists
 if [ -f "$INSTALL_PATH" ]; then
     BACKUP_PATH="${INSTALL_PATH}.backup.$(date +%Y%m%d%H%M%S)"
@@ -86,17 +157,26 @@ elif command -v wget &> /dev/null; then
     DOWNLOAD_CMD="wget -qO-"
 fi
 
-if ! $DOWNLOAD_CMD "$GITHUB_RAW_URL" > "$INSTALL_PATH" 2>/dev/null; then
+# Download to temporary location first for verification
+TEMP_SCRIPT=$(mktemp)
+trap 'rm -f "$TEMP_SCRIPT"' EXIT
+
+if ! $DOWNLOAD_CMD "$GITHUB_RAW_URL" > "$TEMP_SCRIPT" 2>/dev/null; then
     log_error "Failed to download Mac-Clean"
-    log_info "Trying alternative URL..."
-    
-    # Try main branch
-    ALT_URL="https://raw.githubusercontent.com/Carme99/MacCleans.sh/master/clean-mac-space.sh"
-    if ! $DOWNLOAD_CMD "$ALT_URL" > "$INSTALL_PATH" 2>/dev/null; then
-        log_error "Failed to download from alternative URL as well"
-        exit 1
-    fi
+    log_error "URL: $GITHUB_RAW_URL"
+    exit 1
 fi
+
+# Verify the downloaded script
+if ! verify_script "$TEMP_SCRIPT"; then
+    log_error "Script verification failed!"
+    log_error "The downloaded script does not appear to be the official Mac-Clean script."
+    log_error "Use --no-verify to skip this check (not recommended)"
+    exit 1
+fi
+
+# Move verified script to final location
+mv "$TEMP_SCRIPT" "$INSTALL_PATH"
 
 # Make executable
 chmod +x "$INSTALL_PATH"
