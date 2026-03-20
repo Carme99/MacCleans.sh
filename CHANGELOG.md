@@ -2,6 +2,35 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [4.3.0] - 2026-03-20
+
+### Security & Safety Fixes
+
+- **#21 — iCloud sync check enhanced with pending-upload detection**
+  `check_icloud_sync_status()` now also detects files pending upload via Spotlight metadata (`mdfind com_apple_clouddocs_isUploading`) in addition to existing download and brctl checks.
+- **#22 — Xcode cleanup no longer bypassed by `--yes`; requires `--force`**
+  `--yes` now prompts for Xcode confirmation. Only `--force` auto-approves this expensive operation.
+- **#25 — Photos library path checked for symlinks before cleanup**
+  Added `[ ! -L "$LIB_PATH" ]` guard to prevent cleaning through symlinks to other volumes.
+- **#26 — Deletion failures now tracked and reported in summary**
+  Critical deletion errors are counted via `ERRORS_OCCURRED` and surfaced in the final summary instead of being silently swallowed.
+- **#27 — Minimum free disk space pre-check added**
+  Mac-Clean now verifies at least 200MB is free before starting any cleanup operations via `check_minimum_disk_space()`.
+- **#28 — Interrupt handler reports partial progress**
+  When the script is interrupted (Ctrl-C/SIGTERM), it now reports how many categories completed and bytes freed before exiting.
+
+### Closed as Duplicate
+
+- **#18, #19** — Duplicate of #17 (Trash emptied without confirmation)
+
+### Closed as By Design
+
+- **#23** — Docker error on cleanup when Docker is not running is expected and handled gracefully
+
+### Technical
+
+- Version bumped: 4.2.0 → 4.3.0
+
 ## [4.2.0] - 2026-03-07
 
 ### New Features
