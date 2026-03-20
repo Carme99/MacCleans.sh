@@ -2771,7 +2771,7 @@ if [ "$SKIP_GRADLE" = false ]; then
                 fi
                 # Symlink protection: only delete if not a symlink
                 if [ -d "$GRADLE_CACHE_DIR" ] && [ ! -L "$GRADLE_CACHE_DIR" ]; then
-                    safe_clear_directory "$GRADLE_CACHE_DIR"
+                    safe_clear_directory "$GRADLE_CACHE_DIR" || { ERRORS_OCCURRED=$((ERRORS_OCCURRED + 1)); log_warning "Some Gradle cache items could not be deleted"; }
                 else
                     log_warning "Skipping Gradle cache - is a symlink or not a directory"
                 fi
@@ -2879,7 +2879,7 @@ if [ "$SKIP_BUN" = false ]; then
                 if [ -L "$BUN_CACHE_DIR" ]; then
                     log_warning "Skipping Bun cache - is a symlink"
                 else
-                    safe_clear_directory "$BUN_CACHE_DIR"
+                    safe_clear_directory "$BUN_CACHE_DIR" || { ERRORS_OCCURRED=$((ERRORS_OCCURRED + 1)); log_warning "Some Bun cache items could not be deleted"; }
                 fi
                 log_success "Bun cache cleared: $BUN_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BUN_BYTES))
@@ -2940,7 +2940,7 @@ if [ "$SKIP_PNPM" = false ]; then
                     PNPM_GLOBAL_BYTES=$(size_to_bytes "$PNPM_GLOBAL_SIZE")
                     PNPM_BYTES=$((PNPM_BYTES + PNPM_GLOBAL_BYTES))
                     PNPM_SIZE="$PNPM_SIZE (global: $PNPM_GLOBAL_SIZE)"
-                    safe_clear_directory "$PNPM_GLOBAL_STORE"
+                    safe_clear_directory "$PNPM_GLOBAL_STORE" || { ERRORS_OCCURRED=$((ERRORS_OCCURRED + 1)); log_warning "Some pnpm store items could not be deleted"; }
                 elif [ -L "$PNPM_GLOBAL_STORE" ]; then
                     log_warning "Skipping pnpm global store - is a symlink"
                 fi
