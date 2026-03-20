@@ -6,10 +6,16 @@ All notable changes to MacCleans.sh are documented in this file.
 
 ### Security & Safety Fixes
 
+- **#17 — Trash emptying now requires confirmation or `--force`/`--yes`**
+  Previously trash was silently emptied without any user acknowledgement. Interactive mode now prompts; `--yes` or `--force` auto-approves.
+- **#20 — iOS backup deletion verifies iCloud backup exists first**
+  Before deleting local device backups (already requiring `--force`), the tool now checks that an iCloud backup folder is present.
 - **#21 — iCloud sync check enhanced with pending-upload detection**
   `check_icloud_sync_status()` now also detects files pending upload via Spotlight metadata (`mdfind com_apple_clouddocs_isUploading`) in addition to existing download and brctl checks.
 - **#22 — Xcode cleanup no longer bypassed by `--yes`; requires `--force`**
   `--yes` now prompts for Xcode confirmation. Only `--force` auto-approves this expensive operation.
+- **#24 — Lock file check applies in dry-run mode**
+  Removed the dry-run early-return from `acquire_lock()` to prevent concurrent dry-run/real-run race conditions.
 - **#25 — Photos library path checked for symlinks before cleanup**
   Added `[ ! -L "$LIB_PATH" ]` guard to prevent cleaning through symlinks to other volumes.
 - **#26 — Deletion failures now tracked and reported in summary**
@@ -18,6 +24,10 @@ All notable changes to MacCleans.sh are documented in this file.
   Mac-Clean now verifies at least 200MB is free before starting any cleanup operations via `check_minimum_disk_space()`.
 - **#28 — Interrupt handler reports partial progress**
   When the script is interrupted (Ctrl-C/SIGTERM), it now reports how many categories completed and bytes freed before exiting.
+- **#29 — Gradle, Bun, pnpm cache cleanup uses safe_clear_directory()**
+  Replaced `rm -rf` with the safe deletion helper, adding symlink protection and consistent error handling.
+- **#30 — Installer verifies SHA256 checksum after download**
+  The installer now downloads and validates a SHA256SUMS file before installing. Mismatches cause a hard failure.
 
 ### Closed as Duplicate
 
