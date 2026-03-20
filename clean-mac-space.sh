@@ -569,10 +569,9 @@ safe_clear_directory() {
     fi
     
     # Delete files with error tracking
-    local delete_failed=0
     while IFS= read -r -d '' file; do
         if ! rm -f "$file" 2>/dev/null; then
-            delete_failed=1
+            status=1
             log_warning "Failed to delete: $file (permission denied or in use)"
         fi
     done < <(find "$dir" -mindepth "$mindepth" -type f -print0 2>/dev/null)
