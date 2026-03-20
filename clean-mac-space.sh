@@ -3,7 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="4.2.0"
+VERSION="4.3.0"
 
 ###############################################################################
 # Mac-Clean: macOS Disk Cleanup Utility
@@ -450,7 +450,13 @@ validate_config
 
 # Set up signal handling for graceful interruption
 cleanup_on_interrupt() {
-    log_warning "Interrupted by user, cleaning up..."
+    echo ""
+    log_warning "Interrupted by user."
+    if [ "${#PROCESSED_CATEGORIES[@]:-0}" -gt 0 ]; then
+        local freed_human
+        freed_human=$(bytes_to_human "${TOTAL_BYTES_FREED:-0}" 2>/dev/null || echo "unknown")
+        log_always "Partial cleanup completed: ${freed_human} freed across ${#PROCESSED_CATEGORIES[@]} category/categories."
+    fi
     log_always "Cleanup aborted."
     exit 130
 }
@@ -493,6 +499,7 @@ trap handle_interrupt INT TERM
 # Lock directory for preventing parallel runs
 LOCKDIR="/tmp/mac-clean.lock"
 LOCK_OWNED=0
+MIN_FREE_MB=200
 
 # Acquire exclusive lock atomically using mkdir
 # Returns 0 on success, exits with error on failure
@@ -562,10 +569,9 @@ safe_clear_directory() {
     fi
     
     # Delete files with error tracking
-    local delete_failed=0
     while IFS= read -r -d '' file; do
         if ! rm -f "$file" 2>/dev/null; then
-            delete_failed=1
+            status=1
             log_warning "Failed to delete: $file (permission denied or in use)"
         fi
     done < <(find "$dir" -mindepth "$mindepth" -type f -print0 2>/dev/null)
@@ -605,6 +611,17 @@ check_icloud_sync_status() {
         return 1
     fi
     
+    # Check for files pending upload via Spotlight metadata (Issue #21)
+    if command -v mdfind &>/dev/null; then
+        local pending_uploads
+        pending_uploads=$(mdfind -onlyin "$folder" \
+            "com_apple_clouddocs_isUploading == 1" 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$pending_uploads" -gt 0 ]; then
+            log_warning "Found $pending_uploads file(s) pending upload to iCloud"
+            return 1
+        fi
+    fi
+    
     # Check for conflict files (files with "Conflict" in name)
     # These occur when iCloud detects conflicting changes
     local conflicts
@@ -630,13 +647,25 @@ check_icloud_sync_status() {
         if [ -z "${BRCTL_STATUS_CACHE:-}" ]; then
             BRCTL_STATUS_CACHE=$(brctl status 2>/dev/null || echo "")
         fi
-        if echo "$BRCTL_STATUS_CACHE" | grep -qi "uploading\|downloading"; then
-            log_warning "iCloud sync in progress (uploading/downloading detected)"
+        if echo "$BRCTL_STATUS_CACHE" | grep -qi "uploading\|downloading\|pending"; then
+            log_warning "iCloud sync in progress (uploading/downloading/pending detected)"
             return 1
         fi
     fi
     
     return 0
+}
+
+# Issue #27: Minimum free disk space check before cleanup
+check_minimum_disk_space() {
+    local free_mb
+    free_mb=$(df -m / | awk 'NR==2 {print $4}')
+    if [ "${free_mb:-0}" -lt "$MIN_FREE_MB" ]; then
+        log_error "Insufficient free disk space: ${free_mb}MB available, ${MIN_FREE_MB}MB required"
+        log_always "Free at least ${MIN_FREE_MB}MB before running Mac-Clean."
+        exit 1
+    fi
+    log_verbose "Disk space OK: ${free_mb}MB free"
 }
 
 # Function to check if iCloud backup is enabled for iOS devices
@@ -902,6 +931,9 @@ fi
 
 # Acquire lock to prevent parallel runs
 acquire_lock
+
+# Verify minimum disk space is available before proceeding (Issue #27)
+check_minimum_disk_space
 
 # Validate home directory is under /Users (typical macOS path)
 if [[ ! "$USER_HOME" =~ ^/Users/ ]] && [[ ! "$USER_HOME" =~ ^/home/ ]]; then
@@ -1340,6 +1372,7 @@ log_plain ""
 TOTAL_BYTES_FREED=0
 declare -a PROCESSED_CATEGORIES=()
 declare -a SKIPPED_CATEGORIES=()
+ERRORS_OCCURRED=0
 
 # Confirmation prompt (skip in dry-run or if --yes flag)
 if [ "$DRY_RUN" = false ] && [ "$AUTO_YES" = false ]; then
@@ -1720,13 +1753,11 @@ if [ "$SKIP_XCODE" = false ]; then
             XCODE_BYTES=$(size_to_bytes "$XCODE_SIZE")
 
             # XCode cleanup has special consideration: long rebuild times
-            # --yes shows warning but proceeds (for scripting with awareness)
-            # --force skips warning entirely (for automation)
+            # Issue #22: --force skips warning entirely, --yes NO LONGER bypasses (requires --force)
             # No flags: interactive prompt
             
             if [ "$DRY_RUN" = true ]; then
                 log "Would clear XCode derived data: $XCODE_SIZE"
-                # Always show warning in dry-run mode for awareness
                 log_warning "NOTE: XCode cleanup requires 5-30 min rebuild for active projects"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
             elif [ "$FORCE" = true ]; then
@@ -1737,34 +1768,23 @@ if [ "$SKIP_XCODE" = false ]; then
                 fi
                 log_success "XCode derived data cleared"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
-            elif [ "$AUTO_YES" = true ]; then
-                # --yes: show warning but proceed (scripting with awareness)
-                log_warning "XCODE CLEANUP: This will delete build cache."
-                log_warning "Active projects will need to rebuild (5-30 min first build)."
-                log "Cleaning XCode derived data..."
-                if [ -d "$XCODE_DD" ] && [ ! -L "$XCODE_DD" ]; then
-                    safe_clear_directory "$XCODE_DD"
-                fi
-                log_success "XCode derived data cleared"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
             else
-                # No flags: interactive prompt
-                log_always ""
+                # --yes now also prompts (only --force skips confirmation)
                 log_warning "WARNING: This will delete XCode build cache."
-                log_always "   Active projects will need to rebuild (5-30 min first build)."
-                log_always ""
+                log "   Active projects will need to rebuild (5-30 min first build)."
+                log ""
                 read -p "Continue with XCode cleanup? [y/N] " -n 1 -r
                 echo
-                if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-                    log "XCode cleanup skipped by user"
-                    log_plain ""
-                else
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
                     log "Cleaning XCode derived data..."
                     if [ -d "$XCODE_DD" ] && [ ! -L "$XCODE_DD" ]; then
                         safe_clear_directory "$XCODE_DD"
                     fi
                     log_success "XCode derived data cleared"
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
+                else
+                    log "XCode cleanup skipped by user"
+                    SKIPPED_CATEGORIES+=("XCode Derived Data (user declined)")
                 fi
             fi
         else
@@ -1922,7 +1942,7 @@ if [ "$SKIP_TRASH" = false ]; then
                 if [ "$CONFIRM_TRASH" = true ]; then
                     log "Emptying trash..."
                     # Use safe_clear_directory for consistent safe deletion
-                    safe_clear_directory "$TRASH_DIR" 2>/dev/null || true
+                    safe_clear_directory "$TRASH_DIR" 2>/dev/null || { ERRORS_OCCURRED=$((ERRORS_OCCURRED + 1)); log_warning "Some trash items could not be deleted"; }
                     log_success "Trash emptied"
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TRASH_BYTES))
                 else
@@ -2217,7 +2237,7 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
                     SELECTED_LIBS=("${PHOTOS_LIBS[@]}")
                 else
                     LIB_PATH="$USER_HOME/Pictures/${PHOTOS_LIBRARY_NAME}.photoslibrary"
-                    if [ -d "$LIB_PATH" ]; then
+                    if [ -d "$LIB_PATH" ] && [ ! -L "$LIB_PATH" ]; then
                         SELECTED_LIBS=("$LIB_PATH")
                     else
                         log "Photos library '${PHOTOS_LIBRARY_NAME}' not found"
@@ -2750,7 +2770,7 @@ if [ "$SKIP_GRADLE" = false ]; then
                 fi
                 # Symlink protection: only delete if not a symlink
                 if [ -d "$GRADLE_CACHE_DIR" ] && [ ! -L "$GRADLE_CACHE_DIR" ]; then
-                    safe_clear_directory "$GRADLE_CACHE_DIR"
+                    safe_clear_directory "$GRADLE_CACHE_DIR" || { ERRORS_OCCURRED=$((ERRORS_OCCURRED + 1)); log_warning "Some Gradle cache items could not be deleted"; }
                 else
                     log_warning "Skipping Gradle cache - is a symlink or not a directory"
                 fi
@@ -2858,7 +2878,7 @@ if [ "$SKIP_BUN" = false ]; then
                 if [ -L "$BUN_CACHE_DIR" ]; then
                     log_warning "Skipping Bun cache - is a symlink"
                 else
-                    safe_clear_directory "$BUN_CACHE_DIR"
+                    safe_clear_directory "$BUN_CACHE_DIR" || { ERRORS_OCCURRED=$((ERRORS_OCCURRED + 1)); log_warning "Some Bun cache items could not be deleted"; }
                 fi
                 log_success "Bun cache cleared: $BUN_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BUN_BYTES))
@@ -2919,7 +2939,7 @@ if [ "$SKIP_PNPM" = false ]; then
                     PNPM_GLOBAL_BYTES=$(size_to_bytes "$PNPM_GLOBAL_SIZE")
                     PNPM_BYTES=$((PNPM_BYTES + PNPM_GLOBAL_BYTES))
                     PNPM_SIZE="$PNPM_SIZE (global: $PNPM_GLOBAL_SIZE)"
-                    safe_clear_directory "$PNPM_GLOBAL_STORE"
+                    safe_clear_directory "$PNPM_GLOBAL_STORE" || { ERRORS_OCCURRED=$((ERRORS_OCCURRED + 1)); log_warning "Some pnpm store items could not be deleted"; }
                 elif [ -L "$PNPM_GLOBAL_STORE" ]; then
                     log_warning "Skipping pnpm global store - is a symlink"
                 fi
@@ -3067,6 +3087,11 @@ if [ ${#SKIPPED_CATEGORIES[@]} -gt 0 ]; then
     for category in "${SKIPPED_CATEGORIES[@]}"; do
         log_plain "  ${DIM}⊘${NC} $category"
     done
+fi
+
+# Report deletion errors if any occurred (Issue #26)
+if [ "$ERRORS_OCCURRED" -gt 0 ]; then
+    log_warning "$ERRORS_OCCURRED deletion error(s) occurred. Run with --verbose for details."
 fi
 
 log_plain ""

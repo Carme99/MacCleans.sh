@@ -1,9 +1,9 @@
      ⚡  MacCleans  ⚡
-           v4.2.0
+           v4.3.0
 
 Free 10-50GB on your Mac with one command.
 
-[![Version](https://img.shields.io/badge/Version-4.2.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-4.3.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![Stars](https://img.shields.io/github/stars/Carme99/MacCleans.sh?style=social)](https://github.com/Carme99/MacCleans.sh/stargazers)
@@ -114,6 +114,7 @@ chmod +x /usr/local/bin/Mac-Clean
 |----------|---------|
 | Preview | `sudo Mac-Clean --dry-run` |
 | Clean all | `sudo Mac-Clean --yes` |
+| Skip all confirmations | `sudo Mac-Clean --force` |
 | Interactive | `sudo Mac-Clean --interactive` |
 | Use profile | `sudo Mac-Clean --profile developer` |
 | Skip category | `sudo Mac-Clean --skip-xcode` |
@@ -135,6 +136,13 @@ chmod +x /usr/local/bin/Mac-Clean
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contributing |
 
 ---
+
+## What's New in v4.3
+
+- **Enhanced iCloud sync check** - Detects pending uploads before iCloud cleanup
+- **Xcode rebuild protection** - `--yes` no longer bypasses Xcode confirmation; requires `--force`
+- **Disk space guard** - Pre-check ensures 200MB free before cleanup starts
+- **Better error reporting** - Deletion failures tracked and reported in summary
 
 ## What's New in v4.2
 
