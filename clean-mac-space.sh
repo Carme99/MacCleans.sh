@@ -810,7 +810,7 @@ start_spinner() {
         printf "%s " "$1"
         printf "  "
         tput dim 2>/dev/null || true
-        (while true; do
+        while true; do
             printf "\b⠋"; sleep 0.1
             printf "\b⠙"; sleep 0.1
             printf "\b⠹"; sleep 0.1
@@ -821,7 +821,7 @@ start_spinner() {
             printf "\b⠧"; sleep 0.1
             printf "\b⠇"; sleep 0.1
             printf "\b⠏"; sleep 0.1
-        done &) &
+        done &
         SPINNER_PID=$!
     fi
 }

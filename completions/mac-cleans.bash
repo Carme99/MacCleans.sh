@@ -8,10 +8,13 @@ _mac_cleans() {
 
     local -a options=(
         --dry-run --force --yes --interactive --json --version --help
-        --skip-xcode --skip-homebrew --skip-docker --skip-npm --skip-pip
-        --skip-chrome --skip-firefox --skip-edge --skip-spotify --skip-mail
-        --skip-icloud --skip-trash --skip-gradle --skip-bun --skip-pnpm
-        --skip-photos --skip-quicklook --skip-diagnostics
+        --skip-snapshots --skip-homebrew --skip-spotify --skip-claude
+        --skip-xcode --skip-browsers --skip-npm --skip-pip --skip-trash
+        --skip-dsstore --skip-docker --skip-simulator --skip-mail
+        --skip-siri-tts --skip-icloud-mail --skip-photos-library
+        --skip-icloud-drive --skip-quicklook --skip-diagnostics
+        --skip-ios-backups --skip-ios-updates --skip-cocoapods
+        --skip-gradle --skip-go --skip-bun --skip-pnpm
     )
 
     mapfile -t COMPREPLY < <(compgen -W "${options[*]}" -- "$cur")
