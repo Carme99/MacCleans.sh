@@ -3,18 +3,18 @@
 # Install: cp mac-cleans.bash /usr/local/etc/bash_completion.d/
 
 _mac_cleans() {
-    local cur prev words cword
-    _init_completion || return
+    local cur IFS=$' \t\n'
+    cur="${COMP_WORDS[COMP_CWORD]}"
 
-    local options="--dry-run --force --yes --interactive --json --version --help"
-    local categories="--skip-xcode --skip-homebrew --skip-docker --skip-npm --skip-pip"
-    categories+=" --skip-chrome --skip-firefox --skip-edge --skip-spotify --skip-mail"
-    categories+=" --skip-icloud --skip-trash --skip-gradle --skip-bun --skip-pnpm"
-    categories+=" --skip-photos --skip-quicklook --skip-diagnostics"
+    local -a options=(
+        --dry-run --force --yes --interactive --json --version --help
+        --skip-xcode --skip-homebrew --skip-docker --skip-npm --skip-pip
+        --skip-chrome --skip-firefox --skip-edge --skip-spotify --skip-mail
+        --skip-icloud --skip-trash --skip-gradle --skip-bun --skip-pnpm
+        --skip-photos --skip-quicklook --skip-diagnostics
+    )
 
-    if [[ "$cur" == --* ]]; then
-        COMPREPLY=($(compgen -W "$options $categories" -- "$cur"))
-    fi
+    mapfile -t COMPREPLY < <(compgen -W "${options[*]}" -- "$cur")
 }
 
 complete -F _mac_cleans mac-cleans
