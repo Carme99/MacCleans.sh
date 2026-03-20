@@ -1,9 +1,9 @@
      ⚡  MacCleans  ⚡
-           v4.3.0
+           v5.0
 
 Free 10-50GB on your Mac with one command.
 
-[![Version](https://img.shields.io/badge/Version-4.3.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-5.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![Stars](https://img.shields.io/github/stars/Carme99/MacCleans.sh?style=social)](https://github.com/Carme99/MacCleans.sh/stargazers)
@@ -13,14 +13,18 @@ Free 10-50GB on your Mac with one command.
 ## Quick Start
 
 ```bash
-# Install
+# Install via Homebrew (recommended)
+brew tap Carme99/tap
+brew install mac-cleans
+
+# Or install via curl
 curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/installer.sh | bash
 
 # Preview what would be cleaned
-sudo Mac-Clean --dry-run
+sudo mac-cleans --dry-run
 
 # Clean everything (non-interactive)
-sudo Mac-Clean --yes
+sudo mac-cleans --yes
 ```
 
 ---
@@ -136,6 +140,13 @@ chmod +x /usr/local/bin/Mac-Clean
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contributing |
 
 ---
+
+## What's New in v5.0
+
+- **Homebrew Support** - Install via `brew tap Carme99/tap && brew install mac-cleans`
+- **Shell Completions** - Bash, Zsh, and Fish completions included
+- **Progress Spinner** - Visual feedback during long operations
+- **Improved Errors** - Better error messages with recovery suggestions
 
 ## What's New in v4.3
 

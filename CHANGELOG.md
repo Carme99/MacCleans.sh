@@ -2,6 +2,22 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [5.0] - 2026-03-20
+
+### New Features
+
+- **Homebrew Tap** - Install via `brew tap Carme99/tap && brew install mac-cleans`
+  - Official Homebrew tap for easy installation and updates
+  - Shell completions included (bash, zsh, fish)
+- **Progress Spinner** - Visual spinner during long-running operations
+- **Improved Error Messages** - Better context and recovery suggestions on failures
+
+### Technical
+
+- Version bumped: 4.3.0 → 5.0
+- Shell completions added: `completions/` directory with bash, zsh, fish support
+- Spinner functions added: `start_spinner()` and `stop_spinner()`
+
 ## [4.3.0] - 2026-03-20
 
 ### Security & Safety Fixes

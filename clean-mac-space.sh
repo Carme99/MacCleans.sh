@@ -3,7 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="4.3.0"
+VERSION="5.0"
 
 ###############################################################################
 # Mac-Clean: macOS Disk Cleanup Utility
@@ -799,6 +799,41 @@ log_warning() {
 log_error() {
     if [ "$JSON_OUTPUT" = false ]; then
         echo -e "${RED}✗${NC} $1" >&2
+    fi
+}
+
+# Spinner for long-running operations
+# Usage: start_spinner "message" or stop_spinner
+SPINNER_PID=""
+start_spinner() {
+    if [ "$QUIET" = false ] && [ "$JSON_OUTPUT" = false ]; then
+        printf "%s " "$1"
+        printf "  "
+        tput dim 2>/dev/null || true
+        (while true; do
+            printf "\b⠋"; sleep 0.1
+            printf "\b⠙"; sleep 0.1
+            printf "\b⠹"; sleep 0.1
+            printf "\b⠸"; sleep 0.1
+            printf "\b⠼"; sleep 0.1
+            printf "\b⠴"; sleep 0.1
+            printf "\b⠦"; sleep 0.1
+            printf "\b⠧"; sleep 0.1
+            printf "\b⠇"; sleep 0.1
+            printf "\b⠏"; sleep 0.1
+        done &) &
+        SPINNER_PID=$!
+    fi
+}
+
+stop_spinner() {
+    if [ -n "$SPINNER_PID" ] && kill -0 "$SPINNER_PID" 2>/dev/null; then
+        kill "$SPINNER_PID" 2>/dev/null || true
+        wait "$SPINNER_PID" 2>/dev/null || true
+        SPINNER_PID=""
+        tput sgr0 2>/dev/null || true
+        printf "\b\b\b   \b\b\b"
+        echo ""
     fi
 }
 
