@@ -44,7 +44,7 @@ $ sudo Mac-Clean --dry-run
 ```bash
 $ sudo Mac-Clean --json
 {
-  "version": "4.2.0",
+  "version": "5.1",
   "timestamp": "2026-03-07T10:30:00Z",
   "dry_run": false,
   "results": {
