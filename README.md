@@ -1,9 +1,9 @@
      ⚡  MacCleans  ⚡
-           v5.0
+           v5.1
 
 Free 10-50GB on your Mac with one command.
 
-[![Version](https://img.shields.io/badge/Version-5.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-5.1-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![Stars](https://img.shields.io/github/stars/Carme99/MacCleans.sh?style=social)](https://github.com/Carme99/MacCleans.sh/stargazers)
@@ -140,6 +140,11 @@ chmod +x /usr/local/bin/Mac-Clean
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Contributing |
 
 ---
+
+## What's New in v5.1
+
+- **Photos Library Fix** - Size calculation now only measures cache (Thumbnails, Previews) instead of entire library
+- **npm Cache Fix** - Size display now correctly shows "211M" instead of "211B"
 
 ## What's New in v5.0
 

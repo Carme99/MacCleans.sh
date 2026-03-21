@@ -3,7 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="5.0"
+VERSION="5.1"
 
 ###############################################################################
 # Mac-Clean: macOS Disk Cleanup Utility
@@ -1847,10 +1847,11 @@ if [ "$SKIP_NPM" = false ]; then
     # npm cache
     NPM_CACHE="$USER_HOME/.npm"
     if [ -d "$NPM_CACHE" ]; then
-        NPM_SIZE=$(du -sh "$NPM_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
-        if [ -n "$NPM_SIZE" ] && [ "$NPM_SIZE" != "0B" ]; then
+        NPM_KB=$(du -sk "$NPM_CACHE" 2>/dev/null | awk '{print $1}' || echo "0")
+        NPM_BYTES=$((NPM_KB * 1024))
+        if [ "$NPM_BYTES" -gt 0 ]; then
+            NPM_SIZE=$(bytes_to_human "$NPM_BYTES")
             log "npm cache: $NPM_SIZE"
-            NPM_BYTES=$(size_to_bytes "$NPM_SIZE")
             NODE_TOTAL_BYTES=$((NODE_TOTAL_BYTES + NPM_BYTES))
 
             if [ "$DRY_RUN" = false ]; then
@@ -2315,7 +2316,15 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
                 fi
 
                 if [ -d "$RESOURCES_DIR" ]; then
-                    LIB_KB=$(du -sk "$RESOURCES_DIR" 2>/dev/null | awk '{print $1}' || echo "0")
+                    CACHE_SIZE_KB=0
+                    for cache_dir in derivatives renders caches proxies; do
+                        target="$RESOURCES_DIR/$cache_dir"
+                        if [ -d "$target" ] && [ ! -L "$target" ]; then
+                            dir_size=$(du -sk "$target" 2>/dev/null | awk '{print $1}' || echo "0")
+                            CACHE_SIZE_KB=$((CACHE_SIZE_KB + dir_size))
+                        fi
+                    done
+                    LIB_KB=$CACHE_SIZE_KB
                     
                     if [ "$LIB_KB" -gt 0 ]; then
                         LIB_HUMAN=$(bytes_to_human $((LIB_KB * 1024)))

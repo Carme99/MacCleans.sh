@@ -2,6 +2,17 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [5.1] - 2026-03-21
+
+### Bug Fixes
+
+- **Photos Library size calculation** - Fixed size reporting to only measure cache subdirectories (Thumbnails, Previews, etc.) instead of entire library, resolving 38GB vs 7GB discrepancy
+- **npm cache size formatting** - Fixed size display showing "211B" instead of "211M" by using consistent byte calculation
+
+### Technical
+
+- Version bumped: 5.0 → 5.1
+
 ## [5.0] - 2026-03-20
 
 ### New Features
