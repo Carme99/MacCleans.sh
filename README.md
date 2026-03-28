@@ -1,9 +1,9 @@
-     ⚡  MacCleans  ⚡
-           v5.1
+      ⚡  MacCleans  ⚡
+            v5.1.1
 
 Free 10-50GB on your Mac with one command.
 
-[![Version](https://img.shields.io/badge/Version-5.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-5.1.1-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![Stars](https://img.shields.io/github/stars/Carme99/MacCleans.sh?style=social)](https://github.com/Carme99/MacCleans.sh/stargazers)
