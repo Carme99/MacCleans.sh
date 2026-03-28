@@ -2,6 +2,12 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [5.1.1] - 2026-03-28
+
+### Bug Fixes
+
+- **Time Machine snapshot count error** - Fixed `[: 0\n0: integer expression expected]` error when no Time Machine snapshots exist by using explicit exit code check instead of `|| echo "0"` fallback
+
 ## [5.1] - 2026-03-21
 
 ### Bug Fixes

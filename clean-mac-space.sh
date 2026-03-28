@@ -1437,7 +1437,11 @@ if [ "$SKIP_SNAPSHOTS" = false ]; then
         log_warning "Time Machine backup is currently running"
         log "Skipping snapshot deletion for safety"
     else
-        SNAPSHOTS=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c "com.apple.TimeMachine" || echo "0")
+        SNAPSHOTS=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c "com.apple.TimeMachine")
+        rc=$?
+        if [ $rc -ne 0 ]; then
+            SNAPSHOTS=0
+        fi
         if [ "$SNAPSHOTS" -gt 0 ]; then
             # Note: macOS doesn't expose snapshot sizes directly
             # Only showing count as accurate size calculation isn't possible
