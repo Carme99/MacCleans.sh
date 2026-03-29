@@ -3,7 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="5.1"
+VERSION="5.1.2"
 
 ###############################################################################
 # Mac-Clean: macOS Disk Cleanup Utility
@@ -2583,7 +2583,7 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
 
     IOS_BACKUP_DIR="$USER_HOME/Library/Application Support/MobileSync/Backup"
     if [ -d "$IOS_BACKUP_DIR" ]; then
-        IOS_BACKUP_COUNT=$(find "$IOS_BACKUP_DIR" -maxdepth 1 -type d -not -path "$IOS_BACKUP_DIR" 2>/dev/null | wc -l | tr -d ' ')
+        IOS_BACKUP_COUNT=$(find "$IOS_BACKUP_DIR" -maxdepth 1 -type d -not -path "$IOS_BACKUP_DIR" 2>/dev/null | wc -l | tr -d ' ') || true
 
         if [ "$IOS_BACKUP_COUNT" -gt 0 ]; then
             IOS_BACKUP_SIZE=$(du -sh "$IOS_BACKUP_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
@@ -3059,7 +3059,7 @@ if [ "$DRY_RUN" = true ]; then
     if [ "$SKIP_IOS_BACKUPS" = false ]; then
         IOS_BACKUP_DIR="$USER_HOME/Library/Application Support/MobileSync/Backup"
         if [ -d "$IOS_BACKUP_DIR" ]; then
-            IOS_BACKUP_COUNT=$(find "$IOS_BACKUP_DIR" -maxdepth 1 -type d -not -path "$IOS_BACKUP_DIR" 2>/dev/null | wc -l | tr -d ' ')
+            IOS_BACKUP_COUNT=$(find "$IOS_BACKUP_DIR" -maxdepth 1 -type d -not -path "$IOS_BACKUP_DIR" 2>/dev/null | wc -l | tr -d ' ') || true
             if [ "$IOS_BACKUP_COUNT" -gt 0 ]; then
                 log_always "${RED}${BOLD}⚠️  CRITICAL: iOS Device Backups Will Be Deleted!${NC}"
                 log_always "${YELLOW}   Found $IOS_BACKUP_COUNT backup(s) that will require 'DELETE' confirmation${NC}"
