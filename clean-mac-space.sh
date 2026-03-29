@@ -1598,7 +1598,7 @@ for CACHE_DIR in "${SAFE_CACHES[@]}"; do
     CACHE_PATH="$USER_HOME/Library/Caches/$CACHE_DIR"
     if [ -d "$CACHE_PATH" ]; then
         COUNT=$(find "$CACHE_PATH" -type f -mtime +30 2>/dev/null | wc -l | tr -d ' ') || COUNT=0
-            COUNT=${COUNT:-0}
+        COUNT=${COUNT:-0}
         OLD_CACHE_COUNT=$((OLD_CACHE_COUNT + COUNT))
     fi
 done
@@ -1674,11 +1674,11 @@ log_plain "================================================"
 log "6. System Temporary Files"
 log_plain "================================================"
 
-    TMP_COUNT=$(find /private/var/tmp /private/tmp -type f -mtime +3 2>/dev/null | wc -l | tr -d ' ') || TMP_COUNT=0
-    TMP_COUNT=${TMP_COUNT:-0}
+TMP_COUNT=$(find /private/var/tmp /private/tmp -type f -mtime +3 2>/dev/null | wc -l | tr -d ' ') || TMP_COUNT=0
+TMP_COUNT=${TMP_COUNT:-0}
 
-    if [ "$TMP_COUNT" -gt 0 ]; then
-        TMP_SIZE=$(find /private/var/tmp /private/tmp -type f -mtime +3 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+if [ "$TMP_COUNT" -gt 0 ]; then
+    TMP_SIZE=$(find /private/var/tmp /private/tmp -type f -mtime +3 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
     TMP_BYTES=$(size_to_bytes "$TMP_SIZE")
     log "Found $TMP_COUNT temporary file(s) older than 3 days: $TMP_SIZE"
 
