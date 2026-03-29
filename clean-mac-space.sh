@@ -3,7 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="5.1.2"
+VERSION="5.1.4"
 
 ###############################################################################
 # Mac-Clean: macOS Disk Cleanup Utility
@@ -1597,7 +1597,8 @@ OLD_CACHE_COUNT=0
 for CACHE_DIR in "${SAFE_CACHES[@]}"; do
     CACHE_PATH="$USER_HOME/Library/Caches/$CACHE_DIR"
     if [ -d "$CACHE_PATH" ]; then
-        COUNT=$(find "$CACHE_PATH" -type f -mtime +30 2>/dev/null | wc -l | tr -d ' ')
+        COUNT=$(find "$CACHE_PATH" -type f -mtime +30 2>/dev/null | wc -l | tr -d ' ') || COUNT=0
+            COUNT=${COUNT:-0}
         OLD_CACHE_COUNT=$((OLD_CACHE_COUNT + COUNT))
     fi
 done
@@ -1643,7 +1644,8 @@ log_plain "================================================"
 log "5. Old Log Files"
 log_plain "================================================"
 
-OLD_LOG_COUNT=$(find "$USER_HOME/Library/Logs" -type f -name "*.log*" -mtime +7 2>/dev/null | wc -l | tr -d ' ')
+OLD_LOG_COUNT=$(find "$USER_HOME/Library/Logs" -type f -name "*.log*" -mtime +7 2>/dev/null | wc -l | tr -d ' ') || OLD_LOG_COUNT=0
+OLD_LOG_COUNT=${OLD_LOG_COUNT:-0}
 
 if [ "$OLD_LOG_COUNT" -gt 0 ]; then
     OLD_LOG_SIZE=$(find "$USER_HOME/Library/Logs" -type f -name "*.log*" -mtime +7 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
@@ -1672,10 +1674,11 @@ log_plain "================================================"
 log "6. System Temporary Files"
 log_plain "================================================"
 
-TMP_COUNT=$(find /private/var/tmp /private/tmp -type f -mtime +3 2>/dev/null | wc -l | tr -d ' ')
+    TMP_COUNT=$(find /private/var/tmp /private/tmp -type f -mtime +3 2>/dev/null | wc -l | tr -d ' ') || TMP_COUNT=0
+    TMP_COUNT=${TMP_COUNT:-0}
 
-if [ "$TMP_COUNT" -gt 0 ]; then
-    TMP_SIZE=$(find /private/var/tmp /private/tmp -type f -mtime +3 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+    if [ "$TMP_COUNT" -gt 0 ]; then
+        TMP_SIZE=$(find /private/var/tmp /private/tmp -type f -mtime +3 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
     TMP_BYTES=$(size_to_bytes "$TMP_SIZE")
     log "Found $TMP_COUNT temporary file(s) older than 3 days: $TMP_SIZE"
 
@@ -2527,7 +2530,8 @@ if [ "$SKIP_DIAGNOSTICS" = false ]; then
 
     # Count user diagnostic reports older than 30 days
     if [ -d "$DIAG_USER" ]; then
-        USER_COUNT=$(find "$DIAG_USER" -type f -mtime +30 2>/dev/null | wc -l | tr -d ' ')
+        USER_COUNT=$(find "$DIAG_USER" -type f -mtime +30 2>/dev/null | wc -l | tr -d ' ') || USER_COUNT=0
+        USER_COUNT=${USER_COUNT:-0}
         DIAG_COUNT=$((DIAG_COUNT + USER_COUNT))
         if [ "$USER_COUNT" -gt 0 ]; then
             USER_SIZE=$(find "$DIAG_USER" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
@@ -2539,7 +2543,8 @@ if [ "$SKIP_DIAGNOSTICS" = false ]; then
 
     # Count system diagnostic reports older than 30 days (requires sudo)
     if [ -d "$DIAG_SYSTEM" ]; then
-        SYS_COUNT=$(find "$DIAG_SYSTEM" -type f -mtime +30 2>/dev/null | wc -l | tr -d ' ')
+        SYS_COUNT=$(find "$DIAG_SYSTEM" -type f -mtime +30 2>/dev/null | wc -l | tr -d ' ') || SYS_COUNT=0
+        SYS_COUNT=${SYS_COUNT:-0}
         DIAG_COUNT=$((DIAG_COUNT + SYS_COUNT))
         if [ "$SYS_COUNT" -gt 0 ]; then
             SYS_SIZE=$(find "$DIAG_SYSTEM" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
@@ -3016,7 +3021,8 @@ if [ "$SKIP_DSSTORE" = false ]; then
     log_plain "================================================"
 
     # Count .DS_Store files in user home
-    DSSTORE_COUNT=$(find "$USER_HOME" -name ".DS_Store" -type f 2>/dev/null | wc -l | tr -d ' ')
+    DSSTORE_COUNT=$(find "$USER_HOME" -name ".DS_Store" -type f 2>/dev/null | wc -l | tr -d ' ') || DSSTORE_COUNT=0
+    DSSTORE_COUNT=${DSSTORE_COUNT:-0}
 
     if [ "$DSSTORE_COUNT" -gt 0 ]; then
         DSSTORE_SIZE=$(find "$USER_HOME" -name ".DS_Store" -type f -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
