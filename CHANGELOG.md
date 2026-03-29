@@ -2,6 +2,12 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [5.1.2] - 2026-03-29
+
+### Bug Fixes
+
+- **iOS backup permission error** - Fixed script exiting silently when `find` returns "Operation not permitted" on the iOS backup directory by adding `|| IOS_BACKUP_COUNT=0` fallback and value normalization to prevent `set -e` from triggering on expected permission errors
+
 ## [5.1.1] - 2026-03-28
 
 ### Bug Fixes
