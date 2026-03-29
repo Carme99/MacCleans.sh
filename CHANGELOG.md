@@ -2,6 +2,12 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [5.1.6] - 2026-03-29
+
+### Bug Fixes
+
+- **safe_du() still failing with pipefail** - Fixed `safe_du()` function by adding `set +o pipefail` in addition to `set +e`. When `du` returns non-zero (e.g., "Operation not permitted" on `~/.Trash`), `pipefail` was causing silent script exit even after disabling `set -e`. Affects Trash Bin and any protected directories.
+
 ## [5.1.5] - 2026-03-29
 
 ### Bug Fixes
