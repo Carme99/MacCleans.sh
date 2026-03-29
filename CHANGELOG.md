@@ -2,6 +2,15 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [5.1.4] - 2026-03-29
+
+### Bug Fixes
+
+- **System temporary files permission error** - Fixed script exiting when `find` returns "Operation not permitted" on `/private/var/tmp` and `/private/tmp` by adding `|| TMP_COUNT=0` fallback and value normalization
+- **User diagnostic reports permission error** - Fixed script exiting when `find` returns "Operation not permitted" on user diagnostic reports directory by adding `|| USER_COUNT=0` fallback and value normalization
+- **System diagnostic reports permission error** - Fixed script exiting when `find` returns "Operation not permitted" on system diagnostic reports directory by adding `|| SYS_COUNT=0` fallback and value normalization
+- **DS_Store count permission error** - Fixed script exiting when `find` returns "Operation not permitted" on iCloud directories by adding `|| DSSTORE_COUNT=0` fallback and value normalization
+
 ## [5.1.2] - 2026-03-29
 
 ### Bug Fixes
