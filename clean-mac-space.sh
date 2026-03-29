@@ -3,7 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="5.1.5"
+VERSION="5.1.6"
 
 ###############################################################################
 # Mac-Clean: macOS Disk Cleanup Utility
@@ -838,11 +838,12 @@ stop_spinner() {
 }
 
 # Safe du wrapper that handles set -euo pipefail correctly
-# Uses set +e in subshell to prevent exit on du failure, returns 0B on error/empty
+# Uses set +e and set +o pipefail in subshell to prevent exit on du failure
+# Returns "0B" on failure/empty
 safe_du() {
     local dir="$1"
     local size
-    size=$(set +e; du -sh "$dir" 2>/dev/null | awk '{print $1}')
+    size=$(set +e; set +o pipefail; du -sh "$dir" 2>/dev/null | awk '{print $1}')
     if [ -z "$size" ]; then
         echo "0B"
     else
