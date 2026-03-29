@@ -3,7 +3,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="5.1.4"
+VERSION="5.1.5"
 
 ###############################################################################
 # Mac-Clean: macOS Disk Cleanup Utility
@@ -847,17 +847,18 @@ size_to_bytes() {
         if (match(s, /^[0-9.]+/)) {
             n = substr(s, RSTART, RLENGTH)
         }
-        # Extract unit (K, M, G, T, P, E or their KB, MB variants)
-        if (match(s, /[KMGT]B?$/i)) {
-            u = substr(s, RSTART, RLENGTH)
+        # Use tolower() for BSD awk compatibility (macOS awk does not support /i flag)
+        slow = tolower(s)
+        if (match(slow, /[kmgt]b?$/)) {
+            u = substr(slow, RSTART, RLENGTH)
         }
-        # Convert
-        if (u == "K" || u == "k" || u == "KB" || u == "kb") n *= 1024
-        else if (u == "M" || u == "m" || u == "MB" || u == "mb") n *= 1048576
-        else if (u == "G" || u == "g" || u == "GB" || u == "gb") n *= 1073741824
-        else if (u == "T" || u == "t" || u == "TB" || u == "tb") n *= 1099511627776
-        else if (u == "P" || u == "p" || u == "PB" || u == "pb") n *= 1125899906842624
-        else if (u == "E" || u == "e" || u == "EB" || u == "eb") n *= 1152921504606846976
+        # Convert (lowercase units only since we used tolower)
+        if (u == "k" || u == "kb") n *= 1024
+        else if (u == "m" || u == "mb") n *= 1048576
+        else if (u == "g" || u == "gb") n *= 1073741824
+        else if (u == "t" || u == "tb") n *= 1099511627776
+        else if (u == "p" || u == "pb") n *= 1125899906842624
+        else if (u == "e" || u == "eb") n *= 1152921504606846976
         # If no unit, assume bytes (n stays as-is)
         printf "%.0f", n + 0
     }'
@@ -1475,7 +1476,8 @@ if [ "$SKIP_HOMEBREW" = false ]; then
     log_plain "================================================"
 
     if command -v brew &> /dev/null; then
-        BREW_CACHE_SIZE=$(du -sh "$USER_HOME/Library/Caches/Homebrew" 2>/dev/null | awk '{print $1}' || echo "0B")
+        BREW_CACHE_SIZE=$(du -sh "$USER_HOME/Library/Caches/Homebrew" 2>/dev/null | awk '{print $1}')
+        [ -z "$BREW_CACHE_SIZE" ] && BREW_CACHE_SIZE="0B"
 
         if [ -n "$BREW_CACHE_SIZE" ] && [ "$BREW_CACHE_SIZE" != "0B" ]; then
             log "Current Homebrew cache: $BREW_CACHE_SIZE"
@@ -1518,7 +1520,8 @@ if [ "$SKIP_SPOTIFY" = false ]; then
     PROCESSED_CATEGORIES+=("Spotify Cache")
     SPOTIFY_CACHE="$USER_HOME/Library/Caches/com.spotify.client"
     if [ -d "$SPOTIFY_CACHE" ]; then
-        SPOTIFY_SIZE=$(du -sh "$SPOTIFY_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
+        SPOTIFY_SIZE=$(du -sh "$SPOTIFY_CACHE" 2>/dev/null | awk '{print $1}')
+        [ -z "$SPOTIFY_SIZE" ] && SPOTIFY_SIZE="0B"
 
         if [ -n "$SPOTIFY_SIZE" ] && [ "$SPOTIFY_SIZE" != "0B" ]; then
             log "Spotify cache: $SPOTIFY_SIZE"
@@ -1550,7 +1553,8 @@ if [ "$SKIP_CLAUDE" = false ]; then
     PROCESSED_CATEGORIES+=("Claude Desktop Cache")
     CLAUDE_SHIPIT="$USER_HOME/Library/Caches/com.anthropic.claudefordesktop.ShipIt"
     if [ -d "$CLAUDE_SHIPIT" ]; then
-        CLAUDE_SIZE=$(du -sh "$CLAUDE_SHIPIT" 2>/dev/null | awk '{print $1}' || echo "0B")
+        CLAUDE_SIZE=$(du -sh "$CLAUDE_SHIPIT" 2>/dev/null | awk '{print $1}')
+        [ -z "$CLAUDE_SIZE" ] && CLAUDE_SIZE="0B"
 
         if [ -n "$CLAUDE_SIZE" ] && [ "$CLAUDE_SIZE" != "0B" ]; then
             log "Claude Desktop update cache: $CLAUDE_SIZE"
@@ -1608,7 +1612,8 @@ if [ "$OLD_CACHE_COUNT" -gt 0 ]; then
     for CACHE_DIR in "${SAFE_CACHES[@]}"; do
         CACHE_PATH="$USER_HOME/Library/Caches/$CACHE_DIR"
         if [ -d "$CACHE_PATH" ]; then
-            PARTIAL_SIZE=$(find "$CACHE_PATH" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+            PARTIAL_SIZE=$(find "$CACHE_PATH" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
+            [ -z "$PARTIAL_SIZE" ] && PARTIAL_SIZE="0B"
             if [ -n "$PARTIAL_SIZE" ] && [ "$PARTIAL_SIZE" != "0B" ]; then
                 CACHE_BYTES=$((CACHE_BYTES + $(size_to_bytes "$PARTIAL_SIZE")))
             fi
@@ -1648,7 +1653,8 @@ OLD_LOG_COUNT=$(find "$USER_HOME/Library/Logs" -type f -name "*.log*" -mtime +7 
 OLD_LOG_COUNT=${OLD_LOG_COUNT:-0}
 
 if [ "$OLD_LOG_COUNT" -gt 0 ]; then
-    OLD_LOG_SIZE=$(find "$USER_HOME/Library/Logs" -type f -name "*.log*" -mtime +7 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+    OLD_LOG_SIZE=$(find "$USER_HOME/Library/Logs" -type f -name "*.log*" -mtime +7 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
+    [ -z "$OLD_LOG_SIZE" ] && OLD_LOG_SIZE="0B"
     log "Found $OLD_LOG_COUNT old log file(s) (>7 days): $OLD_LOG_SIZE"
     LOG_BYTES=$(size_to_bytes "$OLD_LOG_SIZE")
 
@@ -1678,7 +1684,8 @@ TMP_COUNT=$(find /private/var/tmp /private/tmp -type f -mtime +3 2>/dev/null | w
 TMP_COUNT=${TMP_COUNT:-0}
 
 if [ "$TMP_COUNT" -gt 0 ]; then
-    TMP_SIZE=$(find /private/var/tmp /private/tmp -type f -mtime +3 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+    TMP_SIZE=$(find /private/var/tmp /private/tmp -type f -mtime +3 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
+    [ -z "$TMP_SIZE" ] && TMP_SIZE="0B"
     TMP_BYTES=$(size_to_bytes "$TMP_SIZE")
     log "Found $TMP_COUNT temporary file(s) older than 3 days: $TMP_SIZE"
 
@@ -1713,7 +1720,8 @@ if [ "$SKIP_BROWSERS" = false ]; then
     # Chrome
     CHROME_CACHE="$USER_HOME/Library/Caches/Google/Chrome"
     if [ -d "$CHROME_CACHE" ]; then
-        CHROME_SIZE=$(du -sh "$CHROME_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
+        CHROME_SIZE=$(du -sh "$CHROME_CACHE" 2>/dev/null | awk '{print $1}')
+        [ -z "$CHROME_SIZE" ] && CHROME_SIZE="0B"
         if [ -n "$CHROME_SIZE" ] && [ "$CHROME_SIZE" != "0B" ]; then
             log "Chrome cache: $CHROME_SIZE"
             CHROME_BYTES=$(size_to_bytes "$CHROME_SIZE")
@@ -1730,7 +1738,8 @@ if [ "$SKIP_BROWSERS" = false ]; then
     # Firefox
     FIREFOX_CACHE="$USER_HOME/Library/Caches/Firefox"
     if [ -d "$FIREFOX_CACHE" ]; then
-        FIREFOX_SIZE=$(du -sh "$FIREFOX_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
+        FIREFOX_SIZE=$(du -sh "$FIREFOX_CACHE" 2>/dev/null | awk '{print $1}')
+        [ -z "$FIREFOX_SIZE" ] && FIREFOX_SIZE="0B"
         if [ -n "$FIREFOX_SIZE" ] && [ "$FIREFOX_SIZE" != "0B" ]; then
             log "Firefox cache: $FIREFOX_SIZE"
             FIREFOX_BYTES=$(size_to_bytes "$FIREFOX_SIZE")
@@ -1747,7 +1756,8 @@ if [ "$SKIP_BROWSERS" = false ]; then
     # Microsoft Edge
     EDGE_CACHE="$USER_HOME/Library/Caches/com.microsoft.edgemac"
     if [ -d "$EDGE_CACHE" ]; then
-        EDGE_SIZE=$(du -sh "$EDGE_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
+        EDGE_SIZE=$(du -sh "$EDGE_CACHE" 2>/dev/null | awk '{print $1}')
+        [ -z "$EDGE_SIZE" ] && EDGE_SIZE="0B"
         if [ -n "$EDGE_SIZE" ] && [ "$EDGE_SIZE" != "0B" ]; then
             log "Edge cache: $EDGE_SIZE"
             EDGE_BYTES=$(size_to_bytes "$EDGE_SIZE")
@@ -1788,7 +1798,8 @@ if [ "$SKIP_XCODE" = false ]; then
 
     XCODE_DD="$USER_HOME/Library/Developer/Xcode/DerivedData"
     if [ -d "$XCODE_DD" ]; then
-        XCODE_SIZE=$(du -sh "$XCODE_DD" 2>/dev/null | awk '{print $1}' || echo "0B")
+        XCODE_SIZE=$(du -sh "$XCODE_DD" 2>/dev/null | awk '{print $1}')
+        [ -z "$XCODE_SIZE" ] && XCODE_SIZE="0B"
 
         if [ -n "$XCODE_SIZE" ] && [ "$XCODE_SIZE" != "0B" ]; then
             log "XCode derived data: $XCODE_SIZE"
@@ -1872,7 +1883,8 @@ if [ "$SKIP_NPM" = false ]; then
     # Yarn cache
     YARN_CACHE="$USER_HOME/.yarn/cache"
     if [ -d "$YARN_CACHE" ]; then
-        YARN_SIZE=$(du -sh "$YARN_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
+        YARN_SIZE=$(du -sh "$YARN_CACHE" 2>/dev/null | awk '{print $1}')
+        [ -z "$YARN_SIZE" ] && YARN_SIZE="0B"
         if [ -n "$YARN_SIZE" ] && [ "$YARN_SIZE" != "0B" ]; then
             log "Yarn cache: $YARN_SIZE"
             YARN_BYTES=$(size_to_bytes "$YARN_SIZE")
@@ -1913,7 +1925,8 @@ if [ "$SKIP_PIP" = false ]; then
 
     PIP_CACHE="$USER_HOME/Library/Caches/pip"
     if [ -d "$PIP_CACHE" ]; then
-        PIP_SIZE=$(du -sh "$PIP_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
+        PIP_SIZE=$(du -sh "$PIP_CACHE" 2>/dev/null | awk '{print $1}')
+        [ -z "$PIP_SIZE" ] && PIP_SIZE="0B"
 
         if [ -n "$PIP_SIZE" ] && [ "$PIP_SIZE" != "0B" ]; then
             log "pip cache: $PIP_SIZE"
@@ -1952,7 +1965,8 @@ if [ "$SKIP_TRASH" = false ]; then
 
     TRASH_DIR="$USER_HOME/.Trash"
     if [ -d "$TRASH_DIR" ]; then
-        TRASH_SIZE=$(du -sh "$TRASH_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+        TRASH_SIZE=$(du -sh "$TRASH_DIR" 2>/dev/null | awk '{print $1}')
+        [ -z "$TRASH_SIZE" ] && TRASH_SIZE="0B"
 
         if [ -n "$TRASH_SIZE" ] && [ "$TRASH_SIZE" != "0B" ]; then
             log "Trash size: $TRASH_SIZE"
@@ -2070,7 +2084,8 @@ if [ "$SKIP_SIMULATOR" = false ]; then
 
     SIMULATOR_DIR="$USER_HOME/Library/Developer/CoreSimulator"
     if [ -d "$SIMULATOR_DIR" ]; then
-        SIM_SIZE=$(du -sh "$SIMULATOR_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+        SIM_SIZE=$(du -sh "$SIMULATOR_DIR" 2>/dev/null | awk '{print $1}')
+        [ -z "$SIM_SIZE" ] && SIM_SIZE="0B"
 
         if [ -n "$SIM_SIZE" ] && [ "$SIM_SIZE" != "0B" ]; then
             log "iOS Simulator data: $SIM_SIZE (total)"
@@ -2113,7 +2128,8 @@ if [ "$SKIP_MAIL" = false ]; then
 
     MAIL_CACHE="$USER_HOME/Library/Caches/com.apple.mail"
     if [ -d "$MAIL_CACHE" ]; then
-        MAIL_SIZE=$(du -sh "$MAIL_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
+        MAIL_SIZE=$(du -sh "$MAIL_CACHE" 2>/dev/null | awk '{print $1}')
+        [ -z "$MAIL_SIZE" ] && MAIL_SIZE="0B"
 
         if [ -n "$MAIL_SIZE" ] && [ "$MAIL_SIZE" != "0B" ]; then
             log "Mail app cache: $MAIL_SIZE"
@@ -2152,7 +2168,8 @@ if [ "$SKIP_SIRI_TTS" = false ]; then
 
     SIRI_CACHE="$USER_HOME/Library/Caches/SiriTTS"
     if [ -d "$SIRI_CACHE" ]; then
-        SIRI_SIZE=$(du -sh "$SIRI_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
+        SIRI_SIZE=$(du -sh "$SIRI_CACHE" 2>/dev/null | awk '{print $1}')
+        [ -z "$SIRI_SIZE" ] && SIRI_SIZE="0B"
 
         if [ -n "$SIRI_SIZE" ] && [ "$SIRI_SIZE" != "0B" ]; then
             log "Siri TTS cache: $SIRI_SIZE"
@@ -2191,7 +2208,8 @@ if [ "$SKIP_ICLOUD_MAIL" = false ]; then
 
     ICLOUD_MAIL_CACHE="$USER_HOME/Library/Caches/icloudmailagent"
     if [ -d "$ICLOUD_MAIL_CACHE" ]; then
-        ICLOUD_MAIL_SIZE=$(du -sh "$ICLOUD_MAIL_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
+        ICLOUD_MAIL_SIZE=$(du -sh "$ICLOUD_MAIL_CACHE" 2>/dev/null | awk '{print $1}')
+        [ -z "$ICLOUD_MAIL_SIZE" ] && ICLOUD_MAIL_SIZE="0B"
 
         if [ -n "$ICLOUD_MAIL_SIZE" ] && [ "$ICLOUD_MAIL_SIZE" != "0B" ]; then
             log "iCloud Mail cache: $ICLOUD_MAIL_SIZE"
@@ -2485,7 +2503,8 @@ if [ "$SKIP_QUICKLOOK" = false ]; then
 
     QUICKLOOK_CACHE="$USER_HOME/Library/Caches/com.apple.QuickLook.thumbnailcache"
     if [ -d "$QUICKLOOK_CACHE" ]; then
-        QUICKLOOK_SIZE=$(du -sh "$QUICKLOOK_CACHE" 2>/dev/null | awk '{print $1}' || echo "0B")
+        QUICKLOOK_SIZE=$(du -sh "$QUICKLOOK_CACHE" 2>/dev/null | awk '{print $1}')
+        [ -z "$QUICKLOOK_SIZE" ] && QUICKLOOK_SIZE="0B"
 
         if [ -n "$QUICKLOOK_SIZE" ] && [ "$QUICKLOOK_SIZE" != "0B" ]; then
             log "QuickLook thumbnails: $QUICKLOOK_SIZE"
@@ -2534,7 +2553,8 @@ if [ "$SKIP_DIAGNOSTICS" = false ]; then
         USER_COUNT=${USER_COUNT:-0}
         DIAG_COUNT=$((DIAG_COUNT + USER_COUNT))
         if [ "$USER_COUNT" -gt 0 ]; then
-            USER_SIZE=$(find "$DIAG_USER" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+            USER_SIZE=$(find "$DIAG_USER" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
+            [ -z "$USER_SIZE" ] && USER_SIZE="0B"
             if [ -n "$USER_SIZE" ] && [ "$USER_SIZE" != "0B" ]; then
                 DIAG_SIZE_BYTES=$((DIAG_SIZE_BYTES + $(size_to_bytes "$USER_SIZE")))
             fi
@@ -2547,7 +2567,8 @@ if [ "$SKIP_DIAGNOSTICS" = false ]; then
         SYS_COUNT=${SYS_COUNT:-0}
         DIAG_COUNT=$((DIAG_COUNT + SYS_COUNT))
         if [ "$SYS_COUNT" -gt 0 ]; then
-            SYS_SIZE=$(find "$DIAG_SYSTEM" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+            SYS_SIZE=$(find "$DIAG_SYSTEM" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
+            [ -z "$SYS_SIZE" ] && SYS_SIZE="0B"
             if [ -n "$SYS_SIZE" ] && [ "$SYS_SIZE" != "0B" ]; then
                 DIAG_SIZE_BYTES=$((DIAG_SIZE_BYTES + $(size_to_bytes "$SYS_SIZE")))
             fi
@@ -2592,7 +2613,8 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
         IOS_BACKUP_COUNT=${IOS_BACKUP_COUNT:-0}
 
         if [ "$IOS_BACKUP_COUNT" -gt 0 ]; then
-            IOS_BACKUP_SIZE=$(du -sh "$IOS_BACKUP_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+            IOS_BACKUP_SIZE=$(du -sh "$IOS_BACKUP_DIR" 2>/dev/null | awk '{print $1}')
+            [ -z "$IOS_BACKUP_SIZE" ] && IOS_BACKUP_SIZE="0B"
             IOS_BACKUP_BYTES=$(size_to_bytes "$IOS_BACKUP_SIZE")
 
             log "Found $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
@@ -2807,7 +2829,8 @@ if [ "$SKIP_GRADLE" = false ]; then
     GRADLE_CACHE_DIR="$USER_HOME/.gradle/caches"
 
     if [ -d "$GRADLE_CACHE_DIR" ]; then
-        GRADLE_SIZE=$(du -sh "$GRADLE_CACHE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+        GRADLE_SIZE=$(du -sh "$GRADLE_CACHE_DIR" 2>/dev/null | awk '{print $1}')
+        [ -z "$GRADLE_SIZE" ] && GRADLE_SIZE="0B"
         GRADLE_BYTES=$(size_to_bytes "$GRADLE_SIZE")
 
         if [ "$GRADLE_BYTES" -gt 0 ]; then
@@ -2859,7 +2882,8 @@ if [ "$SKIP_GO" = false ]; then
 
     for CACHE_DIR in "$GO_CACHE_DIR" "$GO_CACHE_DIR_ALT"; do
         if [ -d "$CACHE_DIR" ]; then
-            GO_SIZE=$(du -sh "$CACHE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+            GO_SIZE=$(du -sh "$CACHE_DIR" 2>/dev/null | awk '{print $1}')
+            [ -z "$GO_SIZE" ] && GO_SIZE="0B"
             GO_BYTES=$(size_to_bytes "$GO_SIZE")
 
             if [ "$GO_BYTES" -gt 0 ]; then
@@ -2917,7 +2941,8 @@ if [ "$SKIP_BUN" = false ]; then
     BUN_CACHE_DIR="$USER_HOME/.bun/install/cache"
 
     if [ -d "$BUN_CACHE_DIR" ]; then
-        BUN_SIZE=$(du -sh "$BUN_CACHE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+        BUN_SIZE=$(du -sh "$BUN_CACHE_DIR" 2>/dev/null | awk '{print $1}')
+        [ -z "$BUN_SIZE" ] && BUN_SIZE="0B"
         BUN_BYTES=$(size_to_bytes "$BUN_SIZE")
 
         if [ "$BUN_BYTES" -gt 0 ]; then
@@ -2971,7 +2996,8 @@ if [ "$SKIP_PNPM" = false ]; then
     fi
 
     if [ -d "$PNPM_STORE_DIR" ]; then
-        PNPM_SIZE=$(du -sh "$PNPM_STORE_DIR" 2>/dev/null | awk '{print $1}' || echo "0B")
+        PNPM_SIZE=$(du -sh "$PNPM_STORE_DIR" 2>/dev/null | awk '{print $1}')
+        [ -z "$PNPM_SIZE" ] && PNPM_SIZE="0B"
         PNPM_BYTES=$(size_to_bytes "$PNPM_SIZE")
 
         if [ "$PNPM_BYTES" -gt 0 ]; then
@@ -2989,7 +3015,8 @@ if [ "$SKIP_PNPM" = false ]; then
                 # Also check for the global store
                 PNPM_GLOBAL_STORE="$USER_HOME/.pnpm-store"
                 if [ -d "$PNPM_GLOBAL_STORE" ] && [ ! -L "$PNPM_GLOBAL_STORE" ]; then
-                    PNPM_GLOBAL_SIZE=$(du -sh "$PNPM_GLOBAL_STORE" 2>/dev/null | awk '{print $1}' || echo "0B")
+                    PNPM_GLOBAL_SIZE=$(du -sh "$PNPM_GLOBAL_STORE" 2>/dev/null | awk '{print $1}')
+                    [ -z "$PNPM_GLOBAL_SIZE" ] && PNPM_GLOBAL_SIZE="0B"
                     PNPM_GLOBAL_BYTES=$(size_to_bytes "$PNPM_GLOBAL_SIZE")
                     PNPM_BYTES=$((PNPM_BYTES + PNPM_GLOBAL_BYTES))
                     PNPM_SIZE="$PNPM_SIZE (global: $PNPM_GLOBAL_SIZE)"
@@ -3025,7 +3052,8 @@ if [ "$SKIP_DSSTORE" = false ]; then
     DSSTORE_COUNT=${DSSTORE_COUNT:-0}
 
     if [ "$DSSTORE_COUNT" -gt 0 ]; then
-        DSSTORE_SIZE=$(find "$USER_HOME" -name ".DS_Store" -type f -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}' || echo "0B")
+        DSSTORE_SIZE=$(find "$USER_HOME" -name ".DS_Store" -type f -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
+        [ -z "$DSSTORE_SIZE" ] && DSSTORE_SIZE="0B"
         DSSTORE_BYTES=$(size_to_bytes "$DSSTORE_SIZE")
         log "Found $DSSTORE_COUNT .DS_Store file(s): $DSSTORE_SIZE"
 

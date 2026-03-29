@@ -2,6 +2,13 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [5.1.5] - 2026-03-29
+
+### Bug Fixes
+
+- **size_to_bytes() function broken on macOS** - Fixed GNU awk `/i` flag regex incompatibility. BSD awk (macOS) does not support case-insensitive regex flag. Changed to use `tolower()` function for POSIX compatibility. Affected 27+ categories: Homebrew, Spotify, Siri, Bun, Trash, npm, pip, Xcode, Gradle, Go, pnpm, and more.
+- **du -sh || echo fallback pattern broken** - Fixed `du` command pipeline logic where the `|| echo "0B"` fallback never triggered because `du` returns exit 0 even on permission errors (outputs to stderr only). Changed to explicit empty check: `SIZE=$(du -sh ... | awk '{print $1}'); [ -z "$SIZE" ] && SIZE="0B"`. Affected 22 categories.
+
 ## [5.1.4] - 2026-03-29
 
 ### Bug Fixes
