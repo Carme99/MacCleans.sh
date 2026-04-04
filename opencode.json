@@ -1,0 +1,38 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "./AGENTS.md",
+    "./README.md",
+    "./CONTRIBUTING.md"
+  ],
+  "agent": {
+    "shell": {
+      "description": "Shell/Bash specialist for MacCleans.sh",
+      "mode": "primary",
+      "temperature": 0.1,
+      "permission": {
+        "edit": "allow",
+        "bash": {
+          "*": "ask",
+          "shellcheck*": "allow",
+          "shfmt*": "allow",
+          "bash -n*": "allow"
+        }
+      }
+    }
+  },
+  "command": {
+    "lint": {
+      "template": "Run ShellCheck on all shell scripts",
+      "description": "Lint with ShellCheck"
+    },
+    "format": {
+      "template": "Format shell scripts with shfmt",
+      "description": "Format with shfmt"
+    },
+    "test": {
+      "template": "Run shell tests safely with --dry-run",
+      "description": "Test scripts"
+    }
+  }
+}
