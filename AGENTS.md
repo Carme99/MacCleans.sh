@@ -133,3 +133,8 @@ MacCleans.sh/
 - Use `2>/dev/null || true` for expected errors
 - Check ShellCheck before committing
 - Test on macOS 10.15+ (Catalina or later)
+---
+
+## GitHub Issue Format
+
+For the standard issue format, see the [root AGENTS.md](../AGENTS.md#github-issue-format).
