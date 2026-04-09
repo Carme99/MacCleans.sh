@@ -1,44 +1,72 @@
 # MacCleans Documentation
 
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
-[![Tested](https://img.shields.io/badge/Tested%20on-26.4-green.svg)]()
+[![Version](https://img.shields.io/badge/Version-5.1.6-blue.svg)](../CHANGELOG.md)
 
-In-depth guides for understanding macOS maintenance and getting the most out of MacCleans.sh.
+In-depth guides for understanding macOS maintenance and getting the most out of MacCleans.
+
+---
 
 ## Quick Navigation
 
-| Guide | Description | Best For |
-|-------|-------------|----------|
-| [Understanding macOS Caches](guides/understanding-macos-caches.md) | What are caches and why clean them | New users |
-| [XCode Derived Data](guides/xcode-derived-data-guide.md) | Managing XCode caches | iOS/Mac developers |
-| [Docker Cache](guides/docker-cache-guide.md) | Docker cleanup best practices | Container users |
-| [Automation](guides/automating-macos-maintenance.md) | Cron, launchd, and scripts | Power users |
+**New to MacCleans?** Start with [Getting Started](getting-started.md).
 
-## Reference Docs
+**Want to install?** See [Installation](installation.md).
+
+**Cleaning not working?** Check [Troubleshooting](troubleshooting.md).
+
+---
+
+## Documentation
+
+### Getting Started
 
 | Document | Description |
-|----------|-------------|
-| [FAQ](faq.md) | Frequently asked questions |
-| [Troubleshooting](troubleshooting.md) | Common issues and solutions |
-| [Security](security.md) | Security policy |
+|---------|-------------|
+| [Getting Started](getting-started.md) | First time? Start here |
+| [Installation](installation.md) | Install methods and verification |
+| [All Categories](all-categories.md) | Complete list of what gets cleaned |
+| [Profiles](profiles.md) | Presets: conservative, developer, aggressive, minimal |
+
+### Reference
+
+| Document | Description |
+|---------|-------------|
+| [Command Reference](command-reference.md) | All flags, options, and JSON output |
+| [Configuration](configuration.md) | Config files and environment variables |
+| [Error Codes](error-codes.md) | Exit codes and troubleshooting |
+| [Automation](automation.md) | Cron, LaunchD, and CI/CD |
+
+### Understanding
+
+| Document | Description |
+|---------|-------------|
+| [Storage Explained](storage-explained.md) | How macOS storage works |
+| [Developer Guide](developer-guide.md) | Adding new cleanup categories |
+
+### Help
+
+| Document | Description |
+|---------|-------------|
+| [FAQ](faq.md) | Common questions |
+| [Troubleshooting](troubleshooting.md) | Problems and solutions |
+| [Security](security.md) | Auditing and safety |
 | [Comparison](comparison.md) | How we compare to other tools |
 
-## By User Type
+---
 
-### New Users
-1. Start with the [main README](../README.md)
-2. Read [Understanding macOS Caches](guides/understanding-macos-caches.md)
-3. Run your first cleanup with `--dry-run`
+## Guides
 
-### Developers
-1. Review [XCode Derived Data Guide](guides/xcode-derived-data-guide.md)
-2. Check [Docker Cache Guide](guides/docker-cache-guide.md)
-3. Set up automation with [Automation Guide](guides/automating-macos-maintenance.md)
+Deep-dive guides for specific topics.
 
-### Power Users
-1. Explore [Advanced Usage](advanced.md)
-2. Set up [cron or launchd](guides/automating-macos-maintenance.md)
-3. Review [Configuration](install.md)
+| Guide | Description |
+|-------|-------------|
+| [Understanding Caches](guides/understanding-caches.md) | What are caches and why clean them |
+| [Xcode Derived Data](guides/xcode-derived-data.md) | Managing Xcode caches |
+| [Docker Cache](guides/docker-cache.md) | Docker cleanup best practices |
+| [Automating Maintenance](guides/automating-macos-maintenance.md) | Cron, launchd, and scripts |
+
+---
 
 ## Contributing
 
@@ -46,4 +74,8 @@ Found a typo or want to add a guide? See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ---
 
-**Back to**: [Main README](../README.md) | [Installation](../INSTALL.md)
+<p align="center">
+
+**[Back to Main README](../README.md)** · **[GitHub](https://github.com/Carme99/MacCleans.sh)** · **[Issues](https://github.com/Carme99/MacCleans.sh/issues)**
+
+</p>

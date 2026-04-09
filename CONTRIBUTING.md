@@ -96,15 +96,6 @@ git checkout -b feature/your-feature-name
 # Or for bug fixes
 git checkout -b fix/issue-description
 
-### Create a Branch
-
-```bash
-# Create a feature branch
-git checkout -b feature/your-feature-name
-
-# Or for bug fixes
-git checkout -b fix/issue-description
-
 # Or for documentation
 git checkout -b docs/documentation-update
 ```
@@ -615,7 +606,7 @@ We follow [Semantic Versioning](https://semver.org/):
 - Open an issue for questions
 - Check existing issues and discussions
 - Read the [FAQ](docs/faq.md)
-- Review [Advanced Usage Guide](docs/advanced.md)
+- Review the [Command Reference](docs/command-reference.md)
 
 ## License
 

@@ -711,8 +711,8 @@ df -h
 
 1. **README**: [README.md](../README.md) - Feature overview
 2. **FAQ**: [FAQ](faq.md) - Common questions
-3. **Installation**: [Installation](install.md) - Setup issues
-4. **Advanced**: [Advanced](advanced.md) - Power user features
+3. **Installation**: [Installation](installation.md) - Setup issues
+4. **Command Reference**: [Command Reference](command-reference.md) - Power user features
 5. **Docs**: [docs/](.) - In-depth guides
 
 ### Search Existing Issues
@@ -850,7 +850,7 @@ sudo ./clean-mac-space.sh --dry-run --no-color
 
 **Related Resources**:
 - [FAQ](faq.md) - Frequently asked questions
-- [Advanced Guide](advanced.md) - Power user features
+- [Command Reference](command-reference.md) - Power user features
 - [Contributing](../CONTRIBUTING.md) - Help improve MacCleans
 
 **Community**: We're here to help! Don't hesitate to ask questions.

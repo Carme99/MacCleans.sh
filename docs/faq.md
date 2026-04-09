@@ -226,14 +226,14 @@ Perfect for automated cron jobs - it won't waste time cleaning when you have ple
 
 ### Q: Can I automate this to run regularly?
 
-**A:** Yes! See [install.md](install.md) for cron and launchd examples. Quick example:
+**A:** Yes! See [Automation](automation.md) for cron and launchd examples. Quick example:
 
 ```bash
 # Edit crontab
 crontab -e
 
 # Add line to run daily at 2 AM if disk >75% full
-0 2 * * * /usr/bin/sudo /usr/local/bin/clean-mac-space --quiet --yes --threshold 75
+0 2 * * * sudo Mac-Clean --quiet --yes --threshold 75
 ```
 
 ## Troubleshooting
@@ -568,7 +568,7 @@ MacCleans **automatically cleans known safe-to-delete locations**.
 
 ## Still Have Questions?
 
-- **Check the docs**: [README](../README.md) | [Install](install.md) | [Advanced](advanced.md)
+- **Check the docs**: [README](../README.md) | [Installation](installation.md) | [Command Reference](command-reference.md)
 - **Open an issue**: [GitHub Issues](https://github.com/Carme99/MacCleans.sh/issues)
 - **Contribute**: [CONTRIBUTING](../CONTRIBUTING.md)
 - **Report bugs**: Include macOS version, script version, and full error output
