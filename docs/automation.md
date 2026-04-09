@@ -13,11 +13,11 @@ Run MacCleans automatically using cron or launchd.
 
 ### Methods
 
-| Method | Best For | Requires User | persists Across Reboots |
-|--------|----------|---------------|------------------------|
+| Method | Best For | Requires User | Persists Across Reboots |
+|--------|----------|---------------|-------------------------|
 | cron | Simple scheduling | No | Yes |
 | launchd | Advanced triggers | No | Yes |
-| polka | Threshold-based | No | Yes |
+| polka | Threshold-based (third-party) | No | Yes |
 
 ## Cron
 

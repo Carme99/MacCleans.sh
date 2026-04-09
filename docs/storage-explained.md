@@ -148,6 +148,6 @@ Total potential: **30-150 GB** for a typical developer Mac.
 
 <p align="center">
 
-[Back to Documentation](index.md) · [All Categories](all-categories.md) · [Troubleshooting](../troubleshooting.md)
+[Back to Documentation](index.md) · [All Categories](all-categories.md) · [Troubleshooting](troubleshooting.md)
 
 </p>

@@ -112,6 +112,6 @@ sudo Mac-Clean
 
 <p align="center">
 
-[Back to Documentation](index.md) · [Troubleshooting](../troubleshooting.md) · [Command Reference](command-reference.md)
+[Back to Documentation](index.md) · [Troubleshooting](troubleshooting.md) · [Command Reference](command-reference.md)
 
 </p>

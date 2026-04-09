@@ -69,7 +69,7 @@ SKIP_PNPM=false
 | `DRY_RUN` | true/false | false | Preview only, no deletion |
 | `FORCE` | true/false | false | Skip ALL confirmations including dangerous operations |
 | `QUIET` | true/false | false | Minimal output for cron/automation |
-| `NO_COLOR` | true/false | false | Disable coloured output |
+| `NO_COLOR` | true/false | false | Disable colored output |
 | `VERBOSE` | true/false | false | Enable debug output |
 | `JSON_OUTPUT` | true/false | false | Output results as JSON |
 | `THRESHOLD` | 0-100 | 0 | Only run if disk usage is above this percentage |

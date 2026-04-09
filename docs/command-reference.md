@@ -139,12 +139,12 @@ sudo Mac-Clean --dry-run --verbose
 
 ---
 
-### --no-colour
+### --no-color
 
-Disable coloured output.
+Disable colored output.
 
 ```bash
-sudo Mac-Clean --dry-run --no-colour
+sudo Mac-Clean --dry-run --no-color
 ```
 
 Useful when saving output to a file or piping.
