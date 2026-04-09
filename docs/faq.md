@@ -568,7 +568,7 @@ MacCleans **automatically cleans known safe-to-delete locations**.
 
 ## Still Have Questions?
 
-- **Check the docs**: [README](../README.md) | [Install](install.md) | [Advanced](advanced.md)
+- **Check the docs**: [README](../README.md) | [Installation](installation.md) | [Command Reference](command-reference.md)
 - **Open an issue**: [GitHub Issues](https://github.com/Carme99/MacCleans.sh/issues)
 - **Contribute**: [CONTRIBUTING](../CONTRIBUTING.md)
 - **Report bugs**: Include macOS version, script version, and full error output

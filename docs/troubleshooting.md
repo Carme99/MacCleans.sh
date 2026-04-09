@@ -711,8 +711,8 @@ df -h
 
 1. **README**: [README.md](../README.md) - Feature overview
 2. **FAQ**: [FAQ](faq.md) - Common questions
-3. **Installation**: [Installation](install.md) - Setup issues
-4. **Advanced**: [Advanced](advanced.md) - Power user features
+3. **Installation**: [Installation](installation.md) - Setup issues
+4. **Command Reference**: [Command Reference](command-reference.md) - Power user features
 5. **Docs**: [docs/](.) - In-depth guides
 
 ### Search Existing Issues
