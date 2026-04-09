@@ -850,7 +850,7 @@ sudo ./clean-mac-space.sh --dry-run --no-color
 
 **Related Resources**:
 - [FAQ](faq.md) - Frequently asked questions
-- [Advanced Guide](advanced.md) - Power user features
+- [Command Reference](command-reference.md) - Power user features
 - [Contributing](../CONTRIBUTING.md) - Help improve MacCleans
 
 **Community**: We're here to help! Don't hesitate to ask questions.

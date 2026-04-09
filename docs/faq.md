@@ -226,14 +226,14 @@ Perfect for automated cron jobs - it won't waste time cleaning when you have ple
 
 ### Q: Can I automate this to run regularly?
 
-**A:** Yes! See [install.md](install.md) for cron and launchd examples. Quick example:
+**A:** Yes! See [Automation](automation.md) for cron and launchd examples. Quick example:
 
 ```bash
 # Edit crontab
 crontab -e
 
 # Add line to run daily at 2 AM if disk >75% full
-0 2 * * * /usr/bin/sudo /usr/local/bin/clean-mac-space --quiet --yes --threshold 75
+0 2 * * * sudo Mac-Clean --quiet --yes --threshold 75
 ```
 
 ## Troubleshooting
