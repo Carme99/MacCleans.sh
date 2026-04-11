@@ -514,7 +514,8 @@ handle_interrupt() {
 trap handle_interrupt INT TERM
 
 # Lock directory for preventing parallel runs
-LOCKDIR="/tmp/mac-clean.lock"
+# Use user-protected directory instead of world-writable /tmp
+LOCKDIR="$HOME/.macclean/lock"
 LOCK_OWNED=0
 MIN_FREE_MB=200
 
@@ -2624,14 +2625,14 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
                     
                     if [ "$DRY_RUN" = true ]; then
                         log "Would delete $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
-                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUPS_BYTES))
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
                     else
                         log "Deleting iOS device backups..."
                         if [ -d "$IOS_BACKUP_DIR" ] && [ ! -L "$IOS_BACKUP_DIR" ]; then
                             safe_clear_directory "$IOS_BACKUP_DIR"
                         fi
                         log_success "iOS device backups deleted"
-                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUPS_BYTES))
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
                     fi
                 else
                     log "${RED}WARNING: Running with --force but iCloud backup NOT detected!${NC}"
@@ -2643,39 +2644,6 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
                 log "${RED}Skipping: Use --force to enable iOS backup deletion${NC}"
                 if [ "$ICLOUD_BACKUP_ENABLED" = false ]; then
                     log "${RED}iCloud backup not detected - backup deletion requires iCloud backup for safety${NC}"
-                fi
-                SKIPPED_CATEGORIES+=("iOS Device Backups (requires --force)")
-            fi
-                        log_success "iOS device backups deleted"
-                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
-                    fi
-                else
-                    log "${RED}WARNING: Running with --force but iCloud backup NOT detected!${NC}"
-                    log "${RED}Set FORCE_IOS_BACKUPS=true environment variable to proceed anyway.${NC}"
-                    if [ "${FORCE_IOS_BACKUPS:-false}" = "true" ]; then
-                        PROCESSED_CATEGORIES+=("iOS Device Backups")
-                        
-                        if [ "$DRY_RUN" = true ]; then
-                            log "Would delete $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
-                            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
-                        else
-                            log "Deleting iOS device backups..."
-                            if [ -d "$IOS_BACKUP_DIR" ] && [ ! -L "$IOS_BACKUP_DIR" ]; then
-                                safe_clear_directory "$IOS_BACKUP_DIR"
-                            fi
-                            log_success "iOS device backups deleted"
-                            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
-                        fi
-                    else
-                        log "${RED}Skipping: iOS backup deletion blocked without iCloud backup.${NC}"
-                        SKIPPED_CATEGORIES+=("iOS Device Backups (no iCloud backup detected)")
-                    fi
-                fi
-            else
-                # Not --force: require manual confirmation
-                log "${RED}Skipping: Use --force to enable iOS backup deletion${NC}"
-                if [ "$ICLOUD_BACKUP_ENABLED" = false ]; then
-                    log "${RED}iCloud backup not detected - set FORCE_IOS_BACKUPS=true to override${NC}"
                 fi
                 SKIPPED_CATEGORIES+=("iOS Device Backups (requires --force)")
             fi
