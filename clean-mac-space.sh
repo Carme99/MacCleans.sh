@@ -505,46 +505,26 @@ LOCK_OWNED=0
 MIN_FREE_MB=200
 
 # Acquire exclusive lock atomically using mkdir
-# Returns 0 on success, exits with error on failure
+# Uses atomic mkdir for lock acquisition to avoid TOCTOU race conditions
 acquire_lock() {
-    # Always acquire lock to prevent parallel runs (even in dry-run mode)
-    # This prevents race conditions where two instances could interfere
-    
-    # Try to create lock directory atomically
-    if mkdir "$LOCKDIR" 2>/dev/null; then
-        # Write PID to lock file
-        echo $$ > "$LOCKDIR/pid"
-        LOCK_OWNED=1
-        return 0
-    fi
-    
-    # Lock directory exists - check if stale
-    local lock_pid
-    lock_pid=$(cat "$LOCKDIR/pid" 2>/dev/null || echo "")
-    
-    if [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null; then
-        if [ "$DRY_RUN" = true ]; then
-            log_warning "Another instance is running in dry-run mode (PID: $lock_pid)"
-            log_warning "Proceeding anyway in dry-run mode - no actual changes will be made"
-            return 0
-        else
-            log_error "Another instance is already running (PID: $lock_pid)"
-            log_always "If you're sure no other instance is running, remove $LOCKDIR"
-            exit 1
-        fi
-    fi
-    
-    # Stale lock - remove and retry
-    log_warning "Removing stale lock file (PID: $lock_pid is not running)"
-    rm -rf "$LOCKDIR"
-    
+    # mkdir is atomic on all Unix systems - if it fails, lock is held
     if mkdir "$LOCKDIR" 2>/dev/null; then
         echo $$ > "$LOCKDIR/pid"
         LOCK_OWNED=1
         return 0
     fi
     
-    log_error "Failed to acquire lock after removing stale lock"
+    # Lock exists - check if running in dry-run mode
+    if [ "$DRY_RUN" = true ]; then
+        local lock_pid
+        lock_pid=$(cat "$LOCKDIR/pid" 2>/dev/null || echo "")
+        log_warning "Another instance may be running (PID: $lock_pid)"
+        log_warning "Proceeding anyway in dry-run mode - no actual changes will be made"
+        return 0
+    fi
+    
+    log_error "Another instance is already running"
+    log_always "If you're sure no other instance is running, remove $LOCKDIR"
     exit 1
 }
 
