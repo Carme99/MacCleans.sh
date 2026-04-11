@@ -231,6 +231,7 @@ load_config_file() {
                     SKIP_PNPM) SKIP_PNPM="$value" ;;
                     UPDATE) UPDATE="$value" ;;
                     VERBOSE) VERBOSE="$value" ;;
+                    *) echo "WARNING: Unknown config key '$key' - ignoring" >&2 ;;
                 esac
             done < "$config_file"
             break
