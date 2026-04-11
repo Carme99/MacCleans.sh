@@ -24,7 +24,6 @@ jobs:
           exclude:
             - SC1090 # Don't warn about non-constant sourceable files
             - SC1091 # Not following sourced files
-          shell: bash
 
       - name: Verify script syntax
         run: |

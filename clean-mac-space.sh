@@ -408,6 +408,10 @@ parse_arguments() {
                 SKIP_SYSTEM_TMP=true
                 shift
                 ;;
+            --clean-system-tmp)
+                SKIP_SYSTEM_TMP=false
+                shift
+                ;;
             --update|-u)
                 UPDATE=true
                 shift
@@ -522,6 +526,9 @@ MIN_FREE_MB=200
 # Acquire exclusive lock atomically using mkdir
 # Uses atomic mkdir for lock acquisition to avoid TOCTOU race conditions
 acquire_lock() {
+    # Create parent directory if it doesn't exist
+    mkdir -p "$(dirname "$LOCKDIR")" 2>/dev/null || true
+    
     # mkdir is atomic on all Unix systems - if it fails, lock is held
     if mkdir "$LOCKDIR" 2>/dev/null; then
         echo $$ > "$LOCKDIR/pid"
