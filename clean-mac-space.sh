@@ -413,8 +413,10 @@ parse_arguments() {
                     exit 1
                 fi
                 PHOTOS_LIBRARY_NAME="$2"
-                # Validate: reject path traversal attempts
-                if [[ "$PHOTOS_LIBRARY_NAME" == *"/"* ]] || [[ "$PHOTOS_LIBRARY_NAME" == *".."* ]]; then
+                # Validate: reject path traversal attempts and dangerous characters
+                if [[ "$PHOTOS_LIBRARY_NAME" =~ [/~\\] ]] || \
+                   [[ "$PHOTOS_LIBRARY_NAME" == *".."* ]] || \
+                   [[ "$PHOTOS_LIBRARY_NAME" =~ [^[:print:]] ]]; then
                     echo "ERROR: --photos-library must be a plain library name, not a path" >&2
                     exit 1
                 fi
