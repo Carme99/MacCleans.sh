@@ -941,6 +941,18 @@ else
     USER_HOME="$HOME"
 fi
 
+# Resolve symlinks in USER_HOME to prevent operating on wrong directory
+if [ -L "$USER_HOME" ]; then
+    REAL_USER_HOME=$(readlink "$USER_HOME")
+    if [ -d "$REAL_USER_HOME" ]; then
+        log_warning "User home directory is a symlink: $USER_HOME -> $REAL_USER_HOME"
+        USER_HOME="$REAL_USER_HOME"
+    else
+        log_error "User home directory symlink is broken: $USER_HOME -> $REAL_USER_HOME"
+        exit 1
+    fi
+fi
+
 # Validate user
 if [ -z "$ACTUAL_USER" ] || [ "$ACTUAL_USER" = "root" ]; then
     log_error "Cannot determine actual user (running as root without SUDO_USER)"
