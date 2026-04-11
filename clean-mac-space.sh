@@ -1493,10 +1493,18 @@ if [ "$SKIP_HOMEBREW" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BREW_BYTES))
             else
                 log "Cleaning Homebrew cache..."
-                brew cleanup -s 2>/dev/null || log_warning "Homebrew cleanup encountered issues"
+                if [ "$(id -u)" = "0" ]; then
+                    sudo -u "$ACTUAL_USER" brew cleanup -s 2>/dev/null || log_warning "Homebrew cleanup encountered issues"
+                else
+                    brew cleanup -s 2>/dev/null || log_warning "Homebrew cleanup encountered issues"
+                fi
 
                 log "Removing unused dependencies..."
-                brew autoremove 2>/dev/null || log_warning "Homebrew autoremove encountered issues"
+                if [ "$(id -u)" = "0" ]; then
+                    sudo -u "$ACTUAL_USER" brew autoremove 2>/dev/null || log_warning "Homebrew autoremove encountered issues"
+                else
+                    brew autoremove 2>/dev/null || log_warning "Homebrew autoremove encountered issues"
+                fi
 
                 log_success "Homebrew cleaned"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BREW_BYTES))
