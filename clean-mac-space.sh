@@ -110,6 +110,10 @@ SKIP_GO=false
 SKIP_BUN=false
 SKIP_PNPM=false
 SKIP_SYSTEM_TMP=true
+FORCE_XCODE=false
+FORCE_TRASH=false
+FORCE_ICLOUD_DRIVE=false
+FORCE_IOS_BACKUPS=false
 UPDATE=false
 VERBOSE=false
 
@@ -257,6 +261,10 @@ parse_arguments() {
                 ;;
             --force|-f)
                 FORCE=true
+                FORCE_XCODE=true
+                FORCE_TRASH=true
+                FORCE_ICLOUD_DRIVE=true
+                FORCE_IOS_BACKUPS=true
                 AUTO_YES=true
                 shift
                 ;;
@@ -1792,15 +1800,15 @@ if [ "$SKIP_XCODE" = false ]; then
             XCODE_BYTES=$(size_to_bytes "$XCODE_SIZE")
 
             # XCode cleanup has special consideration: long rebuild times
-            # Issue #22: --force skips warning entirely, --yes NO LONGER bypasses (requires --force)
+            # Issue #22: --force-xcode skips warning entirely, --yes NO LONGER bypasses (requires --force-xcode)
             # No flags: interactive prompt
             
             if [ "$DRY_RUN" = true ]; then
                 log "Would clear XCode derived data: $XCODE_SIZE"
                 log_warning "NOTE: XCode cleanup requires 5-30 min rebuild for active projects"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
-            elif [ "$FORCE" = true ]; then
-                # --force: skip all warnings (automation mode)
+            elif [ "$FORCE_XCODE" = true ]; then
+                # --force or --force-xcode: skip all warnings (automation mode)
                 log "Cleaning XCode derived data..."
                 if [ -d "$XCODE_DD" ] && [ ! -L "$XCODE_DD" ]; then
                     safe_clear_directory "$XCODE_DD"
@@ -1808,7 +1816,7 @@ if [ "$SKIP_XCODE" = false ]; then
                 log_success "XCode derived data cleared"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
             else
-                # --yes now also prompts (only --force skips confirmation)
+                # --yes now also prompts (only --force-xcode skips confirmation)
                 log_warning "WARNING: This will delete XCode build cache."
                 log "   Active projects will need to rebuild (5-30 min first build)."
                 log ""
@@ -1964,7 +1972,7 @@ if [ "$SKIP_TRASH" = false ]; then
                 log "Items in trash: $TRASH_SIZE of data will be permanently deleted."
                 
                 CONFIRM_TRASH=false
-                if [ "$FORCE" = true ]; then
+                if [ "$FORCE_TRASH" = true ]; then
                     log "Running with --force: skipping confirmation"
                     CONFIRM_TRASH=true
                 elif [ "$AUTO_YES" = true ]; then
@@ -2417,8 +2425,8 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
                 log "${YELLOW}Warning: This bypasses iCloud sync and may cause data loss!${NC}"
                 log "${YELLOW}Files pending upload or in conflict state may be permanently lost.${NC}"
                 
-                # Require --force flag for this dangerous operation
-                if [ "$FORCE" = true ]; then
+                # Require --force-icloud-drive or --force flag for this dangerous operation
+                if [ "$FORCE_ICLOUD_DRIVE" = true ]; then
                     log "${YELLOW}Running with --force: proceeding with deletion${NC}"
                     PROCESSED_CATEGORIES+=("iCloud Drive Offline Files")
                     ICLOUD_DRIVE_BYTES=$((ICLOUD_DRIVE_SIZE_KB * 1024))
@@ -2607,21 +2615,37 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
                 log "${RED}CRITICAL: Deleting local backups without iCloud backup will cause PERMANENT data loss!${NC}"
             fi
             
-            # Require --force for this dangerous operation
+            # Require --force-ios-backups or --force for this dangerous operation
             # If iCloud backup is NOT enabled, require explicit acknowledgment
-            if [ "$FORCE" = true ]; then
+            if [ "$FORCE_IOS_BACKUPS" = true ]; then
                 if [ "$ICLOUD_BACKUP_ENABLED" = true ]; then
                     log "${YELLOW}Running with --force: iCloud backup detected, proceeding${NC}"
                     PROCESSED_CATEGORIES+=("iOS Device Backups")
                     
                     if [ "$DRY_RUN" = true ]; then
                         log "Would delete $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
-                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUPS_BYTES))
                     else
                         log "Deleting iOS device backups..."
                         if [ -d "$IOS_BACKUP_DIR" ] && [ ! -L "$IOS_BACKUP_DIR" ]; then
                             safe_clear_directory "$IOS_BACKUP_DIR"
                         fi
+                        log_success "iOS device backups deleted"
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUPS_BYTES))
+                    fi
+                else
+                    log "${RED}WARNING: Running with --force but iCloud backup NOT detected!${NC}"
+                    log "${RED}Skipping: iOS backup deletion blocked without iCloud backup.${NC}"
+                    SKIPPED_CATEGORIES+=("iOS Device Backups (no iCloud backup detected)")
+                fi
+            else
+                # Not --force-ios-backups: require manual confirmation
+                log "${RED}Skipping: Use --force to enable iOS backup deletion${NC}"
+                if [ "$ICLOUD_BACKUP_ENABLED" = false ]; then
+                    log "${RED}iCloud backup not detected - backup deletion requires iCloud backup for safety${NC}"
+                fi
+                SKIPPED_CATEGORIES+=("iOS Device Backups (requires --force)")
+            fi
                         log_success "iOS device backups deleted"
                         TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
                     fi
