@@ -12,7 +12,7 @@ INSTALL_DIR="/usr/local/bin"
 SCRIPT_NAME="Mac-Clean"
 GITHUB_RAW_URL="https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/clean-mac-space.sh"
 INSTALL_PATH="${INSTALL_DIR}/${SCRIPT_NAME}"
-EXPECTED_HASH=""
+: "${EXPECTED_HASH:=}"
 
 # Colors
 RED='\033[0;31m'
@@ -129,8 +129,8 @@ verify_script() {
     
     if [ -n "$sha256_hash" ]; then
         log_info "SHA256 fingerprint: ${sha256_hash:0:16}..."
-        
-        # Compare with expected hash if available
+
+        # Compare with expected hash if available (opt-in verification)
         if [ -n "$EXPECTED_HASH" ]; then
             if [ "$sha256_hash" = "$EXPECTED_HASH" ]; then
                 log_success "Script hash verified successfully"
@@ -143,10 +143,10 @@ verify_script() {
                 return 1
             fi
         else
-            log_warning "EXPECTED_HASH not set - hash comparison skipped"
-            log_info "To enable hash verification, set EXPECTED_HASH in installer.sh"
+            # Verification is opt-in - no warning when not configured
             log_info "Full hash: $sha256_hash"
             log_info "Visit: https://github.com/Carme99/MacCleans.sh/releases to verify"
+            log_info "Set EXPECTED_HASH in installer.sh to enable verification"
         fi
     else
         log_warning "Could not calculate SHA256 hash (shasum/sha256sum not available)"

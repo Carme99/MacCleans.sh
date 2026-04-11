@@ -234,6 +234,11 @@ load_config_file() {
                     SKIP_GO) SKIP_GO="$value" ;;
                     SKIP_BUN) SKIP_BUN="$value" ;;
                     SKIP_PNPM) SKIP_PNPM="$value" ;;
+                    SKIP_SYSTEM_TMP) SKIP_SYSTEM_TMP="$value" ;;
+                    FORCE_XCODE) FORCE_XCODE="$value" ;;
+                    FORCE_TRASH) FORCE_TRASH="$value" ;;
+                    FORCE_ICLOUD_DRIVE) FORCE_ICLOUD_DRIVE="$value" ;;
+                    FORCE_IOS_BACKUPS) FORCE_IOS_BACKUPS="$value" ;;
                     UPDATE) UPDATE="$value" ;;
                     VERBOSE) VERBOSE="$value" ;;
                     *) echo "WARNING: Unknown config key '$key' - ignoring" >&2 ;;
@@ -525,27 +530,46 @@ MIN_FREE_MB=200
 
 # Acquire exclusive lock atomically using mkdir
 # Uses atomic mkdir for lock acquisition to avoid TOCTOU race conditions
+# Performs stale-lock detection based on PID to avoid permanent lockouts
 acquire_lock() {
-    # Create parent directory if it doesn't exist
+    # Create parent directory for lock if it doesn't exist
     mkdir -p "$(dirname "$LOCKDIR")" 2>/dev/null || true
-    
-    # mkdir is atomic on all Unix systems - if it fails, lock is held
+
+    # Fast path: try to acquire the lock atomically
     if mkdir "$LOCKDIR" 2>/dev/null; then
         echo $$ > "$LOCKDIR/pid"
         LOCK_OWNED=1
         return 0
     fi
-    
-    # Lock exists - check if running in dry-run mode
+
+    # Lock already exists - check for stale lock
+    local existing_pid
+    if [ -f "$LOCKDIR/pid" ]; then
+        existing_pid=$(cat "$LOCKDIR/pid" 2>/dev/null || echo "")
+    fi
+
+    # Check if the lock holder process is still running
+    if [ -n "$existing_pid" ] && [ "$existing_pid" -eq "$existing_pid" ] 2>/dev/null; then
+        if ! kill -0 "$existing_pid" 2>/dev/null; then
+            # Process is dead - remove stale lock and retry
+            log_warning "Removing stale lock held by dead process PID $existing_pid"
+            rm -rf "$LOCKDIR" 2>/dev/null || true
+            if mkdir "$LOCKDIR" 2>/dev/null; then
+                echo $$ > "$LOCKDIR/pid"
+                LOCK_OWNED=1
+                return 0
+            fi
+        fi
+    fi
+
+    # Lock is held by a live process
     if [ "$DRY_RUN" = true ]; then
-        local lock_pid
-        lock_pid=$(cat "$LOCKDIR/pid" 2>/dev/null || echo "")
-        log_warning "Another instance may be running (PID: $lock_pid)"
+        log_warning "Another instance may be running (PID: $existing_pid)"
         log_warning "Proceeding anyway in dry-run mode - no actual changes will be made"
         return 0
     fi
-    
-    log_error "Another instance is already running"
+
+    log_error "Another instance is already running (PID: $existing_pid)"
     log_always "If you're sure no other instance is running, remove $LOCKDIR"
     exit 1
 }
