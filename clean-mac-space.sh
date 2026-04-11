@@ -715,32 +715,6 @@ else
     BOLD='\033[1m' DIM='\033[2m' NC='\033[0m'
 fi
 
-# Spinner for visual feedback
-SPINNER_chars='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
-spinner_pid=""
-start_spinner() {
-    if [ "$QUIET" = true ]; then return; fi
-    local message="${1:-Processing}"
-    printf "${DIM}%s${NC} " "$message"
-    (while true; do
-        for char in $SPINNER_chars; do
-            printf "\b%s" "$char"
-            sleep 0.1
-        done
-    done) &
-    spinner_pid=$!
-}
-
-stop_spinner() {
-    if [ "$QUIET" = true ]; then return; fi
-    if [ -n "$spinner_pid" ]; then
-        kill "$spinner_pid" 2>/dev/null || true
-        wait "$spinner_pid" 2>/dev/null || true
-        spinner_pid=""
-        printf "\b"
-    fi
-}
-
 # Category header - shows which category is being cleaned
 log_category() {
     if [ "$QUIET" = true ]; then return; fi
