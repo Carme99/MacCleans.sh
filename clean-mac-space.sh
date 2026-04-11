@@ -971,13 +971,25 @@ fi
 
 # Resolve symlinks in USER_HOME to prevent operating on wrong directory
 if [ -L "$USER_HOME" ]; then
-    REAL_USER_HOME=$(readlink "$USER_HOME")
-    if [ -d "$REAL_USER_HOME" ]; then
-        log_warning "User home directory is a symlink: $USER_HOME -> $REAL_USER_HOME"
-        USER_HOME="$REAL_USER_HOME"
+    if command -v readlink >/dev/null 2>&1; then
+        link_target=$(readlink "$USER_HOME")
+        if [ -n "$link_target" ]; then
+            if [[ "$link_target" == /* ]]; then
+                REAL_USER_HOME="$link_target"
+            else
+                REAL_USER_HOME="$(cd "$(dirname "$USER_HOME")" && pwd)/$link_target"
+            fi
+            if [ -d "$REAL_USER_HOME" ]; then
+                log_warning "User home directory is a symlink: $USER_HOME -> $REAL_USER_HOME"
+                USER_HOME="$REAL_USER_HOME"
+            else
+                log_warning "User home directory symlink could not be resolved; using original: $USER_HOME"
+            fi
+        else
+            log_warning "Could not read symlink target for $USER_HOME; using original"
+        fi
     else
-        log_error "User home directory symlink is broken: $USER_HOME -> $REAL_USER_HOME"
-        exit 1
+        log_warning "readlink not found; cannot resolve user home symlink. Using: $USER_HOME"
     fi
 fi
 
