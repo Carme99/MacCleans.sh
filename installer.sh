@@ -12,6 +12,7 @@ INSTALL_DIR="/usr/local/bin"
 SCRIPT_NAME="Mac-Clean"
 GITHUB_RAW_URL="https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/clean-mac-space.sh"
 INSTALL_PATH="${INSTALL_DIR}/${SCRIPT_NAME}"
+EXPECTED_HASH=""
 
 # Colors
 RED='\033[0;31m'
@@ -122,17 +123,31 @@ verify_script() {
         return 1
     fi
     
-    # Calculate and display fingerprint
+    # Calculate and compare SHA256 hash
     local sha256_hash
     sha256_hash=$(calculate_sha256 "$script_path")
     
     if [ -n "$sha256_hash" ]; then
-        log_success "Script downloaded successfully"
         log_info "SHA256 fingerprint: ${sha256_hash:0:16}..."
-        log_info "Full hash: $sha256_hash"
-        echo ""
-        log_info "To verify manually, compare this hash with the official release"
-        log_info "Visit: https://github.com/Carme99/MacCleans.sh/releases"
+        
+        # Compare with expected hash if available
+        if [ -n "$EXPECTED_HASH" ]; then
+            if [ "$sha256_hash" = "$EXPECTED_HASH" ]; then
+                log_success "Script hash verified successfully"
+            else
+                log_error "Script hash verification FAILED!"
+                log_error "Expected: $EXPECTED_HASH"
+                log_error "Got:      $sha256_hash"
+                log_error "The downloaded script may have been tampered with!"
+                log_error "Use --no-verify to skip this check (not recommended)"
+                return 1
+            fi
+        else
+            log_warning "EXPECTED_HASH not set - hash comparison skipped"
+            log_info "To enable hash verification, set EXPECTED_HASH in installer.sh"
+            log_info "Full hash: $sha256_hash"
+            log_info "Visit: https://github.com/Carme99/MacCleans.sh/releases to verify"
+        fi
     else
         log_warning "Could not calculate SHA256 hash (shasum/sha256sum not available)"
     fi
