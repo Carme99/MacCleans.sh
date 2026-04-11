@@ -2049,7 +2049,8 @@ if [ "$SKIP_DOCKER" = false ]; then
                 else
                     log "Cleaning Docker cache..."
                     log_warning "Note: Named volumes are preserved. Use 'docker volume prune' manually if needed."
-                    docker system prune -af 2>/dev/null || log_warning "Docker cleanup encountered issues"
+                    docker container prune -f 2>/dev/null || true
+                    docker image prune -f 2>/dev/null || log_warning "Docker cleanup encountered issues"
                     log_success "Docker cache cleared"
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
                 fi
