@@ -2446,9 +2446,16 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
                                 continue
                             fi
                             
-                            # Check for iCloud sync status before deletion
+                            # First sync status check
                             if ! check_icloud_sync_status "$folder"; then
                                 log_warning "Skipping $folder - iCloud sync in progress or pending files detected"
+                                continue
+                            fi
+                            
+                            # Re-verify sync status before deletion (TOCTOU mitigation)
+                            sleep 1
+                            if ! check_icloud_sync_status "$folder"; then
+                                log_warning "iCloud sync status changed for $folder during check - aborting deletion"
                                 continue
                             fi
                             
