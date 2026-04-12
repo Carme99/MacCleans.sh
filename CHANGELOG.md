@@ -2,6 +2,35 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [5.1.7] - 2026-04-12
+
+### Security Fixes
+
+- **iCloud Drive TOCTOU mitigation** - Added re-verification before deletion to prevent time-of-check-time-of-use race conditions
+- **Docker cleanup restricted** - Changed from `docker system prune -a` (removes ALL images) to `docker container prune` and `docker image prune` (only dangling containers/images)
+- **Lock file moved from /tmp** - Lock directory changed to `$HOME/.macclean/lock` to prevent world-writable security issues
+- **Homebrew sudo wrapper fixed** - Brew commands now conditionally use `sudo -u $ACTUAL_USER` only when running as root to prevent running as root
+
+### Bug Fixes
+
+- **Duplicate spinner function** - Removed duplicate spinner function definitions that were causing conflicts
+- **Path traversal validation** - Improved validation for `--photos-library` option to reject dangerous characters and non-printable input
+- **Symlink resolution** - Added robust symlink resolution for user home directory with relative path handling
+- **Lock acquisition race condition** - Simplified lock acquisition to avoid TOCTOU; added stale-lock detection using PID-based checks
+- **Unknown config keys** - Added warning message when unknown configuration keys are encountered in config file
+
+### New Features
+
+- **Per-operation force flags** - Added `--force-xcode`, `--force-trash`, `--force-icloud-drive`, `--force-ios-backups` flags for granular control
+- **System temp cleanup opt-in** - System temp directory cleanup now opt-in via `--clean-system-tmp` flag or `SKIP_SYSTEM_TMP=false` config
+- **Installer hash verification** - Optional SHA256 hash verification for installer when `EXPECTED_HASH` is set
+
+### Technical
+
+- **ShellCheck CI improvements** - Added SC1090/SC1091 excludes for sourced files and proper shell specification
+- **Lock directory creation** - Parent directory is created automatically if missing
+- **Config file FORCE_* support** - FORCE_XCODE, FORCE_TRASH, FORCE_ICLOUD_DRIVE, FORCE_IOS_BACKUPS now loadable from config file
+
 ## [5.1.6] - 2026-03-29
 
 ### Bug Fixes

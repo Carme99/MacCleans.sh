@@ -12,7 +12,7 @@ INSTALL_DIR="/usr/local/bin"
 SCRIPT_NAME="Mac-Clean"
 GITHUB_RAW_URL="https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/clean-mac-space.sh"
 INSTALL_PATH="${INSTALL_DIR}/${SCRIPT_NAME}"
-: "${EXPECTED_HASH:=}"
+EXPECTED_HASH="b105da75fffe80f467653dac8ba1f9a0b441affb1eadc492fbecc7181191b684"
 
 # Colors
 RED='\033[0;31m'

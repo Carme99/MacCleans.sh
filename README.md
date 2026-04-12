@@ -11,7 +11,7 @@
 
 **Free 10-50GB on your Mac with one command.**
 
-[![Version](https://img.shields.io/badge/Version-5.1.6-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-5.1.7-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
 [![ShellCheck](https://github.com/Carme99/MacCleans.sh/actions/workflows/shellcheck.yml/badge.svg)](https://github.com/Carme99/MacCleans.sh/actions)
