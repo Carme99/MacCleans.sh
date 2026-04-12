@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC1090,SC1091
 
 # Enable strict error handling
 set -euo pipefail
@@ -108,6 +109,11 @@ SKIP_GRADLE=false
 SKIP_GO=false
 SKIP_BUN=false
 SKIP_PNPM=false
+SKIP_SYSTEM_TMP=true
+FORCE_XCODE=false
+FORCE_TRASH=false
+FORCE_ICLOUD_DRIVE=false
+FORCE_IOS_BACKUPS=false
 UPDATE=false
 VERBOSE=false
 
@@ -228,8 +234,14 @@ load_config_file() {
                     SKIP_GO) SKIP_GO="$value" ;;
                     SKIP_BUN) SKIP_BUN="$value" ;;
                     SKIP_PNPM) SKIP_PNPM="$value" ;;
+                    SKIP_SYSTEM_TMP) SKIP_SYSTEM_TMP="$value" ;;
+                    FORCE_XCODE) FORCE_XCODE="$value" ;;
+                    FORCE_TRASH) FORCE_TRASH="$value" ;;
+                    FORCE_ICLOUD_DRIVE) FORCE_ICLOUD_DRIVE="$value" ;;
+                    FORCE_IOS_BACKUPS) FORCE_IOS_BACKUPS="$value" ;;
                     UPDATE) UPDATE="$value" ;;
                     VERBOSE) VERBOSE="$value" ;;
+                    *) echo "WARNING: Unknown config key '$key' - ignoring" >&2 ;;
                 esac
             done < "$config_file"
             break
@@ -254,6 +266,10 @@ parse_arguments() {
                 ;;
             --force|-f)
                 FORCE=true
+                FORCE_XCODE=true
+                FORCE_TRASH=true
+                FORCE_ICLOUD_DRIVE=true
+                FORCE_IOS_BACKUPS=true
                 AUTO_YES=true
                 shift
                 ;;
@@ -393,6 +409,14 @@ parse_arguments() {
                 SKIP_PNPM=true
                 shift
                 ;;
+            --skip-system-tmp)
+                SKIP_SYSTEM_TMP=true
+                shift
+                ;;
+            --clean-system-tmp)
+                SKIP_SYSTEM_TMP=false
+                shift
+                ;;
             --update|-u)
                 UPDATE=true
                 shift
@@ -412,8 +436,10 @@ parse_arguments() {
                     exit 1
                 fi
                 PHOTOS_LIBRARY_NAME="$2"
-                # Validate: reject path traversal attempts
-                if [[ "$PHOTOS_LIBRARY_NAME" == *"/"* ]] || [[ "$PHOTOS_LIBRARY_NAME" == *".."* ]]; then
+                # Validate: reject path traversal attempts and dangerous characters
+                if [[ "$PHOTOS_LIBRARY_NAME" =~ [/~\\] ]] || \
+                   [[ "$PHOTOS_LIBRARY_NAME" == *".."* ]] || \
+                   [[ "$PHOTOS_LIBRARY_NAME" =~ [^[:print:]] ]]; then
                     echo "ERROR: --photos-library must be a plain library name, not a path" >&2
                     exit 1
                 fi
@@ -497,51 +523,54 @@ handle_interrupt() {
 trap handle_interrupt INT TERM
 
 # Lock directory for preventing parallel runs
-LOCKDIR="/tmp/mac-clean.lock"
+# Use user-protected directory instead of world-writable /tmp
+LOCKDIR="$HOME/.macclean/lock"
 LOCK_OWNED=0
 MIN_FREE_MB=200
 
 # Acquire exclusive lock atomically using mkdir
-# Returns 0 on success, exits with error on failure
+# Uses atomic mkdir for lock acquisition to avoid TOCTOU race conditions
+# Performs stale-lock detection based on PID to avoid permanent lockouts
 acquire_lock() {
-    # Always acquire lock to prevent parallel runs (even in dry-run mode)
-    # This prevents race conditions where two instances could interfere
-    
-    # Try to create lock directory atomically
+    # Create parent directory for lock if it doesn't exist
+    mkdir -p "$(dirname "$LOCKDIR")" 2>/dev/null || true
+
+    # Fast path: try to acquire the lock atomically
     if mkdir "$LOCKDIR" 2>/dev/null; then
-        # Write PID to lock file
         echo $$ > "$LOCKDIR/pid"
         LOCK_OWNED=1
         return 0
     fi
-    
-    # Lock directory exists - check if stale
-    local lock_pid
-    lock_pid=$(cat "$LOCKDIR/pid" 2>/dev/null || echo "")
-    
-    if [ -n "$lock_pid" ] && kill -0 "$lock_pid" 2>/dev/null; then
-        if [ "$DRY_RUN" = true ]; then
-            log_warning "Another instance is running in dry-run mode (PID: $lock_pid)"
-            log_warning "Proceeding anyway in dry-run mode - no actual changes will be made"
-            return 0
-        else
-            log_error "Another instance is already running (PID: $lock_pid)"
-            log_always "If you're sure no other instance is running, remove $LOCKDIR"
-            exit 1
+
+    # Lock already exists - check for stale lock
+    local existing_pid
+    if [ -f "$LOCKDIR/pid" ]; then
+        existing_pid=$(cat "$LOCKDIR/pid" 2>/dev/null || echo "")
+    fi
+
+    # Check if the lock holder process is still running
+    if [ -n "$existing_pid" ] && [ "$existing_pid" -eq "$existing_pid" ] 2>/dev/null; then
+        if ! kill -0 "$existing_pid" 2>/dev/null; then
+            # Process is dead - remove stale lock and retry
+            log_warning "Removing stale lock held by dead process PID $existing_pid"
+            rm -rf "$LOCKDIR" 2>/dev/null || true
+            if mkdir "$LOCKDIR" 2>/dev/null; then
+                echo $$ > "$LOCKDIR/pid"
+                LOCK_OWNED=1
+                return 0
+            fi
         fi
     fi
-    
-    # Stale lock - remove and retry
-    log_warning "Removing stale lock file (PID: $lock_pid is not running)"
-    rm -rf "$LOCKDIR"
-    
-    if mkdir "$LOCKDIR" 2>/dev/null; then
-        echo $$ > "$LOCKDIR/pid"
-        LOCK_OWNED=1
+
+    # Lock is held by a live process
+    if [ "$DRY_RUN" = true ]; then
+        log_warning "Another instance may be running (PID: $existing_pid)"
+        log_warning "Proceeding anyway in dry-run mode - no actual changes will be made"
         return 0
     fi
-    
-    log_error "Failed to acquire lock after removing stale lock"
+
+    log_error "Another instance is already running (PID: $existing_pid)"
+    log_always "If you're sure no other instance is running, remove $LOCKDIR"
     exit 1
 }
 
@@ -714,32 +743,6 @@ else
     CYAN='\033[0;36m'
     BOLD='\033[1m' DIM='\033[2m' NC='\033[0m'
 fi
-
-# Spinner for visual feedback
-SPINNER_chars='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
-spinner_pid=""
-start_spinner() {
-    if [ "$QUIET" = true ]; then return; fi
-    local message="${1:-Processing}"
-    printf "${DIM}%s${NC} " "$message"
-    (while true; do
-        for char in $SPINNER_chars; do
-            printf "\b%s" "$char"
-            sleep 0.1
-        done
-    done) &
-    spinner_pid=$!
-}
-
-stop_spinner() {
-    if [ "$QUIET" = true ]; then return; fi
-    if [ -n "$spinner_pid" ]; then
-        kill "$spinner_pid" 2>/dev/null || true
-        wait "$spinner_pid" 2>/dev/null || true
-        spinner_pid=""
-        printf "\b"
-    fi
-}
 
 # Category header - shows which category is being cleaned
 log_category() {
@@ -964,6 +967,30 @@ if [ -n "${SUDO_USER:-}" ]; then
 else
     ACTUAL_USER=$(whoami)
     USER_HOME="$HOME"
+fi
+
+# Resolve symlinks in USER_HOME to prevent operating on wrong directory
+if [ -L "$USER_HOME" ]; then
+    if command -v readlink >/dev/null 2>&1; then
+        link_target=$(readlink "$USER_HOME")
+        if [ -n "$link_target" ]; then
+            if [[ "$link_target" == /* ]]; then
+                REAL_USER_HOME="$link_target"
+            else
+                REAL_USER_HOME="$(cd "$(dirname "$USER_HOME")" && pwd)/$link_target"
+            fi
+            if [ -d "$REAL_USER_HOME" ]; then
+                log_warning "User home directory is a symlink: $USER_HOME -> $REAL_USER_HOME"
+                USER_HOME="$REAL_USER_HOME"
+            else
+                log_warning "User home directory symlink could not be resolved; using original: $USER_HOME"
+            fi
+        else
+            log_warning "Could not read symlink target for $USER_HOME; using original"
+        fi
+    else
+        log_warning "readlink not found; cannot resolve user home symlink. Using: $USER_HOME"
+    fi
 fi
 
 # Validate user
@@ -1502,10 +1529,18 @@ if [ "$SKIP_HOMEBREW" = false ]; then
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BREW_BYTES))
             else
                 log "Cleaning Homebrew cache..."
-                sudo -u "$ACTUAL_USER" brew cleanup -s 2>/dev/null || log_warning "Homebrew cleanup encountered issues"
+                if [ "$(id -u)" = "0" ]; then
+                    sudo -u "$ACTUAL_USER" brew cleanup -s 2>/dev/null || log_warning "Homebrew cleanup encountered issues"
+                else
+                    brew cleanup -s 2>/dev/null || log_warning "Homebrew cleanup encountered issues"
+                fi
 
                 log "Removing unused dependencies..."
-                sudo -u "$ACTUAL_USER" brew autoremove 2>/dev/null || log_warning "Homebrew autoremove encountered issues"
+                if [ "$(id -u)" = "0" ]; then
+                    sudo -u "$ACTUAL_USER" brew autoremove 2>/dev/null || log_warning "Homebrew autoremove encountered issues"
+                else
+                    brew autoremove 2>/dev/null || log_warning "Homebrew autoremove encountered issues"
+                fi
 
                 log_success "Homebrew cleaned"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BREW_BYTES))
@@ -1686,36 +1721,40 @@ log_plain ""
 ###############################################################################
 # 6. System Temporary Files
 ###############################################################################
-PROCESSED_CATEGORIES+=("System Temporary Files")
-log_plain "================================================"
-log "6. System Temporary Files"
-log_plain "================================================"
+if [ "$SKIP_SYSTEM_TMP" = false ]; then
+    PROCESSED_CATEGORIES+=("System Temporary Files")
+    log_plain "================================================"
+    log "6. System Temporary Files"
+    log_plain "================================================"
 
-TMP_COUNT=$(find /private/var/tmp /private/tmp -type f -mtime +3 2>/dev/null | wc -l | tr -d ' ') || TMP_COUNT=0
-TMP_COUNT=${TMP_COUNT:-0}
+    TMP_COUNT=$(find /private/var/tmp /private/tmp -type f -mtime +3 2>/dev/null | wc -l | tr -d ' ') || TMP_COUNT=0
+    TMP_COUNT=${TMP_COUNT:-0}
 
-if [ "$TMP_COUNT" -gt 0 ]; then
-    TMP_SIZE=$(find /private/var/tmp /private/tmp -type f -mtime +3 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
-    [ -z "$TMP_SIZE" ] && TMP_SIZE="0B"
-    TMP_BYTES=$(size_to_bytes "$TMP_SIZE")
-    log "Found $TMP_COUNT temporary file(s) older than 3 days: $TMP_SIZE"
+    if [ "$TMP_COUNT" -gt 0 ]; then
+        TMP_SIZE=$(find /private/var/tmp /private/tmp -type f -mtime +3 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
+        [ -z "$TMP_SIZE" ] && TMP_SIZE="0B"
+        TMP_BYTES=$(size_to_bytes "$TMP_SIZE")
+        log "Found $TMP_COUNT temporary file(s) older than 3 days: $TMP_SIZE"
 
-    if [ "$DRY_RUN" = true ]; then
-        log "Would clean $TMP_COUNT temporary file(s)"
-        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TMP_BYTES))
+        if [ "$DRY_RUN" = true ]; then
+            log "Would clean $TMP_COUNT temporary file(s)"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TMP_BYTES))
+        else
+            log "Cleaning system temporary files (older than 3 days)..."
+            # Delete files older than 3 days
+            find /private/var/tmp /private/tmp -type f -mtime +3 -delete 2>/dev/null
+            # Delete empty directories older than 3 days
+            find /private/var/tmp /private/tmp -type d -mtime +3 -empty -delete 2>/dev/null
+            log_success "Temporary files cleaned"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TMP_BYTES))
+        fi
     else
-        log "Cleaning system temporary files (older than 3 days)..."
-        # Delete files older than 3 days
-        find /private/var/tmp /private/tmp -type f -mtime +3 -delete 2>/dev/null
-        # Delete empty directories older than 3 days
-        find /private/var/tmp /private/tmp -type d -mtime +3 -empty -delete 2>/dev/null
-        log_success "Temporary files cleaned"
-        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + TMP_BYTES))
+        log "No temporary files older than 3 days found"
     fi
+    log_plain ""
 else
-    log "No temporary files older than 3 days found"
+    SKIPPED_CATEGORIES+=("System Temporary Files")
 fi
-log_plain ""
 
 ###############################################################################
 # 7. Browser Caches (Chrome, Firefox, Edge)
@@ -1813,15 +1852,15 @@ if [ "$SKIP_XCODE" = false ]; then
             XCODE_BYTES=$(size_to_bytes "$XCODE_SIZE")
 
             # XCode cleanup has special consideration: long rebuild times
-            # Issue #22: --force skips warning entirely, --yes NO LONGER bypasses (requires --force)
+            # Issue #22: --force-xcode skips warning entirely, --yes NO LONGER bypasses (requires --force-xcode)
             # No flags: interactive prompt
             
             if [ "$DRY_RUN" = true ]; then
                 log "Would clear XCode derived data: $XCODE_SIZE"
                 log_warning "NOTE: XCode cleanup requires 5-30 min rebuild for active projects"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
-            elif [ "$FORCE" = true ]; then
-                # --force: skip all warnings (automation mode)
+            elif [ "$FORCE_XCODE" = true ]; then
+                # --force or --force-xcode: skip all warnings (automation mode)
                 log "Cleaning XCode derived data..."
                 if [ -d "$XCODE_DD" ] && [ ! -L "$XCODE_DD" ]; then
                     safe_clear_directory "$XCODE_DD"
@@ -1829,7 +1868,7 @@ if [ "$SKIP_XCODE" = false ]; then
                 log_success "XCode derived data cleared"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_BYTES))
             else
-                # --yes now also prompts (only --force skips confirmation)
+                # --yes now also prompts (only --force-xcode skips confirmation)
                 log_warning "WARNING: This will delete XCode build cache."
                 log "   Active projects will need to rebuild (5-30 min first build)."
                 log ""
@@ -1985,7 +2024,7 @@ if [ "$SKIP_TRASH" = false ]; then
                 log "Items in trash: $TRASH_SIZE of data will be permanently deleted."
                 
                 CONFIRM_TRASH=false
-                if [ "$FORCE" = true ]; then
+                if [ "$FORCE_TRASH" = true ]; then
                     log "Running with --force: skipping confirmation"
                     CONFIRM_TRASH=true
                 elif [ "$AUTO_YES" = true ]; then
@@ -2061,7 +2100,8 @@ if [ "$SKIP_DOCKER" = false ]; then
                 else
                     log "Cleaning Docker cache..."
                     log_warning "Note: Named volumes are preserved. Use 'docker volume prune' manually if needed."
-                    docker system prune -af 2>/dev/null || log_warning "Docker cleanup encountered issues"
+                    docker container prune -f 2>/dev/null || true
+                    docker image prune -f 2>/dev/null || log_warning "Docker cleanup encountered issues"
                     log_success "Docker cache cleared"
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))
                 fi
@@ -2438,8 +2478,8 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
                 log "${YELLOW}Warning: This bypasses iCloud sync and may cause data loss!${NC}"
                 log "${YELLOW}Files pending upload or in conflict state may be permanently lost.${NC}"
                 
-                # Require --force flag for this dangerous operation
-                if [ "$FORCE" = true ]; then
+                # Require --force-icloud-drive or --force flag for this dangerous operation
+                if [ "$FORCE_ICLOUD_DRIVE" = true ]; then
                     log "${YELLOW}Running with --force: proceeding with deletion${NC}"
                     PROCESSED_CATEGORIES+=("iCloud Drive Offline Files")
                     ICLOUD_DRIVE_BYTES=$((ICLOUD_DRIVE_SIZE_KB * 1024))
@@ -2457,9 +2497,16 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
                                 continue
                             fi
                             
-                            # Check for iCloud sync status before deletion
+                            # First sync status check
                             if ! check_icloud_sync_status "$folder"; then
                                 log_warning "Skipping $folder - iCloud sync in progress or pending files detected"
+                                continue
+                            fi
+                            
+                            # Re-verify sync status before deletion (TOCTOU mitigation)
+                            sleep 1
+                            if ! check_icloud_sync_status "$folder"; then
+                                log_warning "iCloud sync status changed for $folder during check - aborting deletion"
                                 continue
                             fi
                             
@@ -2628,9 +2675,9 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
                 log "${RED}CRITICAL: Deleting local backups without iCloud backup will cause PERMANENT data loss!${NC}"
             fi
             
-            # Require --force for this dangerous operation
+            # Require --force-ios-backups or --force for this dangerous operation
             # If iCloud backup is NOT enabled, require explicit acknowledgment
-            if [ "$FORCE" = true ]; then
+            if [ "$FORCE_IOS_BACKUPS" = true ]; then
                 if [ "$ICLOUD_BACKUP_ENABLED" = true ]; then
                     log "${YELLOW}Running with --force: iCloud backup detected, proceeding${NC}"
                     PROCESSED_CATEGORIES+=("iOS Device Backups")
@@ -2648,31 +2695,14 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
                     fi
                 else
                     log "${RED}WARNING: Running with --force but iCloud backup NOT detected!${NC}"
-                    log "${RED}Set FORCE_IOS_BACKUPS=true environment variable to proceed anyway.${NC}"
-                    if [ "${FORCE_IOS_BACKUPS:-false}" = "true" ]; then
-                        PROCESSED_CATEGORIES+=("iOS Device Backups")
-                        
-                        if [ "$DRY_RUN" = true ]; then
-                            log "Would delete $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
-                            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
-                        else
-                            log "Deleting iOS device backups..."
-                            if [ -d "$IOS_BACKUP_DIR" ] && [ ! -L "$IOS_BACKUP_DIR" ]; then
-                                safe_clear_directory "$IOS_BACKUP_DIR"
-                            fi
-                            log_success "iOS device backups deleted"
-                            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
-                        fi
-                    else
-                        log "${RED}Skipping: iOS backup deletion blocked without iCloud backup.${NC}"
-                        SKIPPED_CATEGORIES+=("iOS Device Backups (no iCloud backup detected)")
-                    fi
+                    log "${RED}Skipping: iOS backup deletion blocked without iCloud backup.${NC}"
+                    SKIPPED_CATEGORIES+=("iOS Device Backups (no iCloud backup detected)")
                 fi
             else
-                # Not --force: require manual confirmation
+                # Not --force-ios-backups: require manual confirmation
                 log "${RED}Skipping: Use --force to enable iOS backup deletion${NC}"
                 if [ "$ICLOUD_BACKUP_ENABLED" = false ]; then
-                    log "${RED}iCloud backup not detected - set FORCE_IOS_BACKUPS=true to override${NC}"
+                    log "${RED}iCloud backup not detected - backup deletion requires iCloud backup for safety${NC}"
                 fi
                 SKIPPED_CATEGORIES+=("iOS Device Backups (requires --force)")
             fi

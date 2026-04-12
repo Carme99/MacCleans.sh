@@ -21,6 +21,9 @@ jobs:
           scandir: '.'
           severity: warning
           format: gcc
+          exclude:
+            - SC1090 # Don't warn about non-constant sourceable files
+            - SC1091 # Not following sourced files
 
       - name: Verify script syntax
         run: |
