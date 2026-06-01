@@ -702,32 +702,45 @@ check_minimum_disk_space() {
 check_icloud_backup_enabled() {
     # Try to check iCloud backup status using defaults
     # Note: This is a best-effort check - we look for signs that iCloud backup is configured
-    
+
+    # When running as root, the MobileMeAccounts defaults domain is the root
+    # user's (root has no Apple ID), so a bare `defaults read` would always
+    # be empty and this function would fail-close for the WRONG reason.
+    # Drop privileges via sudo -u to read the invoking user's real plist.
+    local -a defaults_cmd
+    if [ "$(id -u)" = "0" ] && [ -n "${ACTUAL_USER:-}" ]; then
+        defaults_cmd=(sudo -u "$ACTUAL_USER" defaults)
+    else
+        defaults_cmd=(defaults)
+    fi
+
     # Check if iCloud account is signed in
-    if ! defaults read MobileMeAccounts Accounts 2>/dev/null | grep -q "AccountID"; then
+    if ! "${defaults_cmd[@]}" read MobileMeAccounts Accounts 2>/dev/null | grep -q "AccountID"; then
         # No iCloud account signed in, so iCloud backup is definitely not enabled
         return 1
     fi
-    
+
     # Check for com.apple.preferences.icloud.backup settings
     # If the key exists and is set to 1, backup is enabled
     local backup_enabled
-    backup_enabled=$(defaults read com.apple.preferences.icloud.backup Enabled 2>/dev/null || echo "0")
-    
+    backup_enabled=$("${defaults_cmd[@]}" read com.apple.preferences.icloud.backup Enabled 2>/dev/null || echo "0")
+
     if [ "$backup_enabled" = "1" ]; then
         return 0
     fi
-    
+
     # Also check if there's evidence of recent iCloud backups in the log
-    # This is a secondary check to be more permissive
-    if [ -f "$HOME/Library/Logs/MobileBackup/Backup.log" ]; then
+    # This is a secondary check to be more permissive.
+    # Use $USER_HOME (validated + symlink-resolved) instead of $HOME so a
+    # `sudo` invocation that resets env doesn't point us at /var/root.
+    if [ -f "$USER_HOME/Library/Logs/MobileBackup/Backup.log" ]; then
         local recent_backup
-        recent_backup=$(find "$HOME/Library/Logs/MobileBackup" -name "Backup.log" -mtime -30 2>/dev/null | wc -l)
-        if [ "$recent_backup" -gt 0 ]; then
+        recent_backup=$(find "$USER_HOME/Library/Logs/MobileBackup" -name "Backup.log" -mtime -30 2>/dev/null | wc -l | tr -d ' ')
+        if [ "$recent_backup" -gt 0 ] 2>/dev/null; then
             return 0
         fi
     fi
-    
+
     return 1
 }
 
@@ -2448,6 +2461,23 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
     log_plain "================================================"
 
     CLOUD_STORAGE_DIR="$USER_HOME/Library/CloudStorage"
+
+    # Pin CLOUD_STORAGE_DIR to its real (symlink-resolved) location to close
+    # the parent-symlink-swap TOCTOU window. If Library/CloudStorage itself is
+    # a symlink, the per-folder glob would otherwise resolve through it and
+    # list attacker-chosen paths under the symlink target. macOS BSD readlink
+    # does not have -f, so we resolve manually (matches the pattern at the
+    # USER_HOME resolution above).
+    if [ -L "$CLOUD_STORAGE_DIR" ] && command -v readlink >/dev/null 2>&1; then
+        cs_link_target=$(readlink "$CLOUD_STORAGE_DIR")
+        if [ -n "$cs_link_target" ]; then
+            if [[ "$cs_link_target" == /* ]]; then
+                CLOUD_STORAGE_DIR="$cs_link_target"
+            else
+                CLOUD_STORAGE_DIR="$(cd "$(dirname "$CLOUD_STORAGE_DIR")" && pwd)/$cs_link_target"
+            fi
+        fi
+    fi
     ICLOUD_DRIVE_BYTES=0
 
     # Check if CloudStorage directory exists
@@ -2509,11 +2539,20 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
                                 log_warning "iCloud sync status changed for $folder during check - aborting deletion"
                                 continue
                             fi
-                            
-                            # Note: -type f/d excludes symlinks (safety feature), 
-                            # so du -sk accounting may slightly overstate freed space
-                            find "$folder" -type f -mindepth 1 -delete 2>/dev/null || true
-                            find "$folder" -type d -mindepth 1 -depth -empty -delete 2>/dev/null || true
+
+                            # Re-check the folder is not a symlink just before the
+                            # destructive step (closes the child-swap window that
+                            # opens between the [ -L ] test above and this find).
+                            if [ -L "$folder" ]; then
+                                log_warning "Folder became a symlink during check: $folder - aborting"
+                                continue
+                            fi
+
+                            # Note: -type f/d excludes symlinks (safety feature),
+                            # so du -sk accounting may slightly overstate freed space.
+                            # -P forces find to never follow symlinks explicitly.
+                            find -P "$folder" -type f -mindepth 1 -delete 2>/dev/null || true
+                            find -P "$folder" -type d -mindepth 1 -depth -empty -delete 2>/dev/null || true
                         done
                         log_success "iCloud Drive files removed"
                         log "${RED}WARNING: Files pending upload are PERMANENTLY LOST!${NC}"

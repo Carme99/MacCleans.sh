@@ -254,7 +254,7 @@ sudo Mac-Clean --yes --skip-spotify
 
 ### Claude
 
-**Path:** `~/Library/Caches/Claude`
+**Path:** `~/Library/Caches/com.anthropic.claudefordesktop.ShipIt`
 
 **Typical Size:** 100MB-1GB
 
@@ -336,7 +336,7 @@ sudo Mac-Clean --yes --skip-diagnostics
 
 ### iCloud Drive
 
-**Path:** `~/Library/Mobile Documents` (iCloud offline files)
+**Path:** `~/Library/CloudStorage/iCloud Drive*` (iCloud Drive folders under CloudStorage)
 
 **Typical Size:** Variable
 
