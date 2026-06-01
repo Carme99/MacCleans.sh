@@ -7,7 +7,7 @@ All notable changes to MacCleans.sh are documented in this file.
 ### Security Fixes
 
 - **iCloud backup detection was misfiring as root** - `check_icloud_backup_enabled` ran `defaults read MobileMeAccounts` as root, which always reads the root user's (empty) Apple ID plist, causing the iOS-backup safety gate to fail-close for the wrong reason. Now drops privileges via `sudo -u $ACTUAL_USER` when running as root. Also switched the Backup.log lookup from `$HOME` to the validated `$USER_HOME` so a `sudo` invocation that resets env no longer points at `/var/root`. Users with iCloud backup enabled will now see the safety gate behave as intended (and may need to set `--force-ios-backups` to actually clean backups, as the docs describe).
-- **iCloud Drive symlink-swap TOCTOU** - The iCloud Drive cleanup now pins `~/Library/CloudStorage` to its real (symlink-resolved) location before the per-folder glob, and re-checks `[ -L ]` on each folder immediately before deletion. Both `find` calls now use `find -P` explicitly. Closes the residual parent-swap and child-swap windows from the original `d73bef6` mitigation.
+- **iCloud Drive symlink-swap TOCTOU** - The iCloud Drive cleanup now fails closed if `~/Library/CloudStorage` itself is a symlink (defense-in-depth against a co-resident attacker redirecting the cleanup), and re-checks `[ -L ]` on each folder immediately before deletion. Both `find` calls now use `find -P` explicitly. Closes the parent-swap and child-swap windows from the original `d73bef6` mitigation. *Note: an earlier draft of this change resolved and followed the symlink; CodeRabbit review correctly flagged that as the wrong posture for a root-run script. Thanks, CodeRabbit.*
 
 ### Bug Fixes
 
