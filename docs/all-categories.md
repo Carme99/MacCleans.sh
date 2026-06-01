@@ -254,7 +254,7 @@ sudo Mac-Clean --yes --skip-spotify
 
 ### Claude
 
-**Path:** `~/Library/Caches/Claude`
+**Path:** `~/Library/Caches/com.anthropic.claudefordesktop.ShipIt`
 
 **Typical Size:** 100MB-1GB
 
@@ -336,7 +336,7 @@ sudo Mac-Clean --yes --skip-diagnostics
 
 ### iCloud Drive
 
-**Path:** `~/Library/Mobile Documents` (iCloud offline files)
+**Path:** `~/Library/CloudStorage/iCloud Drive*` (iCloud Drive folders under CloudStorage)
 
 **Typical Size:** Variable
 
@@ -344,7 +344,7 @@ sudo Mac-Clean --yes --skip-diagnostics
 
 **Risk:** High - these are your actual files
 
-**Warning:** Only deletes files that are fully synced and available online. iCloud Drive remains intact.
+**Warning:** Best-effort sync check before deletion (looks for `.icloud` placeholders, `Conflict*` files, and recent mtimes). Local-only or in-progress uploads can still be lost. iCloud Drive content on the server is unaffected for files that were fully synced at deletion time. Will refuse to run if `~/Library/CloudStorage` itself is a symlink.
 
 **When to skip:** If you work offline frequently
 

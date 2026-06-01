@@ -2448,6 +2448,21 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
     log_plain "================================================"
 
     CLOUD_STORAGE_DIR="$USER_HOME/Library/CloudStorage"
+
+    # Defensive: if Library/CloudStorage itself is a symlink, fail closed.
+    # A co-resident attacker with write access to $USER_HOME could redirect
+    # this whole cleanup to an arbitrary directory by symlinking CloudStorage;
+    # the per-folder [ -L ] checks below catch the CHILD-swap case, but they
+    # cannot prevent the root redirect. We refuse to walk the symlink at all
+    # and surface a clear error so the user can investigate. (Earlier draft
+    # resolved and followed the symlink; that was wrong — CodeRabbit caught
+    # it during PR review. Thanks, CodeRabbit.)
+    if [ -L "$CLOUD_STORAGE_DIR" ]; then
+        log_error "Refusing iCloud Drive cleanup: $CLOUD_STORAGE_DIR is a symlink (symlink-swap defense)."
+        log_error "Inspect the symlink target, then re-run, or use --skip-icloud-drive to silence."
+        SKIPPED_CATEGORIES+=("iCloud Drive Offline Files (CloudStorage is a symlink)")
+        log_plain ""
+    else
     ICLOUD_DRIVE_BYTES=0
 
     # Check if CloudStorage directory exists
@@ -2535,6 +2550,7 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
         log "CloudStorage directory not found (iCloud Drive not configured)"
     fi
     log_plain ""
+    fi  # close the [ -L "$CLOUD_STORAGE_DIR" ] fail-closed check above
 else
     SKIPPED_CATEGORIES+=("iCloud Drive Offline Files")
 fi
