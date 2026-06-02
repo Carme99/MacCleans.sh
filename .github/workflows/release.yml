@@ -1,0 +1,128 @@
+name: Release
+
+# Automates the full release flow on a version tag push:
+#   1. Downloads the source tarball and computes its SHA-256.
+#   2. Updates carme99/homebrew-tap's mac-cleans.rb with the new version + SHA.
+#   3. Creates the GitHub release on this repo with auto-generated notes.
+#
+# Required secret:
+#   HOMEBREW_TAP_TOKEN   A personal access token (or fine-grained token) with
+#                        `contents: write` on the carme99/homebrew-tap repo.
+#                        Add at: https://github.com/Carme99/MacCleans.sh/settings/secrets/actions
+#
+# Triggered by:
+#   - Push of a tag matching v*.*.* (e.g. v5.2.0, v5.2.1, v6.0.0)
+#   - Manual trigger via the Actions tab (re-runnable if a step fails)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v5.2.0). Leave blank to use the latest pushed tag.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write   # needed to create the release
+
+jobs:
+  release:
+    name: Publish release and update homebrew tap
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine the release tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Releasing ${{ steps.tag.outputs.tag }}"
+
+      - name: Compute the tarball SHA-256
+        id: sha
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.tag }}"
+          VERSION="${TAG#v}"
+          TARBALL="/tmp/mac-cleans-${TAG}.tar.gz"
+          URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${TAG}.tar.gz"
+          echo "Downloading $URL"
+          curl --fail --silent --show-error --location "$URL" -o "$TARBALL"
+          SIZE=$(stat -c%s "$TARBALL" 2>/dev/null || stat -f%z "$TARBALL")
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "::error::Downloaded tarball is suspiciously small ($SIZE bytes) — aborting"
+            exit 1
+          fi
+          SHA=$(shasum -a 256 "$TARBALL" | awk '{print $1}')
+          echo "Tarball: $URL"
+          echo "Size:    $SIZE bytes"
+          echo "SHA-256: $SHA"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify formula structure on the tap (sanity check)
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "::error::HOMEBREW_TAP_TOKEN secret is not set. Add a token with contents:write on carme99/homebrew-tap at the repo's Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          git clone --depth 1 "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/carme99/homebrew-tap.git" /tmp/homebrew-tap
+          if [ ! -f /tmp/homebrew-tap/mac-cleans.rb ]; then
+            echo "::error::mac-cleans.rb not found in carme99/homebrew-tap at the repo root"
+            exit 1
+          fi
+          # Confirm the formula has the shape we expect before we try to update it.
+          if ! grep -q 'archive/refs/tags/v.*\.tar\.gz' /tmp/homebrew-tap/mac-cleans.rb; then
+            echo "::error::mac-cleans.rb does not look like a tag-archive formula — refusing to auto-update"
+            exit 1
+          fi
+          if ! grep -qE 'sha256 "[0-9a-f]{64}"' /tmp/homebrew-tap/mac-cleans.rb; then
+            echo "::error::mac-cleans.rb does not contain a sha256 stanza — refusing to auto-update"
+            exit 1
+          fi
+          echo "Formula structure looks correct"
+
+      - name: Update mac-cleans.rb on the tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          NEW_TAG: ${{ steps.tag.outputs.tag }}
+          NEW_SHA: ${{ steps.sha.outputs.sha }}
+        run: |
+          set -euo pipefail
+          cd /tmp/homebrew-tap
+          # Replace the tag in the url line and the sha256 in its line. Both
+          # replacements are anchored to specific lines (url/sha256) so we
+          # don't accidentally touch anything else in the formula.
+          sed -i.bak \
+            -E "s|(archive/refs/tags/)v[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)|\1${NEW_TAG}\2|" \
+            -E "s|(sha256 \")[0-9a-f]{64}(\")|\1${NEW_SHA}\2|" \
+            mac-cleans.rb
+          diff -u mac-cleans.rb.bak mac-cleans.rb || true
+          if diff -q mac-cleans.rb.bak mac-cleans.rb >/dev/null 2>&1; then
+            echo "No changes to mac-cleans.rb — already up to date"
+            exit 0
+          fi
+          rm mac-cleans.rb.bak
+          git config user.name "Mavis Release Bot"
+          git config user.email "Mavis-release-bot@users.noreply.github.com"
+          git add mac-cleans.rb
+          git commit -m "mac-cleans: bump to ${NEW_TAG}"
+          git push
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

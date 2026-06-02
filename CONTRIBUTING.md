@@ -592,14 +592,50 @@ We follow [Semantic Versioning](https://semver.org/):
 
 ### Release Checklist
 
-1. Update version number in script (VERSION="X.Y.Z")
-2. Update CHANGELOG.md with new version section
-3. Update README.md badges
+The release is now mostly automated by `.github/workflows/release.yml` (added in v5.2.0). On push of a `v*.*.*` tag, the workflow:
+
+1. Downloads the source tarball and computes its SHA-256.
+2. Updates `mac-cleans.rb` in `carme99/homebrew-tap` (the formula's url + sha256).
+3. Creates the GitHub release with auto-generated notes.
+
+So your local checklist is just:
+
+1. Land all the changes you want in the release on `main` (PRs merged, `VERSION=` updated, CHANGELOG entry written).
+2. Tag the merge commit and push the tag:
+   ```bash
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+3. Watch the [Actions tab](https://github.com/Carme99/MacCleans.sh/actions) for the `Release` workflow to finish (~30 seconds). The Homebrew tap and GitHub release will both be updated automatically.
+
+If the workflow fails, fix the underlying issue and either re-push the tag (after deleting it locally + on origin) or use the **Run workflow** button on the Actions tab to re-run it manually.
+
+#### One-time setup for the maintainer
+
+The workflow needs a token with `contents: write` on `carme99/homebrew-tap` to push the updated formula.
+
+1. Create a fine-grained personal access token at <https://github.com/settings/tokens?type=beta> with:
+   - Resource owner: `carme99`
+   - Repository access: `carme99/homebrew-tap` only
+   - Permissions: `Contents: Read and write`
+2. Add it as a repository secret on `Carme99/MacCleans.sh` at **Settings → Secrets and variables → Actions → New repository secret**:
+   - Name: `HOMEBREW_TAP_TOKEN`
+   - Value: the token from step 1
+
+(If you ever lose the token, repeat the two steps — fine-grained tokens can be revoked and recreated without affecting anything else.)
+
+### Manual fallback (if automation is broken)
+
+If the `Release` workflow can't run (e.g. secret rotated incorrectly, transient outage), fall back to the manual flow:
+
+1. Update version number in script (`VERSION="X.Y.Z"`)
+2. Update `CHANGELOG.md` with new version section
+3. Update `README.md` badges
 4. Test on clean macOS installation
 5. Create git tag: `git tag -a vX.Y.Z -m "Version X.Y.Z"`
 6. Push tag: `git push origin vX.Y.Z`
-7. Create GitHub release with changelog
-8. Update documentation if needed
+7. Create the GitHub release via the UI (Actions → Releases → Draft a new release → pick the tag)
+8. Update `carme99/homebrew-tap/mac-cleans.rb` (url + sha256) and push to the tap repo
 
 ## Questions?
 
