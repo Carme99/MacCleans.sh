@@ -1,0 +1,84 @@
+# maccleans.conf.example
+#
+# Copy this file to one of the following locations and edit to taste:
+#   ~/.maccleans.conf                                      (recommended for personal use)
+#   ~/.config/mac-cleans/config                            (XDG-style)
+#   /etc/maccleans.conf                                    (system-wide)
+#
+# Lines starting with `#` are comments. Unknown keys are warned about at startup
+# and ignored. Values are validated by `validate_config()` in clean-mac-space.sh.
+#
+# Precedence:  CLI flag > environment variable > config file > built-in default.
+# A config value of `true`/`false` can be overridden on the CLI with
+# `--skip-xcode=false` etc. See docs/command-reference.md for the full list.
+
+# ---------- Behavior ----------
+
+# Skip the interactive confirmation prompt
+AUTO_YES=false
+
+# Preview what would be cleaned without actually deleting anything
+DRY_RUN=false
+
+# Skip ALL confirmations, including the dangerous ones (Xcode, Trash, iCloud Drive, iOS backups)
+FORCE=false
+
+# Minimal output — useful for cron / launchd automation
+QUIET=false
+
+# Disable ANSI color codes (also auto-detected when stdout is not a TTY)
+NO_COLOR=false
+
+# Print extra debug output (file paths, sizes, per-category results)
+VERBOSE=false
+
+# Emit the result block as a single JSON object instead of human-readable lines
+JSON_OUTPUT=false
+
+# Only run if disk usage is above this percentage. 0 = always run.
+THRESHOLD=0
+
+# Run `brew update` before cleanup (refreshes Homebrew formulas first)
+UPDATE=false
+
+# ---------- Skip flags ----------
+# Set to `true` to leave that category alone during cleanup.
+
+# Backup / snapshot tools
+SKIP_SNAPSHOTS=false          # Time Machine local snapshots
+SKIP_IOS_BACKUPS=false        # ~/Library/Application Support/MobileSync/Backup
+SKIP_IOS_UPDATES=false        # iOS / iPadOS .ipsw update files
+
+# Package managers
+SKIP_HOMEBREW=false           # Homebrew cache (`brew cleanup -s`, `brew autoremove`)
+SKIP_NPM=false                # npm, yarn, pnpm caches
+SKIP_PIP=false                # Python pip cache
+SKIP_PNPM=false               # pnpm cache
+SKIP_BUN=false                # Bun cache
+SKIP_COCOAPODS=false          # CocoaPods cache
+SKIP_GRADLE=false             # Gradle cache
+SKIP_GO=false                 # Go module cache (`$GOPATH/pkg/mod`)
+
+# Browsers and app caches
+SKIP_BROWSERS=false           # Chrome, Firefox, Edge caches
+SKIP_SPOTIFY=false            # Spotify client cache
+SKIP_CLAUDE=false             # Claude Desktop ShipIt auto-update cache
+
+# Apple ecosystem
+SKIP_XCODE=false              # Xcode Derived Data (forces a 5-30 min rebuild)
+SKIP_DOCKER=false             # Docker containers + images (volumes are never touched)
+SKIP_SIMULATOR=false          # iOS Simulator data
+SKIP_MAIL=false               # Mail app cache
+SKIP_SIRI_TTS=false           # Siri text-to-speech cache
+SKIP_ICLOUD_MAIL=false        # iCloud Mail cache
+SKIP_PHOTOS_LIBRARY=false     # Photos Library cache
+SKIP_ICLOUD_DRIVE=false       # iCloud Drive offline files (REQUIRES --force-icloud-drive)
+SKIP_QUICKLOOK=false          # QuickLook thumbnails
+SKIP_DIAGNOSTICS=false        # Diagnostic reports
+
+# Filesystem hygiene
+SKIP_TRASH=false              # ~/.Trash emptying
+SKIP_DSSTORE=false            # Stray .DS_Store files on the home volume
+
+# System /tmp (default ON for safety; opt in with --clean-system-tmp on the CLI)
+SKIP_SYSTEM_TMP=true          # /tmp, /var/tmp, /private/var/folders/.../T/

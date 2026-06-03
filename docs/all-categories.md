@@ -60,7 +60,7 @@ Complete reference of all cleanup categories in MacCleans.
 
 **When to skip:** If you're an active Xcode developer
 
-**More info:** See [Xcode Derived Data Guide](guides/xcode-derived-data.md)
+**More info:** See [Xcode Derived Data Guide](guides/xcode-derived-data-guide.md)
 
 ```bash
 # Skip Xcode
@@ -73,7 +73,7 @@ sudo Mac-Clean --yes --skip-xcode
 
 **Typical Size:** 1-20GB
 
-**What it does:** Removes Docker containers, images, volumes, and build cache.
+**What it does:** Removes Docker containers and images. Named volumes and build cache are preserved.
 
 **Risk:** Low - containers can be rebuilt from Dockerfiles
 
@@ -495,9 +495,9 @@ For deeper understanding of specific categories:
 
 | Guide | Category |
 |-------|----------|
-| [Xcode Derived Data](guides/xcode-derived-data.md) | Xcode |
-| [Docker Cache](guides/docker-cache.md) | Docker |
-| [Understanding Caches](guides/understanding-caches.md) | All caches |
+| [Xcode Derived Data](guides/xcode-derived-data-guide.md) | Xcode |
+| [Docker Cache](guides/docker-cache-guide.md) | Docker |
+| [Understanding Caches](guides/understanding-macos-caches.md) | All caches |
 
 ---
 

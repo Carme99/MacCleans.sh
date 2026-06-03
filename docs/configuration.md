@@ -57,7 +57,10 @@ SKIP_GRADLE=false
 SKIP_GO=false
 SKIP_BUN=false
 SKIP_PNPM=false
+SKIP_SYSTEM_TMP=true
 ```
+
+A complete, commented-out example is also available at the repo root as [`maccleans.conf.example`](../maccleans.conf.example) — copy it to one of the locations above and edit.
 
 ## All Configuration Options
 
@@ -107,6 +110,7 @@ Set to `true` to skip a category during cleanup.
 | `SKIP_GO` | Go module cache |
 | `SKIP_BUN` | Bun cache |
 | `SKIP_PNPM` | pnpm cache |
+| `SKIP_SYSTEM_TMP` | `/tmp` and `/var/tmp` (default: `true`; pass `--clean-system-tmp` to opt in) |
 
 ## Environment Variables
 

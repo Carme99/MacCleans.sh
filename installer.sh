@@ -130,11 +130,21 @@ verify_script() {
     if [ -n "$sha256_hash" ]; then
         log_info "SHA256 fingerprint: ${sha256_hash:0:16}..."
 
-        # Compare with expected hash if available (opt-in verification)
+        # Compare with expected hash if available (opt-in verification).
+        # Use constant-time comparison via cmp -s on equal-length inputs
+        # (avoids the early-exit timing side-channel of `[ "$a" = "$b" ]`).
+        # Length check first so cmp doesn't bail out instantly on a truncated
+        # download.
         if [ -n "$EXPECTED_HASH" ]; then
-            if [ "$sha256_hash" = "$EXPECTED_HASH" ]; then
-                log_success "Script hash verified successfully"
-            else
+            if [ "${#sha256_hash}" -ne 64 ] || [ "${#EXPECTED_HASH}" -ne 64 ]; then
+                log_error "Script hash verification FAILED!"
+                log_error "Expected: $EXPECTED_HASH"
+                log_error "Got:      $sha256_hash"
+                log_error "Hashes must be 64 hex characters (SHA-256)."
+                log_error "The downloaded script may have been tampered with!"
+                return 1
+            fi
+            if ! cmp -s <(printf '%s' "$sha256_hash") <(printf '%s' "$EXPECTED_HASH"); then
                 log_error "Script hash verification FAILED!"
                 log_error "Expected: $EXPECTED_HASH"
                 log_error "Got:      $sha256_hash"
@@ -142,6 +152,7 @@ verify_script() {
                 log_error "Use --no-verify to skip this check (not recommended)"
                 return 1
             fi
+            log_success "Script hash verified successfully"
         else
             # Verification is opt-in - no warning when not configured
             log_info "Full hash: $sha256_hash"

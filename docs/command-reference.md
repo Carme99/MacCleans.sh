@@ -101,7 +101,7 @@ sudo Mac-Clean --dry-run --json
 **Example output:**
 ```json
 {
-  "version": "5.1.6",
+  "version": "5.3.0",
   "timestamp": "2026-04-09T12:00:00Z",
   "dry_run": true,
   "results": {
@@ -203,7 +203,9 @@ sudo Mac-Clean --yes \
   --skip-gradle \
   --skip-go \
   --skip-bun \
-  --skip-pnpm
+  --skip-pnpm \
+  --skip-system-tmp \
+  --clean-system-tmp
 ```
 
 See [All Categories](all-categories.md) for details.

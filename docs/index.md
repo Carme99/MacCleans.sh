@@ -1,7 +1,7 @@
 # MacCleans Documentation
 
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
-[![Version](https://img.shields.io/badge/Version-5.1.6-blue.svg)](../CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-5.3.0-blue.svg)](../CHANGELOG.md)
 
 In-depth guides for understanding macOS maintenance and getting the most out of MacCleans.
 
@@ -61,9 +61,9 @@ Deep-dive guides for specific topics.
 
 | Guide | Description |
 |-------|-------------|
-| [Understanding Caches](guides/understanding-caches.md) | What are caches and why clean them |
-| [Xcode Derived Data](guides/xcode-derived-data.md) | Managing Xcode caches |
-| [Docker Cache](guides/docker-cache.md) | Docker cleanup best practices |
+| [Understanding Caches](guides/understanding-macos-caches.md) | What are caches and why clean them |
+| [Xcode Derived Data](guides/xcode-derived-data-guide.md) | Managing Xcode caches |
+| [Docker Cache](guides/docker-cache-guide.md) | Docker cleanup best practices |
 | [Automating Maintenance](guides/automating-macos-maintenance.md) | Cron, launchd, and scripts |
 
 ---

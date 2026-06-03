@@ -93,7 +93,7 @@ Profiles are presets for different use cases:
 # Conservative - skips development caches (recommended for most)
 sudo Mac-Clean --profile conservative
 
-# Developer - skips only Xcode (if you develop with Xcode)
+# Developer - skips Xcode (avoids 5-30 min rebuild) and iOS Backups
 sudo Mac-Clean --profile developer
 
 # Aggressive - cleans everything
