@@ -98,14 +98,13 @@ jobs:
         run: |
           set -euo pipefail
           cd /tmp/homebrew-tap
-          # Replace the tag in the url line and the sha256 in its line.
-          # Use `-e expr1 -e expr2` (the portable form) rather than
-          # `-E expr1 -E expr2` (GNU-only) because multiple -E flags
-          # behave differently across sed implementations.
-          sed -i.bak \
-            -e "s|(archive/refs/tags/)v[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)|\1${NEW_TAG}\2|" \
-            -e "s|(sha256 \")[0-9a-f]{64}(\")|\1${NEW_SHA}\2|" \
-            -E mac-cleans.rb
+          # Replace the tag and sha256 with two separate sed invocations.
+          # Using -E with a single expression per call is portable across
+          # GNU and BSD sed and avoids backreference parsing quirks that
+          # show up with combined -e expr1 -e expr2 on GNU sed.
+          cp mac-cleans.rb mac-cleans.rb.bak
+          sed -i.bak -E "s|(archive/refs/tags/)v[0-9]+\.[0-9]+\.[0-9]+(\.tar\.gz)|\1${NEW_TAG}\2|" mac-cleans.rb
+          sed -i.bak -E "s|(sha256 \")[0-9a-f]{64}(\")|\1${NEW_SHA}\2|" mac-cleans.rb
           diff -u mac-cleans.rb.bak mac-cleans.rb || true
           if diff -q mac-cleans.rb.bak mac-cleans.rb >/dev/null 2>&1; then
             echo "No changes to mac-cleans.rb — already up to date"
