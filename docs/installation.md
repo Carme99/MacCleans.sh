@@ -35,9 +35,11 @@ curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/installer
 
 The installer will:
 1. Download the latest version
-2. Make it executable
-3. Install to `/usr/local/bin/Mac-Clean`
-4. Optionally install shell completions
+2. Verify its SHA-256 against the pinned `EXPECTED_HASH` in `installer.sh`
+3. Make it executable
+4. Install to `/usr/local/bin/Mac-Clean`
+
+Shell completions are **not** installed by the installer — copy them from the `completions/` directory into your shell's completions path manually (see "Shell Completions" below).
 
 ### Manual Installation
 

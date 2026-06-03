@@ -6,185 +6,226 @@ Interested in contributing to MacCleans? This guide covers everything you need t
 
 ```
 MacCleans.sh/
-├── clean-mac-space.sh      # Main script (entry point)
-├── docs/                   # Documentation
-├── tests/                  # Test suite
-├── installer.sh            # Installation script
-└── README.md               # Project readme
+├── clean-mac-space.sh      # Main script (entry point installed as `Mac-Clean`)
+├── installer.sh            # Curl-based installer
+├── maccleans.conf.example  # Annotated sample config file
+├── completions/            # Shell completions (bash, zsh, fish)
+├── docs/                   # User + developer documentation
+├── .github/
+│   ├── workflows/          # GitHub Actions (shellcheck, claude-review, release)
+│   ├── ISSUE_TEMPLATE/     # Bug + feature request templates
+│   └── pull_request_template.md
+├── CHANGELOG.md            # Release history
+├── CONTRIBUTING.md         # How to contribute + release process
+├── CLAUDE.md               # AI-agent context (this file's sibling)
+├── LICENSE                 # MIT
+└── README.md
 ```
+
+There is intentionally **no `tests/` directory and no `npm test`** — MacCleans is a single Bash script (plus an installer and completions), tested manually and via ShellCheck on PRs. Adding a test framework is intentionally out of scope; see the "Testing" section below.
 
 ## Script Architecture
 
-The main script is organized into these sections:
+`clean-mac-space.sh` is a single-file Bash script (~3,200 lines). It's organized into these top-level sections:
 
-1. **Header** - Constants, usage, and options documentation
-2. **Configuration** - Config file loading and parsing
-3. **Helper Functions** - Validation and utility functions
-4. **Category Functions** - Individual cleanup implementations
-5. **Main Logic** - Argument parsing and execution flow
+1. **Shebang + strict mode** (`set -euo pipefail`, lines 1-9)
+2. **Constants + version** (lines 11-30)
+3. **Help / option documentation** (the `# Options:` block, lines 33-72)
+4. **Configuration loading** — `load_config_file()`, `validate_config()`, `parse_arguments()` (lines ~155-475)
+5. **Cleanup-on-signal handlers** — `cleanup_on_interrupt`, `cleanup_on_exit` (lines ~477-525)
+6. **Locking** — `acquire_lock` (lines ~534-575)
+7. **Destructive helper** — `safe_clear_directory` (lines ~580-625)
+8. **iCloud safety helpers** — `check_icloud_sync_status`, `check_icloud_backup_enabled` (lines ~627-735)
+9. **Logging helpers** — `log`, `log_verbose`, `log_plain`, `log_always`, `log_warning`, `log_error`, `log_success`, `log_category`, `log_section` (lines ~750-810)
+10. **Disk / size helpers** — `safe_du`, `size_to_bytes`, `bytes_to_human`, `check_disk_space`, `check_minimum_disk_space` (lines ~846-925)
+11. **Health checks** — `perform_health_checks` (line 1031)
+12. **Profile loader** — `load_profile` (line 1071)
+13. **Category cleanup sections** — 29 top-level procedural blocks, numbered #1 through #29 (the source of finding F-2 in the v5.2.0 review — there's no #23 because the blocks were hand-numbered and the gap was missed)
+14. **JSON output** (the trailing `# Deliver results as JSON` block)
 
 ## Adding a New Category
 
-To add a new cleanup category:
+To add a new cleanup category (e.g. `newcategory`):
 
-### 1. Add Command-Line Options
+### 1. Add the skip flag and CLI option
 
-In the header and argument parsing section:
+In the option block at the top of the script (around line 46-72), add:
 
 ```bash
-# Add to Options section header:
-#   --skip-newcategory   Skip NewCategory cleanup
+#   --skip-newcategory    Skip NewCategory cleanup
+```
 
-# Add to parse_arguments():
+In `parse_arguments()` (line 258), add a case for the new flag:
+
+```bash
 --skip-newcategory)
     SKIP_NEWCATEGORY=true
     shift
     ;;
 ```
 
-### 2. Add the Variable
+### 2. Add the variable
 
-Add to the default options section:
+In the default-variables block, add:
 
 ```bash
 SKIP_NEWCATEGORY=false
 ```
 
-### 3. Add Configuration Support
+### 3. Add configuration-file support
 
-In `load_config_file()`:
+In `load_config_file()` (line 191), add:
 
 ```bash
 SKIP_NEWCATEGORY) SKIP_NEWCATEGORY="$value" ;;
 ```
 
-In `validate_config()`:
+In `validate_config()` (line 160), add `SKIP_NEWCATEGORY` to the allowed-keys list so unknown-key warnings don't fire.
+
+### 4. Add the cleanup section
+
+Add a new numbered section at the end of the category block list (currently 29 categories, ~line 3050-ish). Use an existing similar category as a template. Required pattern:
 
 ```bash
-SKIP_NEWCATEGORY
+###############################################################################
+# 30. NewCategory
+###############################################################################
+if [ "$SKIP_NEWCATEGORY" = false ]; then
+    log_plain "================================================"
+    log "30. NewCategory"
+    log_plain "================================================"
+
+    NEWCATEGORY_PATH="$USER_HOME/Library/Caches/com.example.newcategory"
+
+    if [ -L "$NEWCATEGORY_PATH" ]; then
+        log_warning "Skipping symlink: $NEWCATEGORY_PATH"
+    elif [ -d "$NEWCATEGORY_PATH" ]; then
+        # measure size, log_warning if 0
+        NEWCATEGORY_SIZE=$(safe_du "$NEWCATEGORY_PATH" 2>/dev/null)
+        log "NewCategory: $NEWCATEGORY_SIZE"
+
+        if [ "$NEWCATEGORY_SIZE" != "0B" ]; then
+            PROCESSED_CATEGORIES+=("NewCategory")
+            if [ "$DRY_RUN" = true ]; then
+                log "Would clean NewCategory: $NEWCATEGORY_SIZE"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + $(size_to_bytes "$NEWCATEGORY_SIZE")))
+            else
+                if safe_clear_directory "$NEWCATEGORY_PATH"; then
+                    log_success "NewCategory cleared"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + $(size_to_bytes "$NEWCATEGORY_SIZE")))
+                else
+                    log_warning "Some files in NewCategory could not be removed"
+                fi
+            fi
+        else
+            log "NewCategory is empty"
+        fi
+    else
+        log "NewCategory not found"
+    fi
+    log_plain ""
+else
+    SKIPPED_CATEGORIES+=("NewCategory")
+fi
 ```
 
-### 4. Add the Cleanup Function
+Conventions:
+- Use `safe_clear_directory` for the destructive step — it handles `[ -L ]` checks and `find -type f` predicates
+- Use `safe_du` for size measurement (returns human-readable string, pair with `size_to_bytes` for arithmetic)
+- Append to `PROCESSED_CATEGORIES` (success) or `SKIPPED_CATEGORIES` (skipped/failed), used for the final summary + `--json` output
+- Match the existing numbering — if you add this as the new #30, the gap at #23 still needs separate fixing (see "Known issues" below)
 
-```bash
-clean_newcategory() {
-    local category="NewCategory"
-    local path="$HOME/Library/Caches/com.example.newcategory"
-    
-    if [ "$SKIP_NEWCATEGORY" = "true" ]; then
-        print_skip "$category" "skipped by user"
-        return 0
-    fi
-    
-    if [ ! -d "$path" ]; then
-        print_skip "$category" "not found"
-        return 0
-    fi
-    
-    local size
-    size=$(calculate_size "$path")
-    
-    if [ "$size" -eq 0 ]; then
-        print_skip "$category" "empty"
-        return 0
-    fi
-    
-    print_found "$category" "$size"
-    
-    if [ "$DRY_RUN" = "true" ]; then
-        return 0
-    fi
-    
-    if [ "$AUTO_YES" = "false" ]; then
-        confirm_action "$category" || return 0
-    fi
-    
-    remove_items "$path" "$category"
-    return 0
-}
-```
+### 5. Update documentation
 
-### 5. Register in Main Logic
+- Add an entry to `docs/all-categories.md` (keep the alphabetical-ish ordering)
+- Add the flag to the `--skip-X` list in `docs/command-reference.md` (around line 171)
+- Add `SKIP_NEWCATEGORY` to the Skip Options table in `docs/configuration.md`
+- If it should be skippable via a profile, add it to the relevant profile case in `load_profile()` (line 1071) and update `docs/profiles.md`
 
-Add to the main cleanup flow (around line 3000):
+### 6. Add to the example config
 
-```bash
-clean_newcategory
-```
-
-### 6. Update Documentation
-
-- Add to [All Categories](all-categories.md)
-- Update [Command Reference](command-reference.md)
-- Add to [Profiles](profiles.md) if applicable
+Append the new `SKIP_NEWCATEGORY=false` line to `maccleans.conf.example` at the repo root, in a sensible alphabetical/grouped position.
 
 ## Code Style
 
 ### Formatting
 
 - 4-space indentation (no tabs)
-- Maximum line length: 100 characters
-- Blank lines between sections
+- ~100 character line length where practical
+- Blank lines between top-level functions
+- `local` for all function-local variables
 
 ### Naming
 
-- Functions: `clean_category_name`
-- Variables: `UPPER_CASE`
-- Constants: `readonly` where possible
+- Functions: `snake_case` (e.g. `safe_clear_directory`, `load_config_file`)
+- Local variables: `snake_case` (e.g. `user_home`, `recent_backup`)
+- Global variables: `UPPER_SNAKE_CASE` (e.g. `SKIP_XCODE`, `USER_HOME`, `PROCESSED_CATEGORIES`)
+- Array appends: `ARR+=("item")` (always quoted)
+- Command substitution: `$(cmd)` not backticks
 
-### Documentation
+### Safety conventions
 
-- Comments for complex logic
-- Update header documentation when adding options
-- Document edge cases
+These are the rules the script lives by — please don't relax them:
+
+- `set -euo pipefail` at the top of every script, no exceptions
+- All destructive operations go through `safe_clear_directory`, which:
+  - Refuses to follow symlinks at the root
+  - Uses `find -type f` / `-type d` predicates that don't follow in-tree symlinks
+- Per-folder `[ -L "$folder" ]` checks before any `find -delete` on user data
+- All variable expansions are double-quoted (the optional `quote-safe-variables` ShellCheck rule, currently disabled in CI but enforced in code review)
+- Sudo is only used where required, and drops privileges via `sudo -u "$ACTUAL_USER"` when running as root (see the brew cleanup and the iCloud backup check for the pattern)
+- Per-operation `--force-X` flags for dangerous operations (Xcode, Trash, iCloud Drive, iOS Backups) — `--force` alone does not bypass them
 
 ## Testing
 
-Run the test suite before submitting changes:
+There is no automated test framework. Before submitting a PR:
 
-```bash
-# Run all tests
-npm test
+1. **ShellCheck on both scripts** — must pass clean at the default CI severity:
+   ```bash
+   shellcheck -f gcc clean-mac-space.sh installer.sh
+   shellcheck -S warning clean-mac-space.sh installer.sh
+   ```
+2. **Bash syntax** — `bash -n clean-mac-space.sh && bash -n installer.sh`
+3. **Manual dry run** — `sudo ./clean-mac-space.sh --dry-run --verbose` (or `--dry-run --json | jq` for machine-readable output)
+4. **Targeted dry run** — exercise your new category with `--skip-everything-else --verbose` (or whatever skips narrow it down) to confirm the right files are about to be touched
+5. **Real run with `--yes` on a non-critical machine** if the change affects anything beyond your own `/tmp` or your own caches
 
-# Run specific test
-npm test -- --grep "CategoryName"
-```
-
-See [tests/README.md](../tests/README.md) for testing details.
+The CI on PRs runs ShellCheck automatically (see `.github/workflows/shellcheck.yml`) and the release workflow (`.github/workflows/release.yml`) handles tarball + SHA + tap on tag push.
 
 ## ShellCheck
 
-MacCleans passes ShellCheck with no errors:
+The project is configured to pass `shellcheck` at default severity (error/warning/info) with `SC1090`/`SC1091` excluded (sourced files can't be checked statically). Optional rule groups (`-o quote-safe-variables`, `-o require-double-brackets`, `-o check-extra-masked-returns`, etc.) surface stylistic recommendations that aren't gating the build but are worth fixing in a follow-up PR.
 
-```bash
-shellcheck clean-mac-space.sh
-```
-
-Before submitting a PR, ensure:
-
-```bash
-shellcheck -S warning clean-mac-space.sh
-```
-
-No warnings should be introduced.
+The action pin is `ludeeus/action-shellcheck@master` (line 19 of `.github/workflows/shellcheck.yml`) — known P2 to pin to a SHA for supply-chain stability.
 
 ## Pull Request Guidelines
 
-1. **Branch from `main`**
-2. **Keep PRs focused** - one feature or fix per PR
-3. **Test thoroughly** - run `--dry-run` and verify output
-4. **Update docs** - reflect any changes in documentation
-5. **Follow existing patterns** - match the code style
+1. **Branch from `main`**, use a `fix/<name>` or `feat/<name>` prefix (the project's convention)
+2. **Keep PRs focused** — one feature or fix per PR
+3. **Run the verifications above locally** before pushing
+4. **Update CHANGELOG.md** under an "Unreleased" section (or your version's section)
+5. **Update all the docs** — the script's option block, `command-reference.md`, `all-categories.md`, `configuration.md`, `profiles.md` (whichever apply)
+6. **PR template** (`.github/pull_request_template.md`) — tick the right boxes, link any closed issues
 
 ## Reporting Issues
 
-Found a bug? Please report it with:
+Found a bug? Open an issue with:
 
 - macOS version
 - MacCleans version (`Mac-Clean --version`)
 - Steps to reproduce
 - Expected vs actual behavior
-- Output with `--verbose` if possible
+- Output with `--verbose` (and `--json` for machine-readable) if possible
+
+## Known Issues / Tech Debt
+
+These are open items from the v5.2.0 review that future contributors may want to tackle:
+
+- **F-2**: the numbered category sections jump from #22 to #24 (no #23). Source of this is that the numbering is hand-maintained in the section comment, the `log` call, and the interactive menu. Adding a new category makes it easy to mis-number again. A future refactor could introduce a `CATEGORY_REGISTRY` array and a `run_category` dispatcher (this is the v5.2.0 review's F-5).
+- **F-3**: in `--dry-run --json` mode, `disk_usage.after` is always `0` (line 3224). Should be `null` or computed.
+- **F-4**: `check_minimum_disk_space` and `check_disk_space` are near-duplicate helpers. Consolidate.
+- **F-5**: 29 top-level procedural category blocks. Refactor into a registry.
+- **P2 #26**: `ludeeus/action-shellcheck@master` should be pinned to a SHA.
 
 ## Getting Help
 

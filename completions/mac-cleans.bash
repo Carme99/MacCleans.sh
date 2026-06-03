@@ -15,9 +15,19 @@ _mac_cleans() {
         --skip-icloud-drive --skip-quicklook --skip-diagnostics
         --skip-ios-backups --skip-ios-updates --skip-cocoapods
         --skip-gradle --skip-go --skip-bun --skip-pnpm
+        --skip-system-tmp --clean-system-tmp
     )
 
-    mapfile -t COMPREPLY < <(compgen -W "${options[*]}" -- "$cur")
+    # NOTE: intentionally NOT using `mapfile` (a bash 4+ builtin) so the
+    # completion loads on macOS's bundled bash 3.2.57. We use a simple
+    # for-loop prefix match instead.
+    local option
+    COMPREPLY=()
+    for option in "${options[@]}"; do
+        if [[ "$option" == "$cur"* ]]; then
+            COMPREPLY+=("$option")
+        fi
+    done
 }
 
 complete -F _mac_cleans mac-cleans

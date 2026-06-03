@@ -6,16 +6,18 @@ Profiles are presets that skip specific categories for different use cases.
 
 | Profile | Best For | Typical Recovery | Skips |
 |---------|---------|---------------|-------|
-| **Conservative** | Regular users | 5-15GB | Xcode, npm, pip, Docker, browsers |
-| **Developer** | Software devs | 10-40GB | Only Xcode |
+| **Conservative** | Regular users | 5-15GB | Xcode, npm, pip, Docker, browsers, iOS Simulator, iOS Backups, iOS Updates |
+| **Developer** | Xcode devs | 10-40GB | Xcode, iOS Backups |
 | **Aggressive** | Maximum space | 15-100GB+ | Nothing |
-| **Minimal** | Quick cleanup | 2-5GB | All app caches |
+| **Minimal** | Quick cleanup | 2-5GB | Xcode, npm, pip, Docker, browsers, Spotify, Claude, iOS Simulator, Mail, iOS Backups, iOS Updates |
+
+> Skip lists above reflect the actual `load_profile()` switches in `clean-mac-space.sh`. If you change the code, update this table.
 
 ## Profile Details
 
 ### Conservative
 
-Recommended for most users. Skips development-related caches.
+Recommended for most users. Skips development-related caches plus the iOS categories.
 
 **Command:**
 ```bash
@@ -27,16 +29,18 @@ sudo Mac-Clean --profile conservative --yes
 - npm / Yarn / pnpm
 - pip
 - Docker
-- iOS Simulator
 - Browser caches
+- iOS Simulator
+- iOS Device Backups
+- iOS/iPadOS Update Files (`.ipsw`)
 
-**Good for:** Users who don't develop software.
+**Good for:** Users who don't develop software and want a safe-but-thorough cleanup.
 
 ---
 
 ### Developer
 
-For software developers who use Xcode. Skips only Xcode to avoid long rebuild times.
+For software developers who use Xcode. Skips Xcode Derived Data (to keep build times fast) and iOS Device Backups (which are large and slow to re-download from iCloud).
 
 **Command:**
 ```bash
@@ -45,15 +49,18 @@ sudo Mac-Clean --profile developer --yes
 
 **Skips:**
 - Xcode Derived Data (to avoid 5-30 minute rebuilds)
+- iOS Device Backups
 
 **Cleans:**
 - npm / Yarn / pnpm
 - pip
 - Docker
 - Browser caches
+- iOS Simulator
+- iOS/iPadOS Update Files
 - Everything else
 
-**Good for:** Developers who use Xcode regularly.
+**Good for:** Developers who use Xcode regularly and have iCloud Backup enabled (so iOS backups can be re-downloaded if needed).
 
 ---
 
@@ -70,13 +77,13 @@ sudo Mac-Clean --profile aggressive --yes
 
 **Good for:** When you urgently need disk space.
 
-**Warning:** This will delete Xcode Derived Data, which means your next build will take 5-30 minutes longer.
+**Warning:** This will delete Xcode Derived Data, which means your next build will take 5-30 minutes longer. iOS Device Backups are also deleted.
 
 ---
 
 ### Minimal
 
-Quick cleanup of only the safest categories.
+Conservative cleanup of the safest categories only. Despite the name, this skips *more* than Conservative — it's the "least destructive" preset.
 
 **Command:**
 ```bash
@@ -84,17 +91,26 @@ sudo Mac-Clean --profile minimal --yes
 ```
 
 **Skips:**
-- All application caches
-- Development tools
-- System logs
+- Xcode Derived Data
+- npm / Yarn / pnpm
+- pip
+- Docker
+- Browser caches
+- Spotify cache
+- Claude cache
+- iOS Simulator
+- Mail attachments cache
+- iOS Device Backups
+- iOS/iPadOS Update Files (`.ipsw`)
 
 **Cleans:**
 - System caches
-- Logs
+- Old log files
+- User cache files
 - Trash
-- .DS_Store
+- `.DS_Store` files
 
-**Good for:** Regular maintenance when you want minimal impact.
+**Good for:** Regular maintenance when you want to leave application caches and dev tools alone.
 
 ---
 

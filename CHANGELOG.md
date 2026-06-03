@@ -2,18 +2,42 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
-## [5.2.0] - 2026-06-01
+## [5.3.0] - 2026-06-03
 
-### Security Fixes
+### Documentation
 
-- **iCloud backup detection was misfiring as root** - `check_icloud_backup_enabled` ran `defaults read MobileMeAccounts` as root, which always reads the root user's (empty) Apple ID plist, causing the iOS-backup safety gate to fail-close for the wrong reason. Now drops privileges via `sudo -u $ACTUAL_USER` when running as root. Also switched the Backup.log lookup from `$HOME` to the validated `$USER_HOME` so a `sudo` invocation that resets env no longer points at `/var/root`. Users with iCloud backup enabled will now see the safety gate behave as intended (and may need to set `--force-ios-backups` to actually clean backups, as the docs describe).
-- **iCloud Drive symlink-swap TOCTOU** - The iCloud Drive cleanup now fails closed if `~/Library/CloudStorage` itself is a symlink (defense-in-depth against a co-resident attacker redirecting the cleanup), and re-checks `[ -L ]` on each folder immediately before deletion. Both `find` calls now use `find -P` explicitly. Closes the parent-swap and child-swap windows from the original `d73bef6` mitigation. *Note: an earlier draft of this change resolved and followed the symlink; CodeRabbit review correctly flagged that as the wrong posture for a root-run script. Thanks, CodeRabbit.*
+- **`--profile developer` / `conservative` / `minimal` drift fixed** — all three profiles' skip lists in `docs/profiles.md` and `docs/getting-started.md` now match the actual `load_profile()` switches in the code. The developer profile also skips iOS Backups (in addition to Xcode), the conservative profile skips 8 categories, the minimal profile skips 11.
+- **`--skip-system-tmp`, `--clean-system-tmp`, `SKIP_SYSTEM_TMP` documented** — added to the option block at the top of `clean-mac-space.sh`, to the `--skip-X` list in `docs/command-reference.md`, and to the Skip Options table in `docs/configuration.md`. (The flags shipped in v5.1.7 but were never written down.)
+- **Docker category description** — `docs/all-categories.md` no longer claims Docker cleanup touches volumes; v5.1.7+ only prunes containers and images.
+- **6 broken `docs/guides/` links fixed** — `xcode-derived-data`, `docker-cache`, `understanding-caches` references now point to the existing `-guide.md` suffixed files.
+- **iCloud Drive and Claude cache paths** in `docs/all-categories.md` were already corrected in v5.2.0.
+- **`docs/developer-guide.md` rewritten** — removed the phantom `tests/` directory and `npm test` references, replaced made-up function names (`print_skip`, `calculate_size`, etc.) with the real ones (`log_warning`, `safe_clear_directory`, etc.), and added a "Known Issues / Tech Debt" section listing the remaining P2 items from the v5.2.0 review.
+- **`maccleans.conf.example` created at repo root** — annotated, complete sample covering every current config key, including the new `SKIP_SYSTEM_TMP`. Three doc references that pointed to this file (`docs/installation.md`, `docs/guides/automating-macos-maintenance.md`, `CONTRIBUTING.md`) now resolve.
+- **Stale version strings** — `docs/index.md` badge, `docs/command-reference.md` JSON example, and `README.md` badge all bumped to 5.3.0.
+- **`docs/installation.md`**: installer no longer falsely claims to install shell completions (it never did); added SHA-256 verification step to the install flow description.
 
 ### Bug Fixes
 
-- **Installer hash pinned to old release** - `installer.sh` shipped a hardcoded `EXPECTED_HASH` that no longer matched the current `clean-mac-space.sh` SHA-256, so the `curl | bash` install path documented in README and 4 doc files was failing on hash mismatch. Hash regenerated and re-pinned.
-- **Doc: iCloud Drive path** - `docs/all-categories.md` listed the iCloud Drive path as `~/Library/Mobile Documents`; the actual code scans `~/Library/CloudStorage/iCloud Drive*`.
-- **Doc: Claude cache path** - `docs/all-categories.md` listed the Claude cache path as `~/Library/Caches/Claude`; the script only clears the auto-update cache at `~/Library/Caches/com.anthropic.claudefordesktop.ShipIt`.
+- **Duplicate `trap ... INT TERM` in `clean-mac-space.sh`** — the second `trap handle_interrupt INT TERM` was silently overriding the better `cleanup_on_interrupt` handler. Deleted the redundant trap and dead `handle_interrupt` function so Ctrl-C users now get the partial-cleanup summary as intended.
+- **Bash 3.2 compatibility for shell completion** — `completions/mac-cleans.bash` was using `mapfile` (a bash 4+ builtin), which fails on macOS's bundled `bash 3.2.57`. Replaced with a `for option in "${options[@]}"` loop.
+- **`VERSION` regression in v5.2.0** — the v5.2.0 release shipped with the internal `VERSION="5.1.7"` because a conflict-resolution step during the v5.2.0 cherry-pick dropped the version bump. This release corrects the script's `VERSION` to match the release tag. The Homebrew formula and the GitHub release were already correct.
+
+### Security
+
+- **Constant-time hash comparison in `installer.sh`** — replaced `[ "$sha256_hash" = "$EXPECTED_HASH" ]` with a length-check plus `cmp -s` on process substitutions, avoiding the early-exit timing side-channel. (Defense-in-depth — the expected hash is not a secret.)
+- **Symlinked cache path defense** — the system-cache cleanup loop in `clean-mac-space.sh` now skips any `~/Library/Caches/$CACHE_DIR` path that resolves to a symlink, mirroring the pattern used in the diagnostic-reports section. `$CACHE_DIR` is hard-coded today, so this is a future-proofing change for when `SAFE_CACHES` becomes config-driven.
+
+### Internal
+
+- Bumped `VERSION="5.3.0"` in `clean-mac-space.sh`.
+- All verification (`bash -n`, `shellcheck -S warning`) clean.
+
+### Post-review polish
+
+- `validate_config()` now also coerces/checks `SKIP_SYSTEM_TMP` (it was previously missing from the boolean validation loop, even though `SKIP_SYSTEM_TMP` was a recognised config key).
+- `completions/mac-cleans.bash` now tab-completes `--skip-system-tmp` and `--clean-system-tmp` (the v5.3.0 release added the flags to the script but the bash completion array was not updated).
+- `maccleans.conf.example` corrected: the XDG-style path is `~/.config/maccleans/config` (no hyphen), matching the loader. Also clarified that `--skip-xcode` is a presence-style flag and there is no `--skip-xcode=false` form.
+- `installer.sh` hash check comment reframed — `cmp -s` is not constant-time, only the length check is.
 
 ## [5.1.7] - 2026-04-12
 

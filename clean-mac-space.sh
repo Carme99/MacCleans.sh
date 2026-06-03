@@ -4,7 +4,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="5.1.7"
+VERSION="5.3.0"
 
 ###############################################################################
 # Mac-Clean: macOS Disk Cleanup Utility
@@ -69,6 +69,8 @@ VERSION="5.1.7"
 #   --skip-go           Skip Go module cache cleanup (NEW)
 #   --skip-bun          Skip Bun cache cleanup (NEW)
 #   --skip-pnpm         Skip pnpm cache cleanup (NEW)
+#   --skip-system-tmp   Skip /tmp and /var/tmp cleanup (default: on, opt-in via --clean-system-tmp)
+#   --clean-system-tmp  Opt in to /tmp and /var/tmp cleanup (default off; overrides --skip-system-tmp)
 #   --photos-library    Specify Photos library name or "all" to clean all libraries
 ###############################################################################
 
@@ -163,7 +165,7 @@ validate_config() {
                SKIP_SPOTIFY SKIP_CLAUDE SKIP_XCODE SKIP_BROWSERS SKIP_NPM \
                SKIP_PIP SKIP_TRASH SKIP_DSSTORE SKIP_DOCKER SKIP_SIMULATOR SKIP_MAIL \
                SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_PHOTOS_LIBRARY SKIP_ICLOUD_DRIVE SKIP_QUICKLOOK SKIP_DIAGNOSTICS SKIP_IOS_BACKUPS \
-               SKIP_IOS_UPDATES SKIP_COCOAPODS SKIP_GRADLE SKIP_GO SKIP_BUN SKIP_PNPM; do
+               SKIP_IOS_UPDATES SKIP_COCOAPODS SKIP_GRADLE SKIP_GO SKIP_BUN SKIP_PNPM SKIP_SYSTEM_TMP; do
         local value="${!var}"
         if ! validate_boolean "$value"; then
             echo "ERROR: Invalid config value for $var: '$value' (must be true or false)" >&2
@@ -513,14 +515,6 @@ cleanup_on_exit() {
     fi
 }
 trap cleanup_on_exit EXIT
-
-# Trap for signals to handle interruption gracefully
-handle_interrupt() {
-    echo ""
-    log_warning "Received interrupt signal. Cleaning up..."
-    exit 130
-}
-trap handle_interrupt INT TERM
 
 # Lock directory for preventing parallel runs
 # Use user-protected directory instead of world-writable /tmp
@@ -1646,6 +1640,13 @@ SAFE_CACHES=(
 OLD_CACHE_COUNT=0
 for CACHE_DIR in "${SAFE_CACHES[@]}"; do
     CACHE_PATH="$USER_HOME/Library/Caches/$CACHE_DIR"
+    # Defense in depth: skip symlinked cache paths. $CACHE_DIR is hard-coded
+    # today (safe), but if SAFE_CACHES ever becomes config-driven, a symlinked
+    # $CACHE_PATH would point find at an attacker-chosen directory.
+    if [ -L "$CACHE_PATH" ]; then
+        log_verbose "Skipping symlinked cache path: $CACHE_PATH"
+        continue
+    fi
     if [ -d "$CACHE_PATH" ]; then
         COUNT=$(find "$CACHE_PATH" -type f -mtime +30 2>/dev/null | wc -l | tr -d ' ') || COUNT=0
         COUNT=${COUNT:-0}
@@ -1657,6 +1658,10 @@ if [ "$OLD_CACHE_COUNT" -gt 0 ]; then
     CACHE_BYTES=0
     for CACHE_DIR in "${SAFE_CACHES[@]}"; do
         CACHE_PATH="$USER_HOME/Library/Caches/$CACHE_DIR"
+        if [ -L "$CACHE_PATH" ]; then
+            log_verbose "Skipping symlinked cache path: $CACHE_PATH"
+            continue
+        fi
         if [ -d "$CACHE_PATH" ]; then
             PARTIAL_SIZE=$(find "$CACHE_PATH" -type f -mtime +30 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
             [ -z "$PARTIAL_SIZE" ] && PARTIAL_SIZE="0B"
@@ -1675,6 +1680,10 @@ if [ "$OLD_CACHE_COUNT" -gt 0 ]; then
         log "Cleaning cache files older than 30 days..."
         for CACHE_DIR in "${SAFE_CACHES[@]}"; do
             CACHE_PATH="$USER_HOME/Library/Caches/$CACHE_DIR"
+            if [ -L "$CACHE_PATH" ]; then
+                log_verbose "Skipping symlinked cache path: $CACHE_PATH"
+                continue
+            fi
             if [ -d "$CACHE_PATH" ]; then
                 find "$CACHE_PATH" -type f -mtime +30 -delete 2>/dev/null
             fi
