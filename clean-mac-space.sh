@@ -165,7 +165,7 @@ validate_config() {
                SKIP_SPOTIFY SKIP_CLAUDE SKIP_XCODE SKIP_BROWSERS SKIP_NPM \
                SKIP_PIP SKIP_TRASH SKIP_DSSTORE SKIP_DOCKER SKIP_SIMULATOR SKIP_MAIL \
                SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_PHOTOS_LIBRARY SKIP_ICLOUD_DRIVE SKIP_QUICKLOOK SKIP_DIAGNOSTICS SKIP_IOS_BACKUPS \
-               SKIP_IOS_UPDATES SKIP_COCOAPODS SKIP_GRADLE SKIP_GO SKIP_BUN SKIP_PNPM; do
+               SKIP_IOS_UPDATES SKIP_COCOAPODS SKIP_GRADLE SKIP_GO SKIP_BUN SKIP_PNPM SKIP_SYSTEM_TMP; do
         local value="${!var}"
         if ! validate_boolean "$value"; then
             echo "ERROR: Invalid config value for $var: '$value' (must be true or false)" >&2

@@ -131,10 +131,12 @@ verify_script() {
         log_info "SHA256 fingerprint: ${sha256_hash:0:16}..."
 
         # Compare with expected hash if available (opt-in verification).
-        # Use constant-time comparison via cmp -s on equal-length inputs
-        # (avoids the early-exit timing side-channel of `[ "$a" = "$b" ]`).
-        # Length check first so cmp doesn't bail out instantly on a truncated
-        # download.
+        # Use `cmp -s` on equal-length inputs (length-checked first so a
+        # truncated download doesn't get a free pass). Note: `cmp -s` exits
+        # on the first byte difference, so this is *not* constant-time — the
+        # length check is the only constant-time piece. The timing side
+        # channel is academic here: the expected hash is in the public
+        # installer.sh, not a secret. Defense in depth only.
         if [ -n "$EXPECTED_HASH" ]; then
             if [ "${#sha256_hash}" -ne 64 ] || [ "${#EXPECTED_HASH}" -ne 64 ]; then
                 log_error "Script hash verification FAILED!"

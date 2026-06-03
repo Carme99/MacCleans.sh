@@ -2,15 +2,18 @@
 #
 # Copy this file to one of the following locations and edit to taste:
 #   ~/.maccleans.conf                                      (recommended for personal use)
-#   ~/.config/mac-cleans/config                            (XDG-style)
+#   ~/.config/maccleans/config                             (XDG-style, no hyphen)
 #   /etc/maccleans.conf                                    (system-wide)
 #
 # Lines starting with `#` are comments. Unknown keys are warned about at startup
 # and ignored. Values are validated by `validate_config()` in clean-mac-space.sh.
 #
 # Precedence:  CLI flag > environment variable > config file > built-in default.
-# A config value of `true`/`false` can be overridden on the CLI with
-# `--skip-xcode=false` etc. See docs/command-reference.md for the full list.
+# Note on CLI override: presence-style flags like --skip-xcode are *enabled by
+# presence* — there is no `--skip-xcode=false` form. To override a config-file
+# `true`, omit the flag, or for full control set the value in your config file
+# and don't pass the corresponding flag on the CLI. See docs/command-reference.md
+# for the full list.
 
 # ---------- Behavior ----------
 

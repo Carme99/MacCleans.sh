@@ -32,6 +32,13 @@ All notable changes to MacCleans.sh are documented in this file.
 - Bumped `VERSION="5.3.0"` in `clean-mac-space.sh`.
 - All verification (`bash -n`, `shellcheck -S warning`) clean.
 
+### Post-review polish
+
+- `validate_config()` now also coerces/checks `SKIP_SYSTEM_TMP` (it was previously missing from the boolean validation loop, even though `SKIP_SYSTEM_TMP` was a recognised config key).
+- `completions/mac-cleans.bash` now tab-completes `--skip-system-tmp` and `--clean-system-tmp` (the v5.3.0 release added the flags to the script but the bash completion array was not updated).
+- `maccleans.conf.example` corrected: the XDG-style path is `~/.config/maccleans/config` (no hyphen), matching the loader. Also clarified that `--skip-xcode` is a presence-style flag and there is no `--skip-xcode=false` form.
+- `installer.sh` hash check comment reframed — `cmp -s` is not constant-time, only the length check is.
+
 ## [5.1.7] - 2026-04-12
 
 ### Security Fixes
