@@ -180,7 +180,7 @@ These are the rules the script lives by — please don't relax them:
 
 Smoke tests for the pure helpers live in `tests/run-tests.sh` — a
 single bash script that sources `clean-mac-space.sh` in test mode
-(`BATS_TEST_MODE=1`, which skips the top-level `_init_skip_defaults`,
+(`TEST_MODE=1`, which skips the top-level `_init_skip_defaults`,
 `load_config_file`, `validate_config`, and `parse_arguments` calls)
 and asserts the contract of each helper. Run it locally with:
 

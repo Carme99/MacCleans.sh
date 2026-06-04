@@ -11,8 +11,8 @@
 # set of ~10 tests" — not a framework migration.
 #
 # Each test is a shell function. The runner sources clean-mac-space.sh
-# in BATS_TEST_MODE=1 (which skips the top-level _init_skip_defaults
-# and parse_arguments calls), invokes each test function, and reports
+# in TEST_MODE=1 (which skips the top-level _init_skip_defaults and
+# parse_arguments calls), invokes each test function, and reports
 # pass/fail with a TAP-style summary. Returns 0 if all pass, 1
 # otherwise.
 
@@ -22,7 +22,7 @@ set -uo pipefail
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$TESTS_DIR/.." && pwd)"
 
-export BATS_TEST_MODE=1
+export TEST_MODE=1
 # Source the script with `set +u` first — the script's own `set -u`
 # combined with the `local value="${!_skip_var}"` indirection in
 # validate_config (line ~281) fires an "unbound variable" error for

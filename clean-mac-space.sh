@@ -138,11 +138,11 @@ CATEGORY_REGISTRY=(
 # is defined in exactly one place — adding a new field or renaming one
 # is a one-line change here, not a hunt across the script.
 registry_get_skip_var() {
-    echo "${1##*|}"
+    printf '%s\n' "${1##*|}"
 }
 registry_get_display() {
     local rest="${1#*|}"
-    echo "${rest%|*}"
+    printf '%s\n' "${rest%|*}"
 }
 
 # Initialize the SKIP_X defaults to false for every entry in the
@@ -160,10 +160,10 @@ _init_skip_defaults() {
         fi
     done
 }
-# Initialize the SKIP_X defaults. Skipped when sourced from bats tests
-# (BATS_TEST_MODE=1) so the registry is available to the test code
-# without each SKIP_X var being globally pre-populated.
-if [ -z "${BATS_TEST_MODE:-}" ]; then
+# Initialize the SKIP_X defaults. Skipped when sourced from the smoke
+# test runner (TEST_MODE=1) so the registry is available to the test
+# code without each SKIP_X var being globally pre-populated.
+if [ -z "${TEST_MODE:-}" ]; then
     _init_skip_defaults
 fi
 # SKIP_SYSTEM_TMP defaults to true (skip by default; opt-in via
@@ -382,9 +382,9 @@ load_config_file() {
     done
 }
 
-# Load configuration. Skipped in BATS_TEST_MODE so the sourced
-# script doesn't read or write user-level config files from tests.
-if [ -z "${BATS_TEST_MODE:-}" ]; then
+# Load configuration. Skipped in TEST_MODE so the sourced script
+# doesn't read or write user-level config files from tests.
+if [ -z "${TEST_MODE:-}" ]; then
     load_config_file
 fi
 
@@ -547,18 +547,18 @@ parse_arguments() {
     done
 }
 
-# Parse arguments. Skipped when sourced from bats tests
-# (BATS_TEST_MODE=1) so the "$@" expansion doesn't feed the
-# bats invocation path to the case statement.
-if [ -z "${BATS_TEST_MODE:-}" ]; then
+# Parse arguments. Skipped when sourced from the smoke test runner
+# (TEST_MODE=1) so the "$@" expansion doesn't feed the test invocation
+# path to the case statement.
+if [ -z "${TEST_MODE:-}" ]; then
     parse_arguments "$@"
 fi
 
 # Validate configuration after loading and parsing. Skipped in
-# BATS_TEST_MODE — the indirect `local value="${!_skip_var}"` read
-# would fire an unbound-variable error for any SKIP_X var that
-# hasn't been populated by _init_skip_defaults yet.
-if [ -z "${BATS_TEST_MODE:-}" ]; then
+# TEST_MODE — the indirect `local value="${!_skip_var}"` read would
+# fire an unbound-variable error for any SKIP_X var that hasn't been
+# populated by _init_skip_defaults yet.
+if [ -z "${TEST_MODE:-}" ]; then
     validate_config
 fi
 
@@ -1044,10 +1044,10 @@ quit_photos_app() {
     return 1
 }
 
-# Source guard: when this file is `source`d (e.g. from bats tests in
-# tests/*.bats), return here so the sudo check and the top-level
-# section bodies don't run. When executed normally, BASH_SOURCE[0]
-# equals $0 and execution continues past this guard.
+# Source guard: when this file is `source`d (e.g. from the smoke test
+# runner in tests/run-tests.sh), return here so the sudo check and the
+# top-level section bodies don't run. When executed normally,
+# BASH_SOURCE[0] equals $0 and execution continues past this guard.
 if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
     return 0
 fi
@@ -2292,12 +2292,12 @@ if run_category "17|Photos Library Cache|SKIP_PHOTOS_LIBRARY"; then
                     SELECTED_LIBS=("${PHOTOS_LIBS[@]}")
                 else
                     LIB_PATH="$USER_HOME/Pictures/${PHOTOS_LIBRARY_NAME}.photoslibrary"
-                if [ -d "$LIB_PATH" ] && [ ! -L "$LIB_PATH" ]; then
-                    SELECTED_LIBS=("$LIB_PATH")
-                else
-                    log "Photos library '${PHOTOS_LIBRARY_NAME}' not found"
-                    log "Available libraries: ${PHOTOS_LIBS[*]}"
-                fi
+                    if [ -d "$LIB_PATH" ] && [ ! -L "$LIB_PATH" ]; then
+                        SELECTED_LIBS=("$LIB_PATH")
+                    else
+                        log "Photos library '${PHOTOS_LIBRARY_NAME}' not found"
+                        log "Available libraries: ${PHOTOS_LIBS[*]}"
+                    fi
                 fi
             else
                 # Default: clean first library only
