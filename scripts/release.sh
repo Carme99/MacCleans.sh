@@ -29,12 +29,28 @@ shellcheck_run() {
     fi
 }
 
+# Compute a SHA-256 of a file. shasum is the macOS default; sha256sum
+# is what most Linux distros ship. Try shasum first, then sha256sum.
+sha256_file() {
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    elif command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    else
+        die "neither shasum nor sha256sum is available; cannot compute SHA-256"
+    fi
+}
+
 # --- Preflight -------------------------------------------------------------
 
 [[ $# -ge 1 ]] || die "usage: scripts/release.sh X.Y.Z [--dry-run]"
-VERSION="$1"; shift || true
+VERSION="$1"; shift
 DRY_RUN=false
-[[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
+if [[ "${1:-}" == "--dry-run" ]]; then
+    DRY_RUN=true
+    shift
+fi
+[[ $# -eq 0 ]] || die "usage: scripts/release.sh X.Y.Z [--dry-run]"
 
 # Reject obviously bad versions
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || \
@@ -51,8 +67,10 @@ if [[ "$BRANCH" != "main" && "$BRANCH" != "master" ]]; then
     die "current branch is '$BRANCH' — release prep must run from main (or master)"
 fi
 
-# Working tree must be clean (or have a pre-approved dirty state)
-if ! git diff --quiet HEAD 2>/dev/null; then
+# Working tree must be clean (or have a pre-approved dirty state).
+# `git status --porcelain` catches both modified and untracked files;
+# `git diff --quiet HEAD` would miss untracked files.
+if [[ -n "$(git status --porcelain)" ]]; then
     die "working tree has uncommitted changes; commit or stash first"
 fi
 
@@ -88,7 +106,7 @@ INSTALLER="installer.sh"
 OLD_HASH=$(grep -E '^EXPECTED_HASH=' "$INSTALLER" | head -1 | sed -E 's/^EXPECTED_HASH="([0-9a-f]+)"$/\1/')
 [[ -n "$OLD_HASH" ]] || die "could not find EXPECTED_HASH in $INSTALLER"
 
-NEW_HASH=$(shasum -a 256 "$CLEAN_FILE" | awk '{print $1}')
+NEW_HASH=$(sha256_file "$CLEAN_FILE")
 echo "  $INSTALLER: EXPECTED_HASH $OLD_HASH -> $NEW_HASH"
 
 if [[ "$NEW_HASH" == "$OLD_HASH" ]]; then
@@ -116,16 +134,14 @@ bash -n "$INSTALLER" || die "bash -n $INSTALLER failed"
 echo "  shellcheck -S warning (default + warning)..."
 shellcheck_run "$CLEAN_FILE" "$INSTALLER"
 
-# --version sanity (verifies the script actually runs)
-if [[ -x "$CLEAN_FILE" ]]; then
-    echo "  $CLEAN_FILE --version (sanity)..."
-    REPORTED=$(bash "$CLEAN_FILE" --version 2>&1 | head -1 || true)
-    echo "    -> $REPORTED"
-    if ! echo "$REPORTED" | grep -q "$VERSION"; then
-        die "VERSION=$VERSION in $CLEAN_FILE but --version reports '$REPORTED' — something is wrong"
-    fi
-else
-    echo "  (skipping --version sanity: $CLEAN_FILE is not executable)"
+# --version sanity (verifies the script actually runs).
+# We always invoke via `bash` (not by executing $CLEAN_FILE directly),
+# so the executable bit is irrelevant; just run it.
+echo "  $CLEAN_FILE --version (sanity)..."
+REPORTED=$(bash "$CLEAN_FILE" --version 2>&1 | head -1 || true)
+echo "    -> $REPORTED"
+if ! echo "$REPORTED" | grep -q "$VERSION"; then
+    die "VERSION=$VERSION in $CLEAN_FILE but --version reports '$REPORTED' — something is wrong"
 fi
 
 # --- Step 4: stage + (optionally) commit ----------------------------------

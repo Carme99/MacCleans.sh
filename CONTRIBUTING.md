@@ -603,7 +603,7 @@ So your local checklist is just:
 1. Land all the changes you want in the release on `main` (PRs merged, CHANGELOG entry written).
 2. Run the pre-tag helper to bump the version and regenerate the installer hash in lockstep:
    ```bash
-   scripts/release.sh vX.Y.Z
+   scripts/release.sh X.Y.Z
    ```
    This script (a) bumps `VERSION=` in `clean-mac-space.sh`, (b) regenerates `EXPECTED_HASH` in `installer.sh` from the current script content, (c) runs `bash -n` and `shellcheck -S warning` to catch syntax regressions, (d) stages both files. The hash regen is the part v5.2.0 forgot to do — bundling it into the same command prevents that drift.
 3. Commit the staged change and tag the merge commit:
