@@ -84,39 +84,107 @@ INTERACTIVE=false
 JSON_OUTPUT=false
 PROFILE=""
 THRESHOLD=0
-SKIP_SNAPSHOTS=false
-SKIP_HOMEBREW=false
-SKIP_SPOTIFY=false
-SKIP_CLAUDE=false
-SKIP_XCODE=false
-SKIP_BROWSERS=false
-SKIP_NPM=false
-SKIP_PIP=false
-SKIP_TRASH=false
-SKIP_DSSTORE=false
-SKIP_DOCKER=false
-SKIP_SIMULATOR=false
-SKIP_MAIL=false
-SKIP_SIRI_TTS=false
-SKIP_ICLOUD_MAIL=false
-SKIP_PHOTOS_LIBRARY=false
-SKIP_ICLOUD_DRIVE=false
+# CATEGORY_REGISTRY: section|Display Name|skip_var
+# Single source of truth for the 28 cleanup categories. Every consumer
+# (default initialization, section body header, interactive menu,
+# --skip-X parsing, config validation, JSON output) reads from this.
+# Adding a new category = one new line here + one section body. The
+# section number is implicit by array index; the F-2 numbering gap
+# class is impossible to reintroduce because nothing else hand-counts
+# them.
+CATEGORY_REGISTRY=(
+    "1|Time Machine Local Snapshots|SKIP_SNAPSHOTS"
+    "2|Homebrew Cache|SKIP_HOMEBREW"
+    "3|Application Cache Files|"
+    "4|System Cache Files|"
+    "5|Old Log Files|"
+    "6|System Temporary Files|SKIP_SYSTEM_TMP"
+    "7|Browser Caches (Chrome, Firefox, Edge)|SKIP_BROWSERS"
+    "8|XCode Derived Data|SKIP_XCODE"
+    "9|npm/Yarn Cache|SKIP_NPM"
+    "10|Python pip Cache|SKIP_PIP"
+    "11|Trash Bin|SKIP_TRASH"
+    "12|Docker Cache|SKIP_DOCKER"
+    "13|iOS Simulator Data|SKIP_SIMULATOR"
+    "14|Mail App Cache|SKIP_MAIL"
+    "15|Siri TTS Cache|SKIP_SIRI_TTS"
+    "16|iCloud Mail Cache|SKIP_ICLOUD_MAIL"
+    "17|Photos Library Cache|SKIP_PHOTOS_LIBRARY"
+    "18|iCloud Drive Offline Files|SKIP_ICLOUD_DRIVE"
+    "19|QuickLook Thumbnails|SKIP_QUICKLOOK"
+    "20|Diagnostic Reports|SKIP_DIAGNOSTICS"
+    "21|iOS Device Backups|SKIP_IOS_BACKUPS"
+    "22|iOS/iPadOS Update Files (.ipsw)|SKIP_IOS_UPDATES"
+    "23|CocoaPods Cache|SKIP_COCOAPODS"
+    "24|Gradle Cache|SKIP_GRADLE"
+    "25|Go Module Cache|SKIP_GO"
+    "26|Bun Cache|SKIP_BUN"
+    "27|pnpm Store|SKIP_PNPM"
+    "28|.DS_Store Files|SKIP_DSSTORE"
+)
+
+# Initialize the SKIP_X defaults to false for every entry in the
+# registry that has a skip_var. Replaces a hand-maintained block of
+# `SKIP_X=false` lines. Uses `printf -v` (bash 3.1+) instead of
+# `declare -g` (4.2+) so the script still runs on macOS's bundled
+# bash 3.2.57.
 PHOTOS_LIBRARY_NAME=""
-SKIP_QUICKLOOK=false
-SKIP_DIAGNOSTICS=false
-SKIP_IOS_BACKUPS=false
-SKIP_IOS_UPDATES=false
-SKIP_COCOAPODS=false
-SKIP_GRADLE=false
-SKIP_GO=false
-SKIP_BUN=false
-SKIP_PNPM=false
-SKIP_SYSTEM_TMP=true
+_init_skip_defaults() {
+    local entry skip_var
+    for entry in "${CATEGORY_REGISTRY[@]}"; do
+        skip_var="${entry##*|}"
+        if [ -n "$skip_var" ]; then
+            printf -v "$skip_var" '%s' false
+        fi
+    done
+}
+_init_skip_defaults
+# SKIP_SYSTEM_TMP defaults to true (skip by default); the registry sets
+# it to false, so override after the init. The --clean-system-tmp
+# flag (handled in parse_arguments) flips it to false to opt in.
+SKIP_SYSTEM_TMP=${SKIP_SYSTEM_TMP:-true}
 FORCE_XCODE=false
 FORCE_TRASH=false
 FORCE_ICLOUD_DRIVE=false
 FORCE_IOS_BACKUPS=false
 UPDATE=false
+
+# Run a category section. Emits the standard header (with section
+# number if present), checks the skip flag, and tracks the section
+# in PROCESSED_CATEGORIES or SKIPPED_CATEGORIES. Returns 0 if the
+# section should run, 1 if it should be skipped. The caller provides
+# the actual cleanup body after this call:
+#
+#     # 1. Time Machine Snapshots
+#     if run_category "1|Time Machine Local Snapshots|SKIP_SNAPSHOTS"; then
+#         # ... body ...
+#         log_plain ""
+#     fi
+#
+# Sections whose entry has no skip_var (e.g. always-run categories
+# like Application Cache Files) always run.
+run_category() {
+    local entry="$1"
+    local num="${entry%%|*}"
+    local rest="${entry#*|}"
+    local name="${rest%%|*}"
+    local skip_var="${rest##*|}"
+
+    if [ -z "$skip_var" ] || [ "${!skip_var}" = false ]; then
+        PROCESSED_CATEGORIES+=("$name")
+        log_plain "================================================"
+        if [ -n "$num" ]; then
+            log "$num. $name"
+        else
+            log "$name"
+        fi
+        log_plain "================================================"
+        return 0
+    else
+        SKIPPED_CATEGORIES+=("$name")
+        return 1
+    fi
+}
 VERBOSE=false
 
 # Configuration file locations (checked in order)
@@ -1522,12 +1590,7 @@ fi
 ###############################################################################
 # 1. Time Machine Local Snapshots
 ###############################################################################
-if [ "$SKIP_SNAPSHOTS" = false ]; then
-    PROCESSED_CATEGORIES+=("Time Machine Snapshots")
-    log_plain "================================================"
-    log "1. Time Machine Local Snapshots"
-    log_plain "================================================"
-
+if run_category "1|Time Machine Local Snapshots|SKIP_SNAPSHOTS"; then
     # Check if Time Machine backup is currently running
     if tmutil status 2>/dev/null | grep -q "Running = 1"; then
         log_warning "Time Machine backup is currently running"
@@ -1557,19 +1620,12 @@ if [ "$SKIP_SNAPSHOTS" = false ]; then
         fi
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Time Machine Snapshots")
 fi
 
 ###############################################################################
 # 2. Homebrew Cache
 ###############################################################################
-if [ "$SKIP_HOMEBREW" = false ]; then
-    PROCESSED_CATEGORIES+=("Homebrew Cache")
-    log_plain "================================================"
-    log "2. Homebrew Cache"
-    log_plain "================================================"
-
+if run_category "2|Homebrew Cache|SKIP_HOMEBREW"; then
     if command -v brew &> /dev/null; then
         BREW_CACHE_SIZE=$(safe_du "$USER_HOME/Library/Caches/Homebrew")
 
@@ -1606,20 +1662,15 @@ if [ "$SKIP_HOMEBREW" = false ]; then
         log "Homebrew not installed, skipping"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Homebrew Cache")
 fi
 
 ###############################################################################
 # 3. Application Cache Files
 ###############################################################################
-log_plain "================================================"
-log "3. Application Cache Files"
-log_plain "================================================"
+if run_category "3|Application Cache Files|"; then
 
 # Spotify cache (safe - will re-download)
-if [ "$SKIP_SPOTIFY" = false ]; then
-    PROCESSED_CATEGORIES+=("Spotify Cache")
+if run_category "3a|Spotify Cache|SKIP_SPOTIFY"; then
     SPOTIFY_CACHE="$USER_HOME/Library/Caches/com.spotify.client"
     if [ -d "$SPOTIFY_CACHE" ]; then
         SPOTIFY_SIZE=$(safe_du "$SPOTIFY_CACHE")
@@ -1645,13 +1696,10 @@ if [ "$SKIP_SPOTIFY" = false ]; then
     else
         log "No Spotify cache found"
     fi
-else
-    SKIPPED_CATEGORIES+=("Spotify Cache")
 fi
 
 # Claude Desktop ShipIt cache (safe - update cache)
-if [ "$SKIP_CLAUDE" = false ]; then
-    PROCESSED_CATEGORIES+=("Claude Desktop Cache")
+if run_category "3b|Claude Desktop Cache|SKIP_CLAUDE"; then
     CLAUDE_SHIPIT="$USER_HOME/Library/Caches/com.anthropic.claudefordesktop.ShipIt"
     if [ -d "$CLAUDE_SHIPIT" ]; then
         CLAUDE_SIZE=$(safe_du "$CLAUDE_SHIPIT")
@@ -1675,20 +1723,15 @@ if [ "$SKIP_CLAUDE" = false ]; then
             log "Claude cache is empty"
         fi
     fi
-else
-    SKIPPED_CATEGORIES+=("Claude Desktop Cache")
 fi
 
 log_plain ""
+fi
 
 ###############################################################################
 # 4. System Cache Files
 ###############################################################################
-PROCESSED_CATEGORIES+=("System Cache Files")
-log_plain "================================================"
-log "4. System Cache Files"
-log_plain "================================================"
-
+if run_category "4|System Cache Files|"; then
 # Safe cache directories to clean (older than 30 days)
 SAFE_CACHES=(
     "GeoServices"
@@ -1755,6 +1798,7 @@ else
     log "No old cache files found (>30 days)"
 fi
 log_plain ""
+fi
 
 ###############################################################################
 # 5. Old Log Files
