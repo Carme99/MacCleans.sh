@@ -1,0 +1,10 @@
+# Configuration for the GitHub Issue chooser.
+# https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/Carme99/MacCleans.sh/discussions
+    about: General questions, ideas, and "how do I..." help
+  - name: 📖 Documentation
+    url: https://github.com/Carme99/MacCleans.sh/blob/main/README.md
+    about: Read the README, command reference, and FAQ first

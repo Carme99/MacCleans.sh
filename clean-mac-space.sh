@@ -2807,7 +2807,7 @@ else
 fi
 
 ###############################################################################
-# 24. CocoaPods Cache
+# 23. CocoaPods Cache
 ###############################################################################
 if [ "$SKIP_COCOAPODS" = false ]; then
     PROCESSED_CATEGORIES+=("CocoaPods Cache")
@@ -2871,7 +2871,7 @@ else
 fi
 
 ###############################################################################
-# 25. Gradle Cache
+# 24. Gradle Cache
 ###############################################################################
 if [ "$SKIP_GRADLE" = false ]; then
     PROCESSED_CATEGORIES+=("Gradle Cache")
@@ -2918,7 +2918,7 @@ else
 fi
 
 ###############################################################################
-# 26. Go Module Cache
+# 25. Go Module Cache
 ###############################################################################
 if [ "$SKIP_GO" = false ]; then
     PROCESSED_CATEGORIES+=("Go Module Cache")
@@ -2980,7 +2980,7 @@ else
 fi
 
 ###############################################################################
-# 27. Bun Cache
+# 26. Bun Cache
 ###############################################################################
 if [ "$SKIP_BUN" = false ]; then
     PROCESSED_CATEGORIES+=("Bun Cache")
@@ -3024,7 +3024,7 @@ else
 fi
 
 ###############################################################################
-# 28. pnpm Store
+# 27. pnpm Store
 ###############################################################################
 if [ "$SKIP_PNPM" = false ]; then
     PROCESSED_CATEGORIES+=("pnpm Store")
@@ -3087,7 +3087,7 @@ else
 fi
 
 ###############################################################################
-# 29. .DS_Store Files
+# 28. .DS_Store Files
 ###############################################################################
 if [ "$SKIP_DSSTORE" = false ]; then
     PROCESSED_CATEGORIES+=(".DS_Store Files")
@@ -3246,13 +3246,15 @@ if [ "$JSON_OUTPUT" = true ]; then
         else if (b < 1099511627776) printf "%.2f GB", b/1073741824
         else printf "%.2f TB", b/1099511627776
     }')
-    disk_after=${DISK_USAGE_AFTER:-0}
     disk_before=${DISK_USAGE:-0}
-    
-    # Convert DRY_RUN to JSON boolean
+    # In dry-run mode we don't measure post-cleanup disk usage, so
+    # emit null for "after" rather than 0 (which would falsely claim
+    # the disk is now empty). Real runs set DISK_USAGE_AFTER.
     if [ "$DRY_RUN" = true ]; then
+        disk_after="null"
         json_dry_run="true"
     else
+        disk_after=${DISK_USAGE_AFTER:-0}
         json_dry_run="false"
     fi
     

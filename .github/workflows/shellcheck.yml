@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@master
+        uses: ludeeus/action-shellcheck@00b27aa7cb85167568cb48a3838b75f4265f2bca # pin to SHA for supply-chain stability
         with:
           scandir: '.'
           severity: warning
