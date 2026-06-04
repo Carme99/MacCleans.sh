@@ -96,6 +96,8 @@ CATEGORY_REGISTRY=(
     "1|Time Machine Local Snapshots|SKIP_SNAPSHOTS"
     "2|Homebrew Cache|SKIP_HOMEBREW"
     "3|Application Cache Files|"
+    "3a|Spotify Cache|SKIP_SPOTIFY"
+    "3b|Claude Desktop Cache|SKIP_CLAUDE"
     "4|System Cache Files|"
     "5|Old Log Files|"
     "6|System Temporary Files|SKIP_SYSTEM_TMP"
@@ -139,10 +141,12 @@ _init_skip_defaults() {
     done
 }
 _init_skip_defaults
-# SKIP_SYSTEM_TMP defaults to true (skip by default); the registry sets
-# it to false, so override after the init. The --clean-system-tmp
-# flag (handled in parse_arguments) flips it to false to opt in.
-SKIP_SYSTEM_TMP=${SKIP_SYSTEM_TMP:-true}
+# SKIP_SYSTEM_TMP defaults to true (skip by default; opt-in via
+# --clean-system-tmp). The registry initializer above sets it to
+# false, so we unconditionally override it back to true here. The
+# --clean-system-tmp flag (handled in parse_arguments) flips it to
+# false to opt in.
+SKIP_SYSTEM_TMP=true
 FORCE_XCODE=false
 FORCE_TRASH=false
 FORCE_ICLOUD_DRIVE=false
