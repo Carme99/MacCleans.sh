@@ -272,6 +272,7 @@ validate_config() {
             errors=$((errors + 1))
         fi
     done
+    unset var
 
     # Validate threshold
     if ! validate_numeric "$THRESHOLD" 0 100; then
@@ -2696,7 +2697,7 @@ fi
 # 23. CocoaPods Cache
 ###############################################################################
 if run_category "23|CocoaPods Cache|SKIP_COCOAPODS"; then
-    log "24. CocoaPods Cache"
+    log "23. CocoaPods Cache"
     log_plain "================================================"
 
     # CocoaPods cache locations
@@ -2756,7 +2757,7 @@ fi
 # 24. Gradle Cache
 ###############################################################################
 if run_category "24|Gradle Cache|SKIP_GRADLE"; then
-    log "25. Gradle Cache"
+    log "24. Gradle Cache"
     log_plain "================================================"
 
     GRADLE_CACHE_DIR="$USER_HOME/.gradle/caches"
@@ -2799,7 +2800,7 @@ fi
 # 25. Go Module Cache
 ###############################################################################
 if run_category "25|Go Module Cache|SKIP_GO"; then
-    log "26. Go Module Cache"
+    log "25. Go Module Cache"
     log_plain "================================================"
 
     # Go module cache location
@@ -2857,7 +2858,7 @@ fi
 # 26. Bun Cache
 ###############################################################################
 if run_category "26|Bun Cache|SKIP_BUN"; then
-    log "27. Bun Cache"
+    log "26. Bun Cache"
     log_plain "================================================"
 
     # Bun cache location
@@ -2897,7 +2898,7 @@ fi
 # 27. pnpm Store
 ###############################################################################
 if run_category "27|pnpm Store|SKIP_PNPM"; then
-    log "28. pnpm Store"
+    log "27. pnpm Store"
     log_plain "================================================"
 
     # pnpm store location
@@ -2956,7 +2957,7 @@ fi
 # 28. .DS_Store Files
 ###############################################################################
 if run_category "28|.DS_Store Files|SKIP_DSSTORE"; then
-    log "29. .DS_Store Files"
+    log "28. .DS_Store Files"
     log_plain "================================================"
 
     # Count .DS_Store files in user home
