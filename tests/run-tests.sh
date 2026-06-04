@@ -93,6 +93,9 @@ test_photos_name_accepts_plain() {
         && validate_photos_library_name "Vacation 2024"
 }
 test_photos_name_rejects_paths() {
+    # "~/Library" is an intentionally LITERAL 9-char string here — the
+    # validator must see ~ (no expansion) and reject it as a path.
+    # shellcheck disable=SC2088
     ! validate_photos_library_name "/etc/passwd" \
         && ! validate_photos_library_name "../etc" \
         && ! validate_photos_library_name 'Photos\Evil' \
