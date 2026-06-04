@@ -10,7 +10,7 @@
 # Enable strict error handling
 set -euo pipefail
 
-VERSION="5.5.0"
+VERSION="5.5.2"
 
 ###############################################################################
 # Mac-Clean: macOS Disk Cleanup Utility

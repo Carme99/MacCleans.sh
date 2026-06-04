@@ -2,6 +2,23 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [5.5.2] - 2026-06-04
+
+### Documentation
+
+- **Diátaxis restructure + 7 mermaid diagrams** (PR #81) — `docs/` reorganized into 4 buckets (tutorials/ how-to/ reference/ explanation/) plus a `contributing/` subfolder. 4 new files (`docs/README.md` landing, `docs/tutorials/first-cleanup.md` walkthrough, `docs/reference/config-file.md` reference, `docs/contributing/adding-a-category.md` recipe). 1 file deleted (`docs/guides/automating-macos-maintenance.md`, content merged into `how-to/automate.md`). 7 new mermaid diagrams: full architecture sequence (`explanation/how-it-works.md`), config precedence flowchart (`how-to/configure.md`), diagnostic decision tree (`how-to/troubleshooting.md`), `--clean-system-tmp` vs `--skip-system-tmp` order-independent flow (`reference/commands.md`), `CATEGORY_REGISTRY` → 5 consumers sequence (`contributing/developer-guide.md`), top-level function call graph (`contributing/developer-guide.md`), trust boundary flowchart (`explanation/security-model.md`). Style guide applied across all docs: one H1, one-line purpose statement, "you" not "the user", tables for option specs, no marketing copy, no emoji in bodies, code-first examples, language-tagged code blocks. Cross-link audit: 0 broken. Net diff: +635/-815 (the doc tree actually shrunk).
+
+### Bug Fixes
+
+- **Interactive menu now shows row numbers** (PR #82) — the "Tip: Numbers 1-27" hint at the bottom of the picker was promising a feature the rows didn't deliver. The shortcut itself worked, but the user had no way to know which digit maps to which row without counting. Now each row shows ` %2d. ` before the display name, so the cursor's row and the digit to press line up exactly.
+- **iOS Simulators no longer reports a false success** (PR #82) — when `xcrun simctl delete unavailable` failed, the script was logging both `⚠ Could not delete unavailable simulators` AND `✓ Unavailable iOS Simulators removed` in the same section. Direct contradiction. Restructured into a proper `if/then/else` so a real failure only emits the warning, the freed-bytes total stays accurate, and the summary can't say a category succeeded when it didn't.
+
+### Internal
+
+- Bumped `VERSION="5.5.2"` in `clean-mac-space.sh`.
+- Regenerated `EXPECTED_HASH` in `installer.sh` for the new script bytes.
+- All verification (`bash -n`, `shellcheck -S warning`) clean.
+
 ## [5.5.0] - 2026-06-04
 
 ### Refactor
