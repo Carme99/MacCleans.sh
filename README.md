@@ -1,17 +1,16 @@
 # MacCleans
 
 ```
-██████╗ ███████╗███████╗██╗   ██╗███████╗
-██╔══██╗██╔════╝██╔════╝██║   ██║██╔════╝
-██║  ██║█████╗  █████╗  ██║   ██║███████╗
-██║  ██║██╔══╝  ██╔══╝  ╚██╗ ██╔╝╚════██║
-██████╔╝███████╗███████╗ ╚████╔╝  ███████║
-╚═════╝ ╚══════╝╚══════╝  ╚═══╝   ╚══════╝
+  __  __                   ____   _                              
+ |  \/  |   __ _    ___   / ___| | |   ___    __ _   _ __    ___ 
+ | |\/| |  / _` |  / __| | |     | |  / _ \  / _` | | '_ \  / __|
+ | |  | | | (_| | | (__  | |___  | | |  __/ | (_| | | | | | \__ \
+ |_|  |_|  \__,_|  \___|  \____| |_|  \___|  \__,_| |_| |_| |___/
 ```
 
 **Free 10-50GB on your Mac with one command.**
 
-[![Version](https://img.shields.io/badge/Version-5.3.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-5.4.0-blue.svg)](CHANGELOG.md)
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/Carme99/MacCleans.sh?utm_source=oss&utm_medium=github&utm_campaign=Carme99%2FMacCleans.sh&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
