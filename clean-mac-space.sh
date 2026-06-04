@@ -265,6 +265,7 @@ validate_config() {
             fi
         fi
     done
+    local var
     for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR UPDATE VERBOSE JSON_OUTPUT; do
         local value="${!var}"
         if ! validate_boolean "$value"; then
@@ -272,7 +273,6 @@ validate_config() {
             errors=$((errors + 1))
         fi
     done
-    unset var
 
     # Validate threshold
     if ! validate_numeric "$THRESHOLD" 0 100; then
@@ -440,11 +440,19 @@ parse_arguments() {
                     echo "ERROR: Unknown --skip option: $1 (no matching $skip_var in CATEGORY_REGISTRY)" >&2
                     exit 1
                 fi
+                # --clean-system-tmp is sticky: the user asked for that
+                # category to run no matter what. Honour it regardless of
+                # --skip-system-tmp appearing later on the command line.
+                if [ "$skip_var" = "SKIP_SYSTEM_TMP" ] && [ "${CLEAN_SYSTEM_TMP_REQUESTED:-false}" = true ]; then
+                    shift
+                    continue
+                fi
                 printf -v "$skip_var" '%s' true
                 shift
                 ;;
             --clean-system-tmp)
                 SKIP_SYSTEM_TMP=false
+                CLEAN_SYSTEM_TMP_REQUESTED=true
                 shift
                 ;;
             --update|-u)
@@ -1298,27 +1306,20 @@ interactive_selection() {
                     draw_menu
                     ;;
                 a|A) # Select all
-                    # shellcheck disable=SC2034
-                    # SKIP_X vars are read dynamically in toggle_category / run_category
-                    SKIP_SNAPSHOTS=false SKIP_HOMEBREW=false SKIP_SPOTIFY=false SKIP_CLAUDE=false
-                    SKIP_XCODE=false SKIP_BROWSERS=false SKIP_NPM=false SKIP_PIP=false
-                    SKIP_TRASH=false SKIP_DSSTORE=false SKIP_DOCKER=false SKIP_SIMULATOR=false
-                    SKIP_MAIL=false SKIP_SIRI_TTS=false SKIP_ICLOUD_MAIL=false SKIP_QUICKLOOK=false
-                    SKIP_DIAGNOSTICS=false SKIP_IOS_BACKUPS=false SKIP_IOS_UPDATES=false
-                    SKIP_PHOTOS_LIBRARY=false SKIP_ICLOUD_DRIVE=false
-                    SKIP_COCOAPODS=false SKIP_GRADLE=false SKIP_GO=false SKIP_BUN=false SKIP_PNPM=false
+                    # Iterate registry categories; set each SKIP_X=false. Picking
+                    # a new category up here (via `a`/`n`) only requires adding a
+                    # line to CATEGORY_REGISTRY, not editing this branch.
+                    for entry in "${categories[@]}"; do
+                        local _var="${entry##*|}"
+                        printf -v "$_var" '%s' false
+                    done
                     draw_menu
                     ;;
                 n|N) # Deselect all
-                    # shellcheck disable=SC2034
-                    # SKIP_X vars are read dynamically in toggle_category / run_category
-                    SKIP_SNAPSHOTS=true SKIP_HOMEBREW=true SKIP_SPOTIFY=true SKIP_CLAUDE=true
-                    SKIP_XCODE=true SKIP_BROWSERS=true SKIP_NPM=true SKIP_PIP=true
-                    SKIP_TRASH=true SKIP_DSSTORE=true SKIP_DOCKER=true SKIP_SIMULATOR=true
-                    SKIP_MAIL=true SKIP_SIRI_TTS=true SKIP_ICLOUD_MAIL=true SKIP_QUICKLOOK=true
-                    SKIP_DIAGNOSTICS=true SKIP_IOS_BACKUPS=true SKIP_IOS_UPDATES=true
-                    SKIP_PHOTOS_LIBRARY=true SKIP_ICLOUD_DRIVE=true
-                    SKIP_COCOAPODS=true SKIP_GRADLE=true SKIP_GO=true SKIP_BUN=true SKIP_PNPM=true
+                    for entry in "${categories[@]}"; do
+                        local _var="${entry##*|}"
+                        printf -v "$_var" '%s' true
+                    done
                     draw_menu
                     ;;
                 d|D) # Done
@@ -1741,11 +1742,6 @@ fi
 # 7. Browser Caches (Chrome, Firefox, Edge)
 ###############################################################################
 if run_category "7|Browser Caches (Chrome, Firefox, Edge)|SKIP_BROWSERS"; then
-    PROCESSED_CATEGORIES+=("Browser Caches")
-    log_plain "================================================"
-    log "7. Browser Caches"
-    log_plain "================================================"
-
     BROWSER_TOTAL_BYTES=0
 
     # Chrome
@@ -2362,24 +2358,22 @@ fi
 ###############################################################################
 # 18. iCloud Drive Offline Files
 ###############################################################################
-if run_category "18|iCloud Drive Offline Files|SKIP_ICLOUD_DRIVE"; then
+CLOUD_STORAGE_DIR="$USER_HOME/Library/CloudStorage"
 
-    CLOUD_STORAGE_DIR="$USER_HOME/Library/CloudStorage"
-
-    # Defensive: if Library/CloudStorage itself is a symlink, fail closed.
-    # A co-resident attacker with write access to $USER_HOME could redirect
-    # this whole cleanup to an arbitrary directory by symlinking CloudStorage;
-    # the per-folder [ -L ] checks below catch the CHILD-swap case, but they
-    # cannot prevent the root redirect. We refuse to walk the symlink at all
-    # and surface a clear error so the user can investigate. (Earlier draft
-    # resolved and followed the symlink; that was wrong — CodeRabbit caught
-    # it during PR review. Thanks, CodeRabbit.)
-    if [ -L "$CLOUD_STORAGE_DIR" ]; then
-        log_error "Refusing iCloud Drive cleanup: $CLOUD_STORAGE_DIR is a symlink (symlink-swap defense)."
-        log_error "Inspect the symlink target, then re-run, or use --skip-icloud-drive to silence."
-        SKIPPED_CATEGORIES+=("iCloud Drive Offline Files (CloudStorage is a symlink)")
-        log_plain ""
-    else
+# Defensive: if Library/CloudStorage itself is a symlink, fail closed.
+# A co-resident attacker with write access to $USER_HOME could redirect
+# this whole cleanup to an arbitrary directory by symlinking CloudStorage;
+# the per-folder [ -L ] checks below catch the CHILD-swap case, but they
+# cannot prevent the root redirect. We refuse to walk the symlink at all
+# and surface a clear error so the user can investigate. (Earlier draft
+# resolved and followed the symlink; that was wrong — CodeRabbit caught
+# it during PR review. Thanks, CodeRabbit.)
+if [ -L "$CLOUD_STORAGE_DIR" ]; then
+    log_error "Refusing iCloud Drive cleanup: $CLOUD_STORAGE_DIR is a symlink (symlink-swap defense)."
+    log_error "Inspect the symlink target, then re-run, or use --skip-icloud-drive to silence."
+    SKIPPED_CATEGORIES+=("iCloud Drive Offline Files (CloudStorage is a symlink)")
+    log_plain ""
+elif run_category "18|iCloud Drive Offline Files|SKIP_ICLOUD_DRIVE"; then
     ICLOUD_DRIVE_BYTES=0
 
     # Check if CloudStorage directory exists
@@ -2413,7 +2407,6 @@ if run_category "18|iCloud Drive Offline Files|SKIP_ICLOUD_DRIVE"; then
                 # Require --force-icloud-drive or --force flag for this dangerous operation
                 if [ "$FORCE_ICLOUD_DRIVE" = true ]; then
                     log "${YELLOW}Running with --force: proceeding with deletion${NC}"
-                    PROCESSED_CATEGORIES+=("iCloud Drive Offline Files")
                     ICLOUD_DRIVE_BYTES=$((ICLOUD_DRIVE_SIZE_KB * 1024))
 
                     if [ "$DRY_RUN" = true ]; then
@@ -2455,7 +2448,6 @@ if run_category "18|iCloud Drive Offline Files|SKIP_ICLOUD_DRIVE"; then
                 else
                     log "${RED}Skipping: Use --force to enable iCloud Drive cleanup${NC}"
                     log "${RED}This operation bypasses iCloud sync and can cause data loss.${NC}"
-                    SKIPPED_CATEGORIES+=("iCloud Drive Offline Files (requires --force)")
                 fi
             else
                 log "iCloud Drive has no offline files"
@@ -2467,8 +2459,7 @@ if run_category "18|iCloud Drive Offline Files|SKIP_ICLOUD_DRIVE"; then
         log "CloudStorage directory not found (iCloud Drive not configured)"
     fi
     log_plain ""
-    fi  # close the [ -L "$CLOUD_STORAGE_DIR" ] fail-closed check above
-fi
+fi  # close the [ -L "$CLOUD_STORAGE_DIR" ] fail-closed check above (and the elif run_category branch)
 
 ###############################################################################
 # 19. QuickLook Thumbnails
@@ -2593,12 +2584,11 @@ if run_category "21|iOS Device Backups|SKIP_IOS_BACKUPS"; then
             
             # Require --force-ios-backups or --force for this dangerous operation
             # If iCloud backup is NOT enabled, require explicit acknowledgment
-            if [ "$FORCE_IOS_BACKUPS" = true ]; then
-                if [ "$ICLOUD_BACKUP_ENABLED" = true ]; then
-                    log "${YELLOW}Running with --force: iCloud backup detected, proceeding${NC}"
-                    PROCESSED_CATEGORIES+=("iOS Device Backups")
-                    
-                    if [ "$DRY_RUN" = true ]; then
+                if [ "$FORCE_IOS_BACKUPS" = true ]; then
+                    if [ "$ICLOUD_BACKUP_ENABLED" = true ]; then
+                        log "${YELLOW}Running with --force: iCloud backup detected, proceeding${NC}"
+
+                        if [ "$DRY_RUN" = true ]; then
                         log "Would delete $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
                         TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + IOS_BACKUP_BYTES))
                     else
@@ -2612,7 +2602,6 @@ if run_category "21|iOS Device Backups|SKIP_IOS_BACKUPS"; then
                 else
                     log "${RED}WARNING: Running with --force but iCloud backup NOT detected!${NC}"
                     log "${RED}Skipping: iOS backup deletion blocked without iCloud backup.${NC}"
-                    SKIPPED_CATEGORIES+=("iOS Device Backups (no iCloud backup detected)")
                 fi
             else
                 # Not --force-ios-backups: require manual confirmation
@@ -2620,7 +2609,6 @@ if run_category "21|iOS Device Backups|SKIP_IOS_BACKUPS"; then
                 if [ "$ICLOUD_BACKUP_ENABLED" = false ]; then
                     log "${RED}iCloud backup not detected - backup deletion requires iCloud backup for safety${NC}"
                 fi
-                SKIPPED_CATEGORIES+=("iOS Device Backups (requires --force)")
             fi
         else
             log "No iOS device backups found"
@@ -2635,10 +2623,6 @@ fi
 # 22. iOS/iPadOS Update Files (.ipsw)
 ###############################################################################
 if run_category "22|iOS/iPadOS Update Files (.ipsw)|SKIP_IOS_UPDATES"; then
-    PROCESSED_CATEGORIES+=("iOS/iPadOS Update Files")
-    log_plain "================================================"
-    log "22. iOS/iPadOS Update Files (.ipsw)"
-    log_plain "================================================"
 
     # iTunes stores downloaded firmware in these directories
     IOS_UPDATE_DIRS=(
@@ -2697,7 +2681,6 @@ fi
 # 23. CocoaPods Cache
 ###############################################################################
 if run_category "23|CocoaPods Cache|SKIP_COCOAPODS"; then
-    log "23. CocoaPods Cache"
     log_plain "================================================"
 
     # CocoaPods cache locations
@@ -2757,7 +2740,6 @@ fi
 # 24. Gradle Cache
 ###############################################################################
 if run_category "24|Gradle Cache|SKIP_GRADLE"; then
-    log "24. Gradle Cache"
     log_plain "================================================"
 
     GRADLE_CACHE_DIR="$USER_HOME/.gradle/caches"
@@ -2800,7 +2782,6 @@ fi
 # 25. Go Module Cache
 ###############################################################################
 if run_category "25|Go Module Cache|SKIP_GO"; then
-    log "25. Go Module Cache"
     log_plain "================================================"
 
     # Go module cache location
@@ -2858,7 +2839,6 @@ fi
 # 26. Bun Cache
 ###############################################################################
 if run_category "26|Bun Cache|SKIP_BUN"; then
-    log "26. Bun Cache"
     log_plain "================================================"
 
     # Bun cache location
@@ -2898,7 +2878,6 @@ fi
 # 27. pnpm Store
 ###############################################################################
 if run_category "27|pnpm Store|SKIP_PNPM"; then
-    log "27. pnpm Store"
     log_plain "================================================"
 
     # pnpm store location
@@ -2957,7 +2936,6 @@ fi
 # 28. .DS_Store Files
 ###############################################################################
 if run_category "28|.DS_Store Files|SKIP_DSSTORE"; then
-    log "28. .DS_Store Files"
     log_plain "================================================"
 
     # Count .DS_Store files in user home

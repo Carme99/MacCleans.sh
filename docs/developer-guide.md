@@ -40,7 +40,7 @@ There is intentionally **no `tests/` directory and no `npm test`** — MacCleans
 10. **Disk / size helpers** — `safe_du`, `size_to_bytes`, `bytes_to_human`, `check_disk_space`, `check_minimum_disk_space` (lines ~846-925)
 11. **Health checks** — `perform_health_checks` (line 1031)
 12. **Profile loader** — `load_profile` (line 1071)
-13. **Category cleanup sections** — 29 top-level procedural blocks, numbered #1 through #29 continuously (the F-2 numbering gap that was noted in the v5.2.0 review was fixed in v5.4.0; the root-cause refactor into a `CATEGORY_REGISTRY` + `run_category` dispatcher is still F-5)
+13. **Category cleanup sections** — 28 top-level procedural blocks, numbered #1 through #28 continuously (the F-2 numbering gap that was noted in the v5.2.0 review was fixed in v5.4.0; the root-cause refactor into a `CATEGORY_REGISTRY` + `run_category` dispatcher is still F-5)
 14. **JSON output** (the trailing `# Deliver results as JSON` block)
 
 ## Adding a New Category
@@ -84,7 +84,7 @@ In `validate_config()` (line 160), add `SKIP_NEWCATEGORY` to the allowed-keys li
 
 ### 4. Add the cleanup section
 
-Add a new numbered section at the end of the category block list (currently 29 categories, ~line 3050-ish). Use an existing similar category as a template. Required pattern:
+Add a new numbered section at the end of the category block list (currently 28 categories, ~line 3050-ish). Use an existing similar category as a template. Required pattern:
 
 ```bash
 ###############################################################################
@@ -221,10 +221,10 @@ Found a bug? Open an issue with:
 
 These are open items from the v5.2.0 review that future contributors may want to tackle:
 
-- **F-2**: ✅ fixed in v5.4.0 (PR #74). Sections now number 1-29 continuously.
+- **F-2**: ✅ fixed in v5.4.0 (PR #74). Sections now number 1-28 continuously.
 - **F-3**: ✅ fixed in v5.4.0 (PR #74). `disk_usage.after` is now `null` in dry-run JSON.
 - **F-4**: ✅ fixed in v5.5.0 (PR #77). Extracted `get_free_disk_bytes()` shared helper. The two disk-space check functions remain (they have different contracts — one exits, one returns) but now share a single `df` call. Pre/post-cleanup byte measurements also use the helper.
-- **F-5**: ✅ fixed in v5.5.0 (PR #78 + #79). Extracted `CATEGORY_REGISTRY` + `run_category` + `_init_skip_defaults` helpers. The 29 sections now use `if run_category "N|Name|SKIP_X"; then ... fi`. The 4 consumers (interactive_selection, parse_arguments, validate_config, the toggle_category case statement) all derive from the registry. Adding a new category = one new line in `CATEGORY_REGISTRY` + one new section body.
+- **F-5**: ✅ fixed in v5.5.0 (PR #78 + #79). Extracted `CATEGORY_REGISTRY` + `run_category` + `_init_skip_defaults` helpers. The 28 sections now use `if run_category "N|Name|SKIP_X"; then ... fi`. The 4 consumers (interactive_selection, parse_arguments, validate_config, the toggle_category case statement) all derive from the registry. Adding a new category = one new line in `CATEGORY_REGISTRY` + one new section body.
 - **P2 #26**: `ludeeus/action-shellcheck@master` should be pinned to a SHA.
 
 ## Getting Help
