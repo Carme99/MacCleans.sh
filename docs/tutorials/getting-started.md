@@ -22,7 +22,7 @@ brew install carme99/tap/mac-cleans
 curl -fsSL https://raw.githubusercontent.com/Carme99/MacCleans.sh/main/installer.sh | bash
 ```
 
-For more installation options, see [Installation](installation.md).
+For more installation options, see [Installation](../how-to/install.md).
 
 ## Your First Cleanup
 
@@ -103,7 +103,7 @@ sudo Mac-Clean --profile aggressive
 sudo Mac-Clean --profile minimal
 ```
 
-See [Profiles](profiles.md) for full details.
+See [Profiles](../how-to/profiles.md) for full details.
 
 ### Skip Specific Categories
 
@@ -141,24 +141,24 @@ A: Run `sudo Mac-Clean --profile aggressive --yes` for maximum cleanup.
 
 | Problem | Solution |
 |---------|----------|
-| "command not found" | [Installation troubleshooting](installation.md) |
+| "command not found" | [Installation troubleshooting](../how-to/install.md) |
 | Permission denied | Make sure you're using `sudo` |
-| Not working as expected | [Troubleshooting](troubleshooting.md) |
+| Not working as expected | [Troubleshooting](../how-to/troubleshooting.md) |
 | Have a suggestion? | [Open an issue](https://github.com/Carme99/MacCleans.sh/issues) |
 
 ## What's Next?
 
 | Topic | Guide |
 |-------|-------|
-| See all cleanup options | [All Categories](all-categories.md) |
-| Automate regular cleanup | [Automation](automation.md) |
-| Configure for your needs | [Configuration](configuration.md) |
-| Automate with cron/launchd | [Automation](automation.md) |
+| See all cleanup options | [All Categories](../reference/categories.md) |
+| Automate regular cleanup | [Automation](../how-to/automate.md) |
+| Configure for your needs | [Configuration](../how-to/configure.md) |
+| Automate with cron/launchd | [Automation](../how-to/automate.md) |
 
 ---
 
 <p align="center">
 
-[Back to Documentation](index.md) · [All Categories](all-categories.md) · [Next: Installation](installation.md)
+[Back to Documentation](../README.md) · [All Categories](../reference/categories.md) · [Next: Installation](../how-to/install.md)
 
 </p>

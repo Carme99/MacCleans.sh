@@ -1,5 +1,31 @@
 # Troubleshooting Guide
 
+## Quick diagnostic tree
+
+```mermaid
+flowchart TD
+    Start([Script error or<br/>unexpected behavior]) --> Q1{Error message?}
+    Q1 -->|permission denied| P1[Run with sudo]
+    Q1 -->|command not found| P2["Check \$PATH includes<br/>/usr/local/bin or install path"]
+    Q1 -->|lock file exists| P3[Remove the lock file in<br/>/tmp or wait for prior run]
+    Q1 -->|disk space error| P4[Free space OR lower --threshold]
+    Q1 -->|symlink warning| P5["Inspect the symlink target<br/>(symlink-swap defense)"]
+    Q1 -->|script crashed silently| P6[Run with --verbose --no-color]
+    Q1 -->|nothing cleaned| P7{Profile or SKIP_X set?}
+    P7 -->|yes| P8[Try --profile aggressive or<br/>--skip-X false for that flag]
+    P7 -->|no| P9[Run --dry-run to see what<br/>would be cleaned]
+    P1 --> Done([Try again])
+    P2 --> Done
+    P3 --> Done
+    P4 --> Done
+    P5 --> Done
+    P6 --> Done
+    P8 --> Done
+    P9 --> Done
+```
+
+If the tree above didn't help, scroll down for the detailed section.
+
 [![Help](https://img.shields.io/badge/Need%20Help%3F-We're%20Here-blue.svg)]()
 [![Support](https://img.shields.io/badge/Community-Support-green.svg)]()
 
@@ -710,9 +736,9 @@ df -h
 ### Check Existing Resources
 
 1. **README**: [README.md](../README.md) - Feature overview
-2. **FAQ**: [FAQ](faq.md) - Common questions
-3. **Installation**: [Installation](installation.md) - Setup issues
-4. **Command Reference**: [Command Reference](command-reference.md) - Power user features
+2. **FAQ**: [FAQ](../explanation/faq.md) - Common questions
+3. **Installation**: [Installation](install.md) - Setup issues
+4. **Command Reference**: [Command Reference](../reference/commands.md) - Power user features
 5. **Docs**: [docs/](.) - In-depth guides
 
 ### Search Existing Issues
@@ -849,9 +875,9 @@ sudo ./clean-mac-space.sh --dry-run --no-color
 ---
 
 **Related Resources**:
-- [FAQ](faq.md) - Frequently asked questions
-- [Command Reference](command-reference.md) - Power user features
-- [Contributing](../CONTRIBUTING.md) - Help improve MacCleans
+- [FAQ](../explanation/faq.md) - Frequently asked questions
+- [Command Reference](../reference/commands.md) - Power user features
+- [Contributing](../../CONTRIBUTING.md) - Help improve MacCleans
 
 **Community**: We're here to help! Don't hesitate to ask questions.
 

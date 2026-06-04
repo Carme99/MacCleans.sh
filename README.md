@@ -50,7 +50,7 @@ sudo Mac-Clean --yes
 | iOS Simulator | 1-10GB | Slow rebuild |
 | Time Machine | 10-100GB | Local snapshots |
 | Trash | Variable | Permanent deletion |
-| +20 more | | [See all categories](docs/all-categories.md) |
+| +20 more | | [See all categories](docs/reference/categories.md) |
 
 ---
 
@@ -105,21 +105,26 @@ sudo ./clean-mac-space.sh --dry-run
 
 ## Documentation
 
-| Guide | Description |
-|-------|-------------|
-| [Getting Started](docs/getting-started.md) | First time? Start here |
-| [Installation](docs/installation.md) | Installation methods and verification |
-| [All Categories](docs/all-categories.md) | Complete list of what gets cleaned |
-| [Profiles](docs/profiles.md) | Conservative, developer, aggressive, minimal |
-| [Command Reference](docs/command-reference.md) | All flags, options, and JSON output |
-| [Configuration](docs/configuration.md) | Config files and environment variables |
-| [Automation](docs/automation.md) | Cron, LaunchD, and CI/CD integration |
-| [Developer Guide](docs/developer-guide.md) | Adding new cleanup categories |
-| [Storage Explained](docs/storage-explained.md) | How macOS storage works |
-| [Error Codes](docs/error-codes.md) | Exit codes and troubleshooting |
-| [FAQ](docs/faq.md) | Common questions |
-| [Troubleshooting](docs/troubleshooting.md) | Problems and solutions |
-| [Security](docs/security.md) | Auditing and safety |
+Full docs at [docs/README.md](docs/README.md). Quick links:
+
+| I want to... | Guide |
+|---|---|
+| Run it for the first time | [tutorials/getting-started.md](docs/tutorials/getting-started.md) |
+| See a one-screen walkthrough | [tutorials/first-cleanup.md](docs/tutorials/first-cleanup.md) |
+| Install | [how-to/install.md](docs/how-to/install.md) |
+| Configure skip flags | [how-to/configure.md](docs/how-to/configure.md) |
+| Find a specific flag | [reference/commands.md](docs/reference/commands.md) |
+| See what each category cleans | [reference/categories.md](docs/reference/categories.md) |
+| Understand the architecture | [explanation/how-it-works.md](docs/explanation/how-it-works.md) |
+| Got an error? | [how-to/troubleshooting.md](docs/how-to/troubleshooting.md) |
+| Add a new cleanup category | [contributing/adding-a-category.md](docs/contributing/adding-a-category.md) |
+| [Automation](docs/how-to/automate.md) | Cron, LaunchD, and CI/CD integration |
+| [Developer Guide](docs/contributing/developer-guide.md) | Adding new cleanup categories |
+| [Storage Explained](docs/explanation/how-it-works.md) | How macOS storage works |
+| [Exit codes](docs/reference/exit-codes.md) | Exit codes and troubleshooting |
+| [FAQ](docs/explanation/faq.md) | Common questions |
+| [Troubleshooting](docs/how-to/troubleshooting.md) | Problems and solutions |
+| [Security model](docs/explanation/security-model.md) | Auditing and safety |
 
 ---
 

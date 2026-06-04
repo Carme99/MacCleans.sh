@@ -171,7 +171,7 @@ Then run:
 sudo Mac-Clean --yes
 ```
 
-See [Configuration](configuration.md) for full details.
+See [Configuration](configure.md) for full details.
 
 ## Profile vs Skip Flags
 
@@ -197,6 +197,6 @@ These are typical values - your mileage may vary.
 
 <p align="center">
 
-[Back to Documentation](index.md) · [All Categories](all-categories.md) · [Command Reference](command-reference.md)
+[Back to Documentation](../README.md) · [All Categories](../reference/categories.md) · [Command Reference](../reference/commands.md)
 
 </p>

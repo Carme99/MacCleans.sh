@@ -2,6 +2,29 @@
 
 Complete reference for all Mac-Clean command-line options.
 
+## `--clean-system-tmp` vs `--skip-system-tmp`
+
+`/tmp` and `/var/tmp` cleanup is **off by default** for safety. The
+order of these flags on the command line does **not** matter — whichever
+wins is sticky for the rest of the run.
+
+```mermaid
+flowchart TD
+    A[User runs Mac-Clean] --> B{CLEAN_SYSTEM_TMP_REQUESTED<br/>set during arg parse?}
+    B -->|yes| C[SKIP_SYSTEM_TMP forced to false<br/>for the rest of the run]
+    B -->|no| D[Last --skip-system-tmp on the<br/>command line wins]
+    C --> E[Section 6 runs]
+    D -->|SKIP_SYSTEM_TMP=true| F[Section 6 skipped]
+    D -->|SKIP_SYSTEM_TMP=false| E
+```
+
+| Command | Effect |
+|---|---|
+| `Mac-Clean --skip-system-tmp` | Skips `/tmp` (default behavior). |
+| `Mac-Clean --clean-system-tmp` | Cleans `/tmp` and `/var/tmp`. |
+| `Mac-Clean --skip-system-tmp --clean-system-tmp` | Cleans. `clean` wins. |
+| `Mac-Clean --clean-system-tmp --skip-system-tmp` | Cleans. `clean` still wins. |
+
 ## Quick Reference
 
 | Flag | Description |
@@ -164,7 +187,7 @@ sudo Mac-Clean --profile aggressive --yes
 sudo Mac-Clean --profile minimal --yes
 ```
 
-See [Profiles](profiles.md) for details.
+See [Profiles](../how-to/profiles.md) for details.
 
 ---
 
@@ -208,7 +231,7 @@ sudo Mac-Clean --yes \
   --clean-system-tmp
 ```
 
-See [All Categories](all-categories.md) for details.
+See [All Categories](categories.md) for details.
 
 ---
 
@@ -376,6 +399,6 @@ sudo Mac-Clean --yes --update
 
 <p align="center">
 
-[Back to Documentation](index.md) · [Configuration](configuration.md) · [Error Codes](error-codes.md)
+[Back to Documentation](../README.md) · [Configuration](../how-to/configure.md) · [Error Codes](exit-codes.md)
 
 </p>

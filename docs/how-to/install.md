@@ -137,7 +137,7 @@ cp completions/mac-cleans.fish ~/.config/fish/completions/
 
 MacCleans supports configuration files for persistent settings.
 
-See [Configuration](configuration.md) for full details.
+See [Configuration](configure.md) for full details.
 
 Quick setup:
 
@@ -223,14 +223,14 @@ If macOS says the script can't be opened:
 
 | Guide | Description |
 |-------|-------------|
-| [Getting Started](getting-started.md) | Run your first cleanup |
-| [Configuration](configuration.md) | Set up persistent config |
-| [Automation](automation.md) | Set up scheduled cleanup |
+| [Getting Started](../tutorials/getting-started.md) | Run your first cleanup |
+| [Configuration](configure.md) | Set up persistent config |
+| [Automation](automate.md) | Set up scheduled cleanup |
 
 ---
 
 <p align="center">
 
-[Back to Documentation](index.md) · [Getting Started](getting-started.md)
+[Back to Documentation](../README.md) · [Getting Started](../tutorials/getting-started.md)
 
 </p>

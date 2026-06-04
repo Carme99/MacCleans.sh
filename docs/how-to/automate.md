@@ -269,6 +269,6 @@ log show --predicate 'process == "Mac-Clean"' --last 24h
 
 <p align="center">
 
-[Back to Documentation](index.md) · [Configuration](configuration.md) · [Command Reference](command-reference.md)
+[Back to Documentation](../README.md) · [Configuration](configure.md) · [Command Reference](../reference/commands.md)
 
 </p>

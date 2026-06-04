@@ -151,6 +151,6 @@ Both projects aim to provide free, transparent, and scriptable cleanup for macOS
 ---
 
 **Related:**
-- [FAQ](faq.md) - Common questions
-- [Command Reference](command-reference.md) - Full command reference
+- [FAQ](../explanation/faq.md) - Common questions
+- [Command Reference](commands.md) - Full command reference
 - [GitHub](https://github.com/Carme99/MacCleans.sh) - Source code

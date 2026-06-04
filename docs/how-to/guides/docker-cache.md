@@ -630,8 +630,8 @@ docker system prune -a
 
 **Related Reading**:
 - [Understanding macOS Caches](understanding-macos-caches.md)
-- [XCode Derived Data Guide](xcode-derived-data-guide.md)
-- [Automating macOS Maintenance](automating-macos-maintenance.md)
-- [Back to Main README](../README.md)
+- [XCode Derived Data Guide](xcode-derived-data.md)
+- [Automating macOS Maintenance](#)
+- [Back to Main README](../../README.md)
 
 <!-- 🐳 Easter egg: Docker isn't actually a whale. It's a really fat container ship. Mind = blown. -->

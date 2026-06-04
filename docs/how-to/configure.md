@@ -2,9 +2,18 @@
 
 Customize MacCleans behavior with a configuration file or environment variables.
 
-## Configuration Files
+## Precedence
 
-MacCleans checks for configuration files in this order:
+```mermaid
+flowchart TD
+    A[CLI flags<br/>--skip-xcode, --yes, ...] --> D{Final value}
+    B[Env vars<br/>NO_COLOR, XDG_CONFIG_HOME] --> D
+    C["Config file<br/>~/.maccleans.conf or<br/>~/.config/maccleans/config"] --> D
+    E[Compiled-in defaults] --> D
+    D --> F[Mac-Clean uses this for the run]
+```
+
+CLI flags override env vars. Env vars override config file. Config file overrides compiled-in defaults. The script picks the first config file it finds in this order:
 
 1. `~/.maccleans.conf`
 2. `~/.config/maccleans/config`
@@ -172,7 +181,7 @@ SKIP_IOS_BACKUPS=true
 SKIP_IOS_UPDATES=true
 ```
 
-Run automatically with cron or launchd. See [Automation](automation.md) for details.
+Run automatically with cron or launchd. See [Automation](automate.md) for details.
 
 ## Photos Library
 
@@ -198,6 +207,6 @@ sudo Mac-Clean --yes --photos-library "My Photos"
 
 <p align="center">
 
-[Back to Documentation](index.md) · [Automation](automation.md) · [Command Reference](command-reference.md)
+[Back to Documentation](../README.md) · [Automation](automate.md) · [Command Reference](../reference/commands.md)
 
 </p>

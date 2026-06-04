@@ -2,7 +2,38 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tested](https://img.shields.io/badge/Tested%20on-26.4-green.svg)]()
 
-# Security
+# Security Model
+
+## Trust boundary
+
+```mermaid
+flowchart LR
+    subgraph Inside["Inside trust boundary (runs as root via sudo)"]
+        Script["clean-mac-space.sh"]
+        CACHE_REG["CATEGORY_REGISTRY"]
+    end
+    subgraph Outside["Outside trust boundary (user data)"]
+        UserCaches["~/Library/Caches/*"]
+        BrowserCaches["Chrome / Firefox / Edge caches"]
+        iCloud["iCloud Drive / iCloud Mail"]
+        SysTmp["/tmp and /var/tmp"]
+        iOSBackups["iOS device backups"]
+        PhotosLib["Photos library"]
+    end
+    Script -->|reads + writes (or skips)| UserCaches
+    Script -->|reads + writes (or skips)| BrowserCaches
+    Script -->|reads only, queries sync state| iCloud
+    Script -->|opt-in via --clean-system-tmp| SysTmp
+    Script -->|requires --force-ios-backups| iOSBackups
+    Script -->|opt-out via --skip-photos-library| PhotosLib
+    Script -.uses.-> CACHE_REG
+```
+
+The script runs as root via `sudo` (required to clean system caches). It
+operates only on well-known cache and temp directories — never on
+documents, downloads, or application settings. Every destructive operation
+goes through `safe_clear_directory`, which refuses to follow symlinks at
+the root.
 
 ## Found Something Dodgy?
 

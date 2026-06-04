@@ -2,6 +2,66 @@
 
 Interested in contributing to MacCleans? This guide covers everything you need to know.
 
+## CATEGORY_REGISTRY dispatch
+
+```mermaid
+sequenceDiagram
+    participant CR as CATEGORY_REGISTRY (30 entries)
+    participant ID as registry_get_skip_var
+    participant ID2 as registry_get_display
+    participant Init as _init_skip_defaults
+    participant RC as run_category
+    participant Parse as parse_arguments
+    participant Val as validate_config
+    participant Menu as interactive_selection
+    CR->>ID: for each entry
+    ID-->>Init: skip var name (or empty)
+    Init->>Init: printf -v "$skip_var" false
+    CR->>ID: for each entry
+    ID-->>RC: skip var name
+    RC->>RC: check ${!skip_var}, run body if false
+    CR->>ID: for each entry
+    ID-->>Parse: skip var name
+    Parse->>Parse: validate --skip-X against registry
+    CR->>ID: for each entry
+    ID-->>Val: skip var name
+    Val->>Val: validate ${!skip_var} is true/false
+    CR->>ID2: for each entry
+    ID2-->>Menu: display name + skip var
+    Menu->>Menu: build categories[] array
+```
+
+The registry is the single source of truth. Adding a category = one new
+line in `CATEGORY_REGISTRY` + one new section body. All 5 consumers (init,
+run_category, parse_arguments, validate_config, interactive_selection) read
+via `registry_get_skip_var` / `registry_get_display` helpers — defined
+right after the array. Format: `"N|Display Name|SKIP_X"` (skip var may be
+empty for always-run categories).
+
+## Top-level orchestration
+
+```mermaid
+flowchart TD
+    Start([sudo Mac-Clean]) --> A[parse_arguments]
+    A --> B[load_config_file]
+    B --> C[validate_config]
+    C --> D[acquire_lock]
+    D --> E[perform_health_checks]
+    E --> Loop{For each entry in<br/>CATEGORY_REGISTRY}
+    Loop -->|yes| RC[run_category]
+    RC --> Body[Section body:<br/>safe_du, find -delete,<br/>safe_clear_directory]
+    Body --> Loop
+    Loop -->|done| Sum[Print summary table]
+    Sum --> Json{--json?}
+    Json -->|yes| J[Emit JSON]
+    Json -->|no| Out([stdout summary])
+    J --> Out
+```
+
+Each `run_category` call wraps one section body and handles the skip-flag
+check, header banner, and `PROCESSED_CATEGORIES` / `SKIPPED_CATEGORIES`
+tracking.
+
 ## Project Structure
 
 ```
@@ -267,6 +327,6 @@ These are open items from the v5.2.0 review that future contributors may want to
 
 <p align="center">
 
-[Back to Documentation](index.md) · [GitHub Repository](https://github.com/Carme99/MacCleans.sh) · [Issues](https://github.com/Carme99/MacCleans.sh/issues)
+[Back to Documentation](../README.md) · [GitHub Repository](https://github.com/Carme99/MacCleans.sh) · [Issues](https://github.com/Carme99/MacCleans.sh/issues)
 
 </p>
