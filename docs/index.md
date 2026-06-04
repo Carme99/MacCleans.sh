@@ -1,7 +1,7 @@
 # MacCleans Documentation
 
 [![macOS](https://img.shields.io/badge/macOS-10.15+-blue.svg)](https://www.apple.com/macos/)
-[![Version](https://img.shields.io/badge/Version-5.3.0-blue.svg)](../CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-5.4.0-blue.svg)](../CHANGELOG.md)
 
 In-depth guides for understanding macOS maintenance and getting the most out of MacCleans.
 

@@ -101,7 +101,7 @@ sudo Mac-Clean --dry-run --json
 **Example output:**
 ```json
 {
-  "version": "5.3.0",
+  "version": "5.4.0",
   "timestamp": "2026-04-09T12:00:00Z",
   "dry_run": true,
   "results": {

@@ -243,6 +243,21 @@ load_config_file() {
                     FORCE_IOS_BACKUPS) FORCE_IOS_BACKUPS="$value" ;;
                     UPDATE) UPDATE="$value" ;;
                     VERBOSE) VERBOSE="$value" ;;
+                    PHOTOS_LIBRARY_NAME)
+                        # Apply the same path-traversal guard the CLI flag
+                        # uses (mirrors parse_arguments: --photos-library).
+                        # The handler that uses the value composes
+                        # "$USER_HOME/Pictures/${PHOTOS_LIBRARY_NAME}.photoslibrary",
+                        # so a value containing /, \, ~, .., or non-printable
+                        # characters would break out of Pictures/ entirely.
+                        PHOTOS_LIBRARY_NAME="$value"
+                        if [[ "$PHOTOS_LIBRARY_NAME" =~ [/~\\] ]] || \
+                           [[ "$PHOTOS_LIBRARY_NAME" == *".."* ]] || \
+                           [[ "$PHOTOS_LIBRARY_NAME" =~ [^[:print:]] ]]; then
+                            echo "ERROR: PHOTOS_LIBRARY_NAME in config file contains path-traversal or non-printable characters — refusing to use it" >&2
+                            exit 1
+                        fi
+                        ;;
                     *) echo "WARNING: Unknown config key '$key' - ignoring" >&2 ;;
                 esac
             done < "$config_file"
@@ -448,16 +463,27 @@ parse_arguments() {
                 shift 2
                 ;;
             --help|-h)
-                # Extract header comment block dynamically - find first non-comment line
-                line_num=0
+                # Extract the help block: the comment block delimited by
+                # lines of `###...###` markers in the script header.
+                # Print everything between the opening and closing
+                # marker (exclusive), stripping the leading `# `.
+                in_block=false
                 while IFS= read -r line; do
-                    line_num=$((line_num + 1))
-                    # Stop at first non-comment line
-                    if [[ ! "$line" =~ ^[[:space:]]*# ]]; then
-                        break
+                    # Skip the shebang
+                    [[ "$line" == "#!"* ]] && continue
+                    if [[ "$line" =~ ^[[:space:]]*#\#+[[:space:]]*$ ]]; then
+                        # A `###...###` marker line.
+                        if $in_block; then
+                            # Closing marker — done.
+                            break
+                        fi
+                        # Opening marker — start printing from the next line.
+                        in_block=true
+                        continue
                     fi
-                    # Print with # prefix stripped
-                    echo "${line#\# }"
+                    if $in_block; then
+                        echo "${line#\# }"
+                    fi
                 done < "$0"
                 exit 0
                 ;;

@@ -40,7 +40,7 @@ There is intentionally **no `tests/` directory and no `npm test`** — MacCleans
 10. **Disk / size helpers** — `safe_du`, `size_to_bytes`, `bytes_to_human`, `check_disk_space`, `check_minimum_disk_space` (lines ~846-925)
 11. **Health checks** — `perform_health_checks` (line 1031)
 12. **Profile loader** — `load_profile` (line 1071)
-13. **Category cleanup sections** — 29 top-level procedural blocks, numbered #1 through #29 (the source of finding F-2 in the v5.2.0 review — there's no #23 because the blocks were hand-numbered and the gap was missed)
+13. **Category cleanup sections** — 29 top-level procedural blocks, numbered #1 through #29 continuously (the F-2 numbering gap that was noted in the v5.2.0 review was fixed in v5.4.0; the root-cause refactor into a `CATEGORY_REGISTRY` + `run_category` dispatcher is still F-5)
 14. **JSON output** (the trailing `# Deliver results as JSON` block)
 
 ## Adding a New Category
@@ -221,8 +221,8 @@ Found a bug? Open an issue with:
 
 These are open items from the v5.2.0 review that future contributors may want to tackle:
 
-- **F-2**: the numbered category sections jump from #22 to #24 (no #23). Source of this is that the numbering is hand-maintained in the section comment, the `log` call, and the interactive menu. Adding a new category makes it easy to mis-number again. A future refactor could introduce a `CATEGORY_REGISTRY` array and a `run_category` dispatcher (this is the v5.2.0 review's F-5).
-- **F-3**: in `--dry-run --json` mode, `disk_usage.after` is always `0` (line 3224). Should be `null` or computed.
+- **F-2**: ✅ fixed in v5.4.0 (PR #74). Sections now number 1-29 continuously.
+- **F-3**: ✅ fixed in v5.4.0 (PR #74). `disk_usage.after` is now `null` in dry-run JSON.
 - **F-4**: `check_minimum_disk_space` and `check_disk_space` are near-duplicate helpers. Consolidate.
 - **F-5**: 29 top-level procedural category blocks. Refactor into a registry.
 - **P2 #26**: `ludeeus/action-shellcheck@master` should be pinned to a SHA.

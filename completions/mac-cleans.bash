@@ -8,6 +8,8 @@ _mac_cleans() {
 
     local -a options=(
         --dry-run --force --yes --interactive --json --version --help
+        --quiet --no-color --verbose --update
+        --threshold --profile --photos-library
         --skip-snapshots --skip-homebrew --skip-spotify --skip-claude
         --skip-xcode --skip-browsers --skip-npm --skip-pip --skip-trash
         --skip-dsstore --skip-docker --skip-simulator --skip-mail

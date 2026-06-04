@@ -11,6 +11,13 @@ _mac_cleans() {
         '--json[JSON output]'
         '--version[Show version]'
         '--help[Show help]'
+        '--quiet[Minimal output (useful for cron)]'
+        '--no-color[Disable colored output]'
+        '--verbose[Enable verbose debug output]'
+        '--update[Run brew update before cleanup]'
+        '--threshold[Only run if disk usage is above N% (0-100, default: 0)]: :->threshold_value'
+        '--profile[Use preset profile]: :(conservative developer aggressive minimal)'
+        '--photos-library[Specify Photos library name or "all"]: :->photos_name'
     )
 
     categories=(
