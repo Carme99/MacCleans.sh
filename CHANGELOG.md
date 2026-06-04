@@ -2,6 +2,33 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [5.5.0] - 2026-06-04
+
+### Refactor
+
+- **F-5: registry-driven category cleanup (PR #78 + #79)** — extracted `CATEGORY_REGISTRY` (28 entries covering 1-28 with 3a/3b sub-sections for Spotify + Claude), `_init_skip_defaults` (initialises each `SKIP_X` var via `printf -v`), and `run_category` (emits the header banner and tracks `PROCESSED_CATEGORIES` / `SKIPPED_CATEGORIES`). All 28 section bodies refactored to the `if run_category "N|Name|SKIP_X"; then ... fi` pattern. Four consumers refactored to derive from the registry: `parse_arguments` (27 `--skip-X` cases → 1 generic case with auto-derive + registry-based typo check), `interactive_selection` (27-entry `categories` array → registry-derived; 54-case `toggle_category` → 5-line `printf -v`; `a`/`n` shortcuts now iterate `categories[@]` so new categories auto-pick them up), `validate_config` (27-line `for SKIP_X` loop → registry-derived), and the `SC2034` shellcheck disable widened to file scope (the `SKIP_X` vars are read via dynamic `${!var}` and `printf -v`, which shellcheck can't trace). Adding a new cleanup category is now one new line in `CATEGORY_REGISTRY` + one new section body — no edits to argument parsing, config validation, the interactive menu, or shellcheck suppression. Closes the last open item from the v5.2.0 review.
+- **F-4: `get_free_disk_bytes()` shared helper (PR #77)** — the two disk-space check functions (the hard-gate `check_minimum_disk_space` and the soft-warn `is_disk_space_sufficient`) and the pre/post-cleanup byte measurement now share a single `df` invocation, so the parser, the column mapping, and the bytes-from-blocks math live in one place. The two check functions remain (they have different contracts: one exits on failure, one returns), but the underlying `df` read is the helper.
+
+### Bug Fixes
+
+- **`--help` extraction is robust** (PR #76) — the script now reads the help block between sentinel markers (`###...###`) instead of "everything up to the first non-comment line" (which broke on the blank line right after the shebang), and uses a two-step `#` strip that handles bare `#`, `#\tfoo`, and `#foo` in addition to `# foo`. `script --help` now always produces the expected text on every shell.
+- **`X-25` `PHOTOS_LIBRARY_NAME` config validation** (PR #76) — `validate_photos_library_name()` is now a shared helper called from both the CLI flag and the config-file loader, instead of two divergent inline regex checks. Rejects path traversal, absolute paths, and shell metacharacters up front.
+- **`-w` no longer overwritten by `SKIP_SYSTEM_TMP` after `--clean-system-tmp`** (PR #79 follow-up) — `--clean-system-tmp` is now a sticky `CLEAN_SYSTEM_TMP_REQUESTED` marker, so a later `--skip-system-tmp` on the same command line is ignored. The help text's "clean overrides skip" contract holds regardless of flag order.
+- **iCloud Drive symlink-skip is no longer emitted as "processed"** (PR #79 follow-up) — the `[ -L CloudStorage ]` check is hoisted before `run_category`, so the symlink-swap defense is recorded as a skip, not a process-with-zero-freed.
+- **iOS Backups `SKIPPED_CATEGORIES` no longer duplicated** (PR #79 follow-up) — the `--force` and `! --force` branches in section 21 no longer append to `SKIPPED_CATEGORIES` after `run_category` has already added the category to `PROCESSED_CATEGORIES`, so the end-of-run summary and JSON no longer show "iOS Device Backups" in both lists when the cleanup was gated.
+
+### Documentation
+
+- **Completion parity for 7 missing flags** (PR #76) — `--profile`, `--threshold`, `--update`, `--photos-library`, `--verbose`, `--quiet`, `--no-color` are now in the bash, zsh, and fish completions (was only `--skip-*` + `--force` everywhere).
+- **Stale `5.3.0` references fixed in `docs/index.md` and `docs/command-reference.md`** (PR #76 follow-up) — the docs badge and JSON example were lagging one minor version behind.
+- **`docs/developer-guide.md` "Known Issues" section now reflects reality** — the F-2/F-3 entries are marked ✅ fixed in v5.4.0, and F-4/F-5 are marked ✅ fixed in v5.5.0. Section counts updated to 28 (was a stale 29 in four places, fixed in PR #79).
+
+### Internal
+
+- Bumped `VERSION="5.5.0"` in `clean-mac-space.sh`.
+- Regenerated `EXPECTED_HASH` in `installer.sh` for the new script bytes.
+- All verification (`bash -n`, `shellcheck -S warning`) clean.
+
 ## [5.4.0] - 2026-06-04
 
 ### Internal
