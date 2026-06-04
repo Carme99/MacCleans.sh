@@ -15,17 +15,42 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install shellcheck
+        # We use apt instead of a third-party composite action because
+        # ludeeus/action-shellcheck has been producing 0-job failures
+        # on every run since 2026-04 (~30 consecutive failures). apt's
+        # shellcheck is the same upstream binary, just installed in a
+        # way that doesn't depend on a third-party download.
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
       - name: Run ShellCheck
-        uses: ludeeus/action-shellcheck@00b27aa7cb85167568cb48a3838b75f4265f2bca # pin to SHA for supply-chain stability
-        with:
-          scandir: '.'
-          severity: warning
-          format: gcc
-          exclude:
-            - SC1090 # Don't warn about non-constant sourceable files
-            - SC1091 # Not following sourced files
+        # Build the file list ourselves, then run shellcheck. We
+        # replicate the action's shebang filter so we don't lint, e.g.,
+        # a zsh autoload file with bash rules, or a fish completion as
+        # if it were sh.
+        run: |
+          set -euo pipefail
+          shebangregex='^#! */[^ ]*/(env *)?[abk]*sh'
+          files=()
+          while IFS= read -r -d "" file; do
+            if head -n1 "$file" | grep -Eqs "$shebangregex"; then
+              files+=("$file")
+            fi
+          done < <(find . \
+              -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune -o \
+              -type f \( -name '*.bash' -o -name '*.sh' -o -name '*.zsh' -o -name '*.ksh' \) \
+              -print0)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No shell files with a sh/bash/ksh/zsh shebang found."
+            exit 0
+          fi
+          printf 'Checking: %s\n' "${files[@]}"
+          # shellcheck disable=SC2086
+          shellcheck -S warning --format=gcc "${files[@]}"
 
       - name: Verify script syntax
         run: |
           bash -n clean-mac-space.sh
-          echo "✓ Script syntax is valid"
+          bash -n installer.sh
+          bash -n scripts/release.sh
+          echo "✓ All script syntax is valid"
