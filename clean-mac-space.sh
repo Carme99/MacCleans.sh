@@ -1303,7 +1303,7 @@ interactive_selection() {
                 cursor_mark="${CYAN}>${NC} "
             fi
 
-            printf "%b%b %s\n" "$cursor_mark" "$status" "$display"
+            printf "%b%b %2d. %s\n" "$cursor_mark" "$status" "$((i+1))" "$display"
         done
 
         log_plain ""
@@ -2119,12 +2119,15 @@ if run_category "13|iOS Simulator Data|SKIP_SIMULATOR"; then
                 log "Cleaning unavailable iOS Simulators..."
                 if command -v xcrun &> /dev/null; then
                     SIM_BEFORE=$(du -sk "$SIMULATOR_DIR" 2>/dev/null | awk '{print $1}' || echo "0")
-                    xcrun simctl delete unavailable 2>/dev/null || log_warning "Could not delete unavailable simulators"
-                    SIM_AFTER=$(du -sk "$SIMULATOR_DIR" 2>/dev/null | awk '{print $1}' || echo "0")
-                    SIM_FREED=$(( (SIM_BEFORE - SIM_AFTER) * 1024 ))
-                    if [ "$SIM_FREED" -lt 0 ]; then SIM_FREED=0; fi
-                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SIM_FREED))
-                    log_success "Unavailable iOS Simulators removed"
+                    if xcrun simctl delete unavailable 2>/dev/null; then
+                        SIM_AFTER=$(du -sk "$SIMULATOR_DIR" 2>/dev/null | awk '{print $1}' || echo "0")
+                        SIM_FREED=$(( (SIM_BEFORE - SIM_AFTER) * 1024 ))
+                        if [ "$SIM_FREED" -lt 0 ]; then SIM_FREED=0; fi
+                        TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SIM_FREED))
+                        log_success "Unavailable iOS Simulators removed"
+                    else
+                        log_warning "Could not delete unavailable simulators"
+                    fi
                 else
                     log_warning "xcrun command not found, skipping"
                 fi
