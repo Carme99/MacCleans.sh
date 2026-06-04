@@ -2,6 +2,20 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [5.4.0] - 2026-06-04
+
+### Internal
+
+- **`scripts/release.sh` (new)** — pre-tag release prep helper that bundles the v5.2.0 release work that was forgotten: bump `VERSION` in `clean-mac-space.sh`, regenerate `EXPECTED_HASH` in `installer.sh`, run `bash -n` + `shellcheck -S warning` + `--version` sanity, stage both files, and prompt for the CHANGELOG entry. Has a `--dry-run` mode and refuses to run off `main`, with a dirty tree, or out of sync with `origin/main`. The hash-regen step being a separate manual command was the root cause of the v5.2.0 `EXPECTED_HASH` drift; bundling it into one command prevents that.
+- **CI: `ludeeus/action-shellcheck` replaced with self-contained `apt-get install shellcheck`** — the third-party composite action had been producing 0-job failures on every run since 2026-04-11 (~30 consecutive failures on main, predating v5.2.0). The earlier pin-to-SHA was the right idea for supply-chain stability but is functionally a no-op for fix purposes — the brokenness is in `action.yaml`, not in the SHA reference. apt's shellcheck is the same upstream binary, just installed in a way that doesn't depend on a third-party download. The find filter uses the same shebang regex the action used, so it still correctly skips the zsh autoload file (`_mac-cleans`) and the fish completion. Also extends the `bash -n` step to cover `installer.sh` and `scripts/release.sh` (previously only `clean-mac-space.sh`).
+- **`scripts/release.sh` review fixes** (from Sourcery + CodeRabbit on the v5.4 PR): reject extra CLI args; switch dirty-tree check to `git status --porcelain` so untracked files are caught; add a `sha256_file()` helper that falls back from `shasum` to `sha256sum` for Linux; drop the dead `[[ -x ]]` guard around the `--version` sanity check; fix the `CONTRIBUTING.md` example to use `X.Y.Z` (no `v` prefix).
+- **Section comments renumbered 1–28** in `clean-mac-space.sh` (F-2) — was 1–22, 24–29 with no #23. Pure cosmetic.
+- **`disk_usage.after` now `null` in dry-run JSON** (F-3) — was `0`, which falsely implied the disk was empty. Real runs still emit the measured post-clean value.
+- **Completion parity for `--skip-system-tmp` / `--clean-system-tmp`** — zsh completion now lists both flags, fish completion now lists both AND registers the `Mac-Clean` alias via `complete -c Mac-Clean -w mac-cleans` (bash and zsh were already covered).
+- **`.github/ISSUE_TEMPLATE/config.yml` (new)** — disables the blank-issue option in the New Issue chooser and points users to Discussions / README first.
+- **`.gitignore` extended** — `.worktrees/`, `.mavis/`, `.opencode/`, `CLAUDE.md` (worktree + AI session infrastructure; per-developer, not project-level).
+- **`CONTRIBUTING.md`** — release checklist now references `scripts/release.sh` as the pre-tag step.
+
 ## [5.3.0] - 2026-06-03
 
 ### Documentation
