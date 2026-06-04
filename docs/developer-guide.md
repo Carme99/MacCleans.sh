@@ -223,7 +223,7 @@ These are open items from the v5.2.0 review that future contributors may want to
 
 - **F-2**: ✅ fixed in v5.4.0 (PR #74). Sections now number 1-29 continuously.
 - **F-3**: ✅ fixed in v5.4.0 (PR #74). `disk_usage.after` is now `null` in dry-run JSON.
-- **F-4**: `check_minimum_disk_space` and `check_disk_space` are near-duplicate helpers. Consolidate.
+- **F-4**: ✅ fixed in v5.5.0 (PR #77). Extracted `get_free_disk_bytes()` shared helper. The two disk-space check functions remain (they have different contracts — one exits, one returns) but now share a single `df` call. Pre/post-cleanup byte measurements also use the helper.
 - **F-5**: 29 top-level procedural category blocks. Refactor into a registry.
 - **P2 #26**: `ludeeus/action-shellcheck@master` should be pinned to a SHA.
 

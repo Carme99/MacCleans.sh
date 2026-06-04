@@ -721,9 +721,10 @@ check_icloud_sync_status() {
 
 # Issue #27: Minimum free disk space check before cleanup
 check_minimum_disk_space() {
-    local free_mb
-    free_mb=$(df -m / | awk 'NR==2 {print $4}')
-    if [ "${free_mb:-0}" -lt "$MIN_FREE_MB" ]; then
+    local free_bytes free_mb
+    free_bytes=$(get_free_disk_bytes)
+    free_mb=$((free_bytes / 1048576))
+    if [ "$free_mb" -lt "$MIN_FREE_MB" ]; then
         log_error "Insufficient free disk space: ${free_mb}MB available, ${MIN_FREE_MB}MB required"
         log_always "Free at least ${MIN_FREE_MB}MB before running Mac-Clean."
         exit 1
@@ -934,6 +935,26 @@ bytes_to_human() {
     else
         echo "$(awk -v b="$bytes" 'BEGIN {printf "%.2f", b / 1099511627776}')T"
     fi
+}
+
+# Get free disk space in bytes for the root volume. Returns the value
+# on stdout (always a non-negative integer; 0 if `df` failed or the
+# output didn't parse). Returns 0 on success, 1 if `df` could not be
+# read (caller can ignore — the value is still usable as 0).
+#
+# Replaces 3 places in the script that each did their own
+# `df -k /` + `* 1024` dance (check_minimum_disk_space,
+# DISK_AVAIL_BYTES precomputation, and DISK_AVAIL_BYTES_AFTER
+# post-cleanup measurement).
+get_free_disk_bytes() {
+    local kb
+    kb=$(df -k / 2>/dev/null | awk 'NR==2 {print $4}')
+    if [ -z "$kb" ] || ! [[ "$kb" =~ ^[0-9]+$ ]]; then
+        echo 0
+        return 1
+    fi
+    echo $((kb * 1024))
+    return 0
 }
 
 # Function to check disk space before operations
@@ -1431,8 +1452,7 @@ fi
 DISK_USAGE=$(df -h / 2>/dev/null | awk 'NR==2 {print $5}' | sed 's/%//')
 DISK_AVAIL=$(df -h / 2>/dev/null | awk 'NR==2 {print $4}')
 DISK_USED=$(df -h / 2>/dev/null | awk 'NR==2 {print $3}')
-DISK_AVAIL_BYTES=$(df -k / 2>/dev/null | awk 'NR==2 {print $4}')  # Get KB
-DISK_AVAIL_BYTES=$((DISK_AVAIL_BYTES * 1024))  # Convert KB to bytes
+DISK_AVAIL_BYTES=$(get_free_disk_bytes)
 
 log "Running as user: $ACTUAL_USER"
 log "Home directory: $USER_HOME"
@@ -3204,8 +3224,7 @@ else
     DISK_USAGE_AFTER=$(df -h / | tail -1 | awk '{print $5}' | sed 's/%//')
     DISK_AVAIL_AFTER=$(df -h / | tail -1 | awk '{print $4}')
     DISK_USED_AFTER=$(df -h / | tail -1 | awk '{print $3}')
-    DISK_AVAIL_BYTES_AFTER=$(df -k / | tail -1 | awk '{print $4}')  # Get KB
-    DISK_AVAIL_BYTES_AFTER=$((DISK_AVAIL_BYTES_AFTER * 1024))  # Convert KB to bytes
+    DISK_AVAIL_BYTES_AFTER=$(get_free_disk_bytes)
 
     log "Initial disk usage: ${DISK_USAGE}% (${DISK_USED} used, ${DISK_AVAIL} available)"
     log "Final disk usage:   ${DISK_USAGE_AFTER}% (${DISK_USED_AFTER} used, ${DISK_AVAIL_AFTER} available)"
