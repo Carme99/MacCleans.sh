@@ -556,7 +556,7 @@ A: For active developers with multiple large projects, yes.
 
 **Related Reading**:
 - [Understanding macOS Caches](understanding-macos-caches.md)
-- [Docker Cache Management](docker-cache-guide.md)
-- [Back to Main README](../README.md)
+- [Docker Cache Management](docker-cache.md)
+- [Back to Main README](../../README.md)
 
 <!-- 🥚 Fun fact: XCode Derived Data has been spotted in the wild as large as 150GB. That's like 30,000 floppy disks! -->

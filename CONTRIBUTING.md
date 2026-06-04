@@ -105,6 +105,10 @@ git checkout -b docs/documentation-update
 This project uses GitHub Actions for automated testing. Run tests locally before pushing:
 
 ```bash
+# Smoke tests for the pure helpers (validate_boolean, validate_numeric,
+# size_to_bytes, the CATEGORY_REGISTRY accessors, etc.). No sudo, fast.
+bash tests/run-tests.sh
+
 # Syntax validation
 bash -n clean-mac-space.sh
 
@@ -119,7 +123,8 @@ bash -x clean-mac-space.sh --dry-run 2>&1 | head -50
 ```
 
 The GitHub Actions workflow automatically:
-- Runs ShellCheck on all shell scripts
+- Runs ShellCheck on all shell scripts (`.github/workflows/shellcheck.yml`)
+- Runs the smoke tests above (`.github/workflows/test.yml`)
 - Validates script syntax
 - Runs on push to main and pull requests
 
@@ -647,8 +652,8 @@ If the `Release` workflow can't run (e.g. secret rotated incorrectly, transient 
 
 - Open an issue for questions
 - Check existing issues and discussions
-- Read the [FAQ](docs/faq.md)
-- Review the [Command Reference](docs/command-reference.md)
+- Read the [FAQ](docs/explanation/faq.md)
+- Review the [Command Reference](docs/reference/commands.md)
 
 ## License
 

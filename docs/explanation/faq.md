@@ -37,7 +37,7 @@ Comprehensive answers to common questions about MacCleans.sh.
 
 ### Q: How is this different from commercial tools like CleanMyMac?
 
-**A:** See our [Comparison Guide](comparison.md) for detailed comparisons. In short:
+**A:** See our [Comparison Guide](../reference/comparison.md) for detailed comparisons. In short:
 - **MacCleans**: Free, open-source, transparent, command-line based
 - **Commercial tools**: Paid, closed-source, GUI-based, additional features
 
@@ -226,7 +226,7 @@ Perfect for automated cron jobs - it won't waste time cleaning when you have ple
 
 ### Q: Can I automate this to run regularly?
 
-**A:** Yes! See [Automation](automation.md) for cron and launchd examples. Quick example:
+**A:** Yes! See [Automation](../how-to/automate.md) for cron and launchd examples. Quick example:
 
 ```bash
 # Edit crontab
@@ -521,7 +521,7 @@ Actual disk space freed may vary slightly from reported amounts.
 
 ### Q: Should I use this or CleanMyMac?
 
-**A:** See our [Comparison Guide](comparison.md) for full details. Quick comparison:
+**A:** See our [Comparison Guide](../reference/comparison.md) for full details. Quick comparison:
 
 **Use MacCleans if:**
 - You want free, open-source software
@@ -568,9 +568,9 @@ MacCleans **automatically cleans known safe-to-delete locations**.
 
 ## Still Have Questions?
 
-- **Check the docs**: [README](../README.md) | [Installation](installation.md) | [Command Reference](command-reference.md)
+- **Check the docs**: [README](../README.md) | [Installation](../how-to/install.md) | [Command Reference](../reference/commands.md)
 - **Open an issue**: [GitHub Issues](https://github.com/Carme99/MacCleans.sh/issues)
-- **Contribute**: [CONTRIBUTING](../CONTRIBUTING.md)
+- **Contribute**: [CONTRIBUTING](../../CONTRIBUTING.md)
 - **Report bugs**: Include macOS version, script version, and full error output
 
 ---

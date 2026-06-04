@@ -1,6 +1,46 @@
-# Storage Explained
+# How It Works
 
-Understanding what MacCleans cleans and why your disk gets full.
+Understanding what MacCleans does, how it cleans, and why your disk gets full.
+
+## Architecture
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant CLI as clean-mac-space.sh
+    participant R as CATEGORY_REGISTRY
+    participant S as Section bodies
+    U->>CLI: sudo Mac-Clean --dry-run
+    CLI->>CLI: parse_arguments "$@"
+    CLI->>CLI: load_config_file
+    CLI->>CLI: validate_config
+    CLI->>CLI: acquire_lock
+    CLI->>CLI: perform_health_checks
+    loop for each entry in CATEGORY_REGISTRY
+        CLI->>S: run_category "N|Name|SKIP_X"
+        alt SKIP_X is true or set
+            S-->>CLI: return 1 (skip)
+            CLI->>CLI: append to SKIPPED_CATEGORIES
+        else SKIP_X is false
+            S->>S: detect sizes, optionally clean
+            S-->>CLI: return 0
+            CLI->>CLI: append to PROCESSED_CATEGORIES
+        end
+    end
+    CLI->>CLI: print summary table
+    alt --json
+        CLI->>U: emit JSON
+    else interactive
+        CLI->>U: plain-text summary
+    end
+```
+
+The script is one bash file (`clean-mac-space.sh`) with a top-level
+`CATEGORY_REGISTRY` array of 30 entries (1-28 numbered + 3a Spotify + 3b
+Claude). Every consumer — default skip-flag init, the section body dispatcher,
+`--skip-X` argument parsing, config validation, the interactive menu — reads
+from that one array. Adding a category = one new line in the registry + one
+new section body.
 
 ## How macOS Uses Disk Space
 
@@ -148,6 +188,6 @@ Total potential: **30-150 GB** for a typical developer Mac.
 
 <p align="center">
 
-[Back to Documentation](index.md) · [All Categories](all-categories.md) · [Troubleshooting](troubleshooting.md)
+[Back to Documentation](../README.md) · [All Categories](../reference/categories.md) · [Troubleshooting](../how-to/troubleshooting.md)
 
 </p>

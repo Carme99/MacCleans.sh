@@ -60,7 +60,7 @@ Complete reference of all cleanup categories in MacCleans.
 
 **When to skip:** If you're an active Xcode developer
 
-**More info:** See [Xcode Derived Data Guide](guides/xcode-derived-data-guide.md)
+**More info:** See [Xcode Derived Data Guide](../how-to/guides/xcode-derived-data.md)
 
 ```bash
 # Skip Xcode
@@ -495,14 +495,14 @@ For deeper understanding of specific categories:
 
 | Guide | Category |
 |-------|----------|
-| [Xcode Derived Data](guides/xcode-derived-data-guide.md) | Xcode |
-| [Docker Cache](guides/docker-cache-guide.md) | Docker |
-| [Understanding Caches](guides/understanding-macos-caches.md) | All caches |
+| [Xcode Derived Data](../how-to/guides/xcode-derived-data.md) | Xcode |
+| [Docker Cache](../how-to/guides/docker-cache.md) | Docker |
+| [Understanding Caches](../how-to/guides/understanding-macos-caches.md) | All caches |
 
 ---
 
 <p align="center">
 
-[Back to Documentation](index.md) · [Profiles](profiles.md) · [Command Reference](command-reference.md)
+[Back to Documentation](../README.md) · [Profiles](../how-to/profiles.md) · [Command Reference](commands.md)
 
 </p>

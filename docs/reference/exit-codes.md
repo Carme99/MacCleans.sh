@@ -47,7 +47,7 @@ Your configuration file has invalid values. Common causes:
 - Boolean values must be exactly `true` or `false` (not `yes`, `no`, `1`, `0`)
 - `THRESHOLD` must be between 0 and 100
 
-See [Configuration](configuration.md#validation) for details.
+See [Configuration](../how-to/configure.md#validation) for details.
 
 ### 5 - Keyboard Interrupted
 
@@ -112,6 +112,6 @@ sudo Mac-Clean
 
 <p align="center">
 
-[Back to Documentation](index.md) · [Troubleshooting](troubleshooting.md) · [Command Reference](command-reference.md)
+[Back to Documentation](../README.md) · [Troubleshooting](../how-to/troubleshooting.md) · [Command Reference](commands.md)
 
 </p>
