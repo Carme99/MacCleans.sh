@@ -93,13 +93,17 @@ test_photos_name_accepts_plain() {
         && validate_photos_library_name "Vacation 2024"
 }
 test_photos_name_rejects_paths() {
-    # "~/Library" is an intentionally LITERAL 9-char string here — the
+    # "~/Library" is intentionally a LITERAL 9-char string here — the
     # validator must see ~ (no expansion) and reject it as a path.
-    # shellcheck disable=SC2088
+    # Pass the tilde via an unquoted variable so shellcheck SC2088
+    # doesn't fire (the literal "~/..." in double quotes is exactly
+    # the pattern SC2088 warns about; the actual intent is the tilde
+    # staying literal, which the unquoted var preserves).
+    local tilde_path=\~/Library
     ! validate_photos_library_name "/etc/passwd" \
         && ! validate_photos_library_name "../etc" \
         && ! validate_photos_library_name 'Photos\Evil' \
-        && ! validate_photos_library_name "~/Library"
+        && ! validate_photos_library_name "$tilde_path"
 }
 test_photos_name_rejects_traversal_and_control() {
     ! validate_photos_library_name ".." \

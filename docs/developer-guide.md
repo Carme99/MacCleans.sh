@@ -202,8 +202,9 @@ length. Adding a helper = add a `test_<func>_<case>` function in
 
 The destructive-path code (sudo check, lock acquire, section bodies,
 final summary) is intentionally NOT exercised by these tests —
-running it would require root and would touch the user's disk. CI
-catches regressions in that path via the manual dry-run step below.
+running it would require root and would touch the user's disk.
+**CI does not cover that path;** regressions there must be caught
+locally via the manual dry-run step below before pushing.
 
 Before submitting a PR, in addition to `bash tests/run-tests.sh`:
 
