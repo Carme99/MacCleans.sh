@@ -8,7 +8,7 @@ Every key in `maccleans.conf.example` (the source of truth), with default and ty
 |---|---|
 | `~/.maccleans.conf` | If it exists |
 | `~/.config/maccleans/config` | If the above doesn't exist (XDG-style) |
-| `${XDG_CONFIG_HOME}/maccleans/config` | If `$XDG_CONFIG_HOME` is set and the above don't exist |
+| `${XDG_CONFIG_HOME}/maccleans/config` | If `$XDG_CONFIG_HOME` is set and the above doesn't exist |
 
 CLI flags override config values. See [how-to/configure.md](../how-to/configure.md) for the precedence chain.
 
@@ -90,8 +90,8 @@ MacCleans also reads:
 
 ```ini
 # Always preview first; require explicit confirm
-DRY_RUN=false
-AUTO_YES=false
+DRY_RUN=true
+AUTO_YES=true
 
 # Skip development caches (Xcode, iOS Sim)
 SKIP_XCODE=true

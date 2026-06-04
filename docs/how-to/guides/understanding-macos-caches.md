@@ -371,6 +371,6 @@ A: Placebo effect mostly. Sometimes a corrupted cache causes issues, and clearin
 **Next Reading**:
 - [When to Clean XCode Derived Data](xcode-derived-data.md)
 - [Docker Cache Management](docker-cache.md)
-- [Automating macOS Maintenance](#)
+- [Automating macOS Maintenance](../automate.md)
 
 **Tool**: Clean your caches safely with [MacCleans.sh](../../README.md)

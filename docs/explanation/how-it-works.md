@@ -44,8 +44,6 @@ new section body.
 
 ## How macOS Uses Disk Space
 
-## How macOS Uses Disk Space
-
 ### System Cache
 
 macOS caches files to speed up operations. These caches are safe to clean:

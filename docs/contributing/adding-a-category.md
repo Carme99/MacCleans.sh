@@ -1,6 +1,6 @@
 # Adding a New Cleanup Category
 
-This is the recipe for shipping a new category in 5 steps. The F-5 refactor (PR #78 + #79) means most of the bookkeeping is now one line — see [reference/categories.md](../reference/categories.md) for what currently exists.
+This is the recipe for shipping a new category in 7 steps. The F-5 refactor (PR #78 + #79) means most of the bookkeeping is now one line — see [reference/categories.md](../reference/categories.md) for what currently exists.
 
 ## Overview
 
@@ -52,6 +52,7 @@ Find the end of the section block list (currently `28|.DS_Store Files|SKIP_DSSTO
 if run_category "29|My New Category|SKIP_MY_NEW"; then
     MY_NEW_BYTES=0
     MY_NEW_COUNT=0
+    MY_NEW_TOTAL_BYTES=0
 
     # Define your cleanup paths. Example:
     MY_NEW_DIRS=(

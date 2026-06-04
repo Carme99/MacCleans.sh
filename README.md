@@ -118,13 +118,6 @@ Full docs at [docs/README.md](docs/README.md). Quick links:
 | Understand the architecture | [explanation/how-it-works.md](docs/explanation/how-it-works.md) |
 | Got an error? | [how-to/troubleshooting.md](docs/how-to/troubleshooting.md) |
 | Add a new cleanup category | [contributing/adding-a-category.md](docs/contributing/adding-a-category.md) |
-| [Automation](docs/how-to/automate.md) | Cron, LaunchD, and CI/CD integration |
-| [Developer Guide](docs/contributing/developer-guide.md) | Adding new cleanup categories |
-| [Storage Explained](docs/explanation/how-it-works.md) | How macOS storage works |
-| [Exit codes](docs/reference/exit-codes.md) | Exit codes and troubleshooting |
-| [FAQ](docs/explanation/faq.md) | Common questions |
-| [Troubleshooting](docs/how-to/troubleshooting.md) | Problems and solutions |
-| [Security model](docs/explanation/security-model.md) | Auditing and safety |
 
 ---
 

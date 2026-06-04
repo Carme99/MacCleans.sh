@@ -10,17 +10,17 @@ sudo Mac-Clean --dry-run
 
 You'll see each of the 30 cleanup categories in turn. `--dry-run` is harmless — no files are touched. It also pre-flight checks disk space, sudo, iCloud config, and skips anything you've disabled.
 
-## 2. Read the output
-
-Each section is formatted like:
-
-```
+```text
 ================================================
 7. Browser Caches (Chrome, Firefox, Edge)
 ================================================
 Chrome cache: 1.2 GB
 Firefox cache: 480 MB
 ```
+
+## 2. Read the output
+
+Each section is formatted like:
 
 If a section says `Skipping: ...` or `[skip]`, that's because of one of:
 - `--skip-X` on the command line
@@ -45,7 +45,7 @@ sudo Mac-Clean --yes
 ## 4. Inspect the result
 
 ```bash
-sudo Mac-Clean --dry-run --json | jq '.results, .space_freed'
+sudo Mac-Clean --dry-run --json | jq '.results, .results.space_freed'
 ```
 
 Sample `--json` output:

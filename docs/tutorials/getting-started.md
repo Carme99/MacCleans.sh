@@ -153,7 +153,6 @@ A: Run `sudo Mac-Clean --profile aggressive --yes` for maximum cleanup.
 | See all cleanup options | [All Categories](../reference/categories.md) |
 | Automate regular cleanup | [Automation](../how-to/automate.md) |
 | Configure for your needs | [Configuration](../how-to/configure.md) |
-| Automate with cron/launchd | [Automation](../how-to/automate.md) |
 
 ---
 
