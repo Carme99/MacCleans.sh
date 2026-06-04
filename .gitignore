@@ -18,3 +18,12 @@
 .vscode/
 .idea/
 out/
+
+# Local dev workflows — never commit these.
+# .worktrees/ is for git worktree-based development.
+# .mavis/ and .opencode/ are AI session infrastructure (per-developer).
+# CLAUDE.md is Claude's per-developer memory file (per-developer).
+.worktrees/
+.mavis/
+.opencode/
+CLAUDE.md
