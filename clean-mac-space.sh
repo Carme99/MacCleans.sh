@@ -1243,6 +1243,11 @@ load_profile() {
 ###############################################################################
 
 interactive_selection() {
+    # shellcheck disable=SC2034
+    # SKIP_X vars are read via dynamic ${!var} expansion in toggle_category
+    # and run_category; shellcheck can't trace that. Disabling the
+    # "appears unused" warning. Will be cleaned up in step 2 when the
+    # function is refactored to use the registry.
     log_plain ""
     log_plain "${BOLD}Interactive Category Selection${NC}"
     log_plain "================================================"
@@ -1426,6 +1431,8 @@ interactive_selection() {
                     draw_menu
                     ;;
                 a|A) # Select all
+                    # shellcheck disable=SC2034
+                    # SKIP_X vars are read dynamically in toggle_category / run_category
                     SKIP_SNAPSHOTS=false SKIP_HOMEBREW=false SKIP_SPOTIFY=false SKIP_CLAUDE=false
                     SKIP_XCODE=false SKIP_BROWSERS=false SKIP_NPM=false SKIP_PIP=false
                     SKIP_TRASH=false SKIP_DSSTORE=false SKIP_DOCKER=false SKIP_SIMULATOR=false
@@ -1436,6 +1443,8 @@ interactive_selection() {
                     draw_menu
                     ;;
                 n|N) # Deselect all
+                    # shellcheck disable=SC2034
+                    # SKIP_X vars are read dynamically in toggle_category / run_category
                     SKIP_SNAPSHOTS=true SKIP_HOMEBREW=true SKIP_SPOTIFY=true SKIP_CLAUDE=true
                     SKIP_XCODE=true SKIP_BROWSERS=true SKIP_NPM=true SKIP_PIP=true
                     SKIP_TRASH=true SKIP_DSSTORE=true SKIP_DOCKER=true SKIP_SIMULATOR=true
