@@ -1,0 +1,30 @@
+name: Test
+
+# Runs the bash-based smoke tests in tests/run-tests.sh. These are
+# pure-helper tests (no sudo, no destructive actions) so they run
+# on the cheap ubuntu-latest pool. Pairs with shellcheck.yml for
+# static analysis; this job is the dynamic counterpart.
+#
+# Triggers:
+#   - push to main (post-merge sanity)
+#   - pull_request (PR gate)
+#   - workflow_dispatch (manual re-run)
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run smoke tests
+        run: bash tests/run-tests.sh

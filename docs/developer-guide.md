@@ -40,7 +40,7 @@ There is intentionally **no `tests/` directory and no `npm test`** — MacCleans
 10. **Disk / size helpers** — `safe_du`, `size_to_bytes`, `bytes_to_human`, `check_disk_space`, `check_minimum_disk_space` (lines ~846-925)
 11. **Health checks** — `perform_health_checks` (line 1031)
 12. **Profile loader** — `load_profile` (line 1071)
-13. **Category cleanup sections** — 28 top-level procedural blocks, numbered #1 through #28 continuously (the F-2 numbering gap that was noted in the v5.2.0 review was fixed in v5.4.0; the root-cause refactor into a `CATEGORY_REGISTRY` + `run_category` dispatcher is still F-5)
+13. **Category cleanup sections** — 30 top-level procedural blocks, numbered #1 through #28 continuously plus 3a (Spotify Cache) and 3b (Claude Desktop Cache) sub-numbered; 30 total entries in `CATEGORY_REGISTRY` (the F-2 numbering gap that was noted in the v5.2.0 review was fixed in v5.4.0; the root-cause refactor into a `CATEGORY_REGISTRY` + `run_category` dispatcher is F-5, shipped in v5.5.0)
 14. **JSON output** (the trailing `# Deliver results as JSON` block)
 
 ## Adding a New Category
@@ -178,7 +178,34 @@ These are the rules the script lives by — please don't relax them:
 
 ## Testing
 
-There is no automated test framework. Before submitting a PR:
+Smoke tests for the pure helpers live in `tests/run-tests.sh` — a
+single bash script that sources `clean-mac-space.sh` in test mode
+(`BATS_TEST_MODE=1`, which skips the top-level `_init_skip_defaults`,
+`load_config_file`, `validate_config`, and `parse_arguments` calls)
+and asserts the contract of each helper. Run it locally with:
+
+```bash
+bash tests/run-tests.sh
+```
+
+The script exits 0 on full pass, 1 on any failure, and prints
+TAP-style `ok N - <desc>` / `not ok N - <desc>` lines so CI
+consumers can parse the summary. `.github/workflows/test.yml`
+runs the same command on every push to `main` and every PR.
+
+The current set covers `validate_boolean`, `validate_numeric`,
+`validate_photos_library_name`, `size_to_bytes`, the two
+`CATEGORY_REGISTRY` accessors (`registry_get_skip_var`,
+`registry_get_display`), `_init_skip_defaults`, and the registry
+length. Adding a helper = add a `test_<func>_<case>` function in
+`tests/run-tests.sh` and a matching `assert` call at the bottom.
+
+The destructive-path code (sudo check, lock acquire, section bodies,
+final summary) is intentionally NOT exercised by these tests —
+running it would require root and would touch the user's disk. CI
+catches regressions in that path via the manual dry-run step below.
+
+Before submitting a PR, in addition to `bash tests/run-tests.sh`:
 
 1. **ShellCheck on both scripts** — must pass clean at the default CI severity:
    ```bash
@@ -225,7 +252,7 @@ These are open items from the v5.2.0 review that future contributors may want to
 - **F-3**: ✅ fixed in v5.4.0 (PR #74). `disk_usage.after` is now `null` in dry-run JSON.
 - **F-4**: ✅ fixed in v5.5.0 (PR #77). Extracted `get_free_disk_bytes()` shared helper. The two disk-space check functions remain (they have different contracts — one exits, one returns) but now share a single `df` call. Pre/post-cleanup byte measurements also use the helper.
 - **F-5**: ✅ fixed in v5.5.0 (PR #78 + #79). Extracted `CATEGORY_REGISTRY` + `run_category` + `_init_skip_defaults` helpers. The 28 sections now use `if run_category "N|Name|SKIP_X"; then ... fi`. The 4 consumers (interactive_selection, parse_arguments, validate_config, the toggle_category case statement) all derive from the registry. Adding a new category = one new line in `CATEGORY_REGISTRY` + one new section body.
-- **P2 #26**: `ludeeus/action-shellcheck@master` should be pinned to a SHA.
+- **P2 #26**: ✅ closed (v5.4.0, PR #74). The `ludeeus/action-shellcheck` action was the wrong target — pinning to a SHA was a no-op for the actual brokenness (in `action.yaml`, not the reference). Replaced with self-contained `apt-get install -y shellcheck` + a shebang-filtered `find` + `shellcheck -S warning`. apt's shellcheck is the same upstream binary, just installed without a third-party download.
 
 ## Getting Help
 

@@ -131,6 +131,20 @@ CATEGORY_REGISTRY=(
     "28|.DS_Store Files|SKIP_DSSTORE"
 )
 
+# Single-field accessors for CATEGORY_REGISTRY entries. Format is
+# "section|Display Name|skip_var" (skip_var may be empty). All 4
+# consumers (init defaults, run_category, parse_arguments, validate_config,
+# interactive_selection) read via these helpers so the on-the-wire format
+# is defined in exactly one place — adding a new field or renaming one
+# is a one-line change here, not a hunt across the script.
+registry_get_skip_var() {
+    echo "${1##*|}"
+}
+registry_get_display() {
+    local rest="${1#*|}"
+    echo "${rest%|*}"
+}
+
 # Initialize the SKIP_X defaults to false for every entry in the
 # registry that has a skip_var. Replaces a hand-maintained block of
 # `SKIP_X=false` lines. Uses `printf -v` (bash 3.1+) instead of
@@ -140,13 +154,18 @@ PHOTOS_LIBRARY_NAME=""
 _init_skip_defaults() {
     local entry skip_var
     for entry in "${CATEGORY_REGISTRY[@]}"; do
-        skip_var="${entry##*|}"
+        skip_var=$(registry_get_skip_var "$entry")
         if [ -n "$skip_var" ]; then
             printf -v "$skip_var" '%s' false
         fi
     done
 }
-_init_skip_defaults
+# Initialize the SKIP_X defaults. Skipped when sourced from bats tests
+# (BATS_TEST_MODE=1) so the registry is available to the test code
+# without each SKIP_X var being globally pre-populated.
+if [ -z "${BATS_TEST_MODE:-}" ]; then
+    _init_skip_defaults
+fi
 # SKIP_SYSTEM_TMP defaults to true (skip by default; opt-in via
 # --clean-system-tmp). The registry initializer above sets it to
 # false, so we unconditionally override it back to true here. The
@@ -176,9 +195,10 @@ UPDATE=false
 run_category() {
     local entry="$1"
     local num="${entry%%|*}"
-    local rest="${entry#*|}"
-    local name="${rest%%|*}"
-    local skip_var="${rest##*|}"
+    local name
+    name=$(registry_get_display "$entry")
+    local skip_var
+    skip_var=$(registry_get_skip_var "$entry")
 
     if [ -z "$skip_var" ] || [ "${!skip_var}" = false ]; then
         PROCESSED_CATEGORIES+=("$name")
@@ -256,7 +276,7 @@ validate_config() {
     # belong to the registry, so they're listed explicitly.
     local _entry _skip_var
     for _entry in "${CATEGORY_REGISTRY[@]}"; do
-        _skip_var="${_entry##*|}"
+        _skip_var=$(registry_get_skip_var "$_entry")
         if [ -n "$_skip_var" ]; then
             local value="${!_skip_var}"
             if ! validate_boolean "$value"; then
@@ -362,8 +382,11 @@ load_config_file() {
     done
 }
 
-# Load configuration
-load_config_file
+# Load configuration. Skipped in BATS_TEST_MODE so the sourced
+# script doesn't read or write user-level config files from tests.
+if [ -z "${BATS_TEST_MODE:-}" ]; then
+    load_config_file
+fi
 
 # Parse command-line arguments
 parse_arguments() {
@@ -431,7 +454,7 @@ parse_arguments() {
                 local found=0
                 local _entry
                 for _entry in "${CATEGORY_REGISTRY[@]}"; do
-                    if [ "${_entry##*|}" = "$skip_var" ]; then
+                    if [ "$(registry_get_skip_var "$_entry")" = "$skip_var" ]; then
                         found=1
                         break
                     fi
@@ -524,11 +547,20 @@ parse_arguments() {
     done
 }
 
-# Parse arguments
-parse_arguments "$@"
+# Parse arguments. Skipped when sourced from bats tests
+# (BATS_TEST_MODE=1) so the "$@" expansion doesn't feed the
+# bats invocation path to the case statement.
+if [ -z "${BATS_TEST_MODE:-}" ]; then
+    parse_arguments "$@"
+fi
 
-# Validate configuration after loading and parsing
-validate_config
+# Validate configuration after loading and parsing. Skipped in
+# BATS_TEST_MODE — the indirect `local value="${!_skip_var}"` read
+# would fire an unbound-variable error for any SKIP_X var that
+# hasn't been populated by _init_skip_defaults yet.
+if [ -z "${BATS_TEST_MODE:-}" ]; then
+    validate_config
+fi
 
 # Set up signal handling for graceful interruption
 cleanup_on_interrupt() {
@@ -1012,6 +1044,14 @@ quit_photos_app() {
     return 1
 }
 
+# Source guard: when this file is `source`d (e.g. from bats tests in
+# tests/*.bats), return here so the sudo check and the top-level
+# section bodies don't run. When executed normally, BASH_SOURCE[0]
+# equals $0 and execution continues past this guard.
+if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
+    return 0
+fi
+
 ###############################################################################
 # System Validation and Health Checks
 ###############################################################################
@@ -1201,10 +1241,9 @@ interactive_selection() {
     local -a categories=()
     local _entry _skip_var _display
     for _entry in "${CATEGORY_REGISTRY[@]}"; do
-        _skip_var="${_entry##*|}"
+        _skip_var=$(registry_get_skip_var "$_entry")
         if [ -n "$_skip_var" ]; then
-            _display="${_entry#*|}"
-            _display="${_display%|*}"
+            _display=$(registry_get_display "$_entry")
             categories+=("${_display}|${_skip_var}")
         fi
     done
@@ -1220,7 +1259,7 @@ interactive_selection() {
         local idx=$1
         local entry var current_val new_val
         entry="${categories[$idx]}"
-        var="${entry##*|}"
+        var=$(registry_get_skip_var "$entry")
         current_val="${!var}"
         if [ "$current_val" = "true" ]; then
             new_val=false
@@ -2215,7 +2254,6 @@ if run_category "17|Photos Library Cache|SKIP_PHOTOS_LIBRARY"; then
                     log_error "Photos app did not quit after 5 seconds. Skipping cleanup to prevent database corruption."
                     log "Please close Photos manually and retry."
                     SKIP_PHOTOS_LIBRARY=true
-                    SKIPPED_CATEGORIES+=("Photos Library Cache")
                 fi
             else
                 read -p "Close Photos app for safe cleanup? (y/n): " -r
@@ -2224,12 +2262,10 @@ if run_category "17|Photos Library Cache|SKIP_PHOTOS_LIBRARY"; then
                         log_error "Photos app did not quit after 5 seconds. Skipping cleanup to prevent database corruption."
                         log "Please close Photos manually and retry."
                         SKIP_PHOTOS_LIBRARY=true
-                        SKIPPED_CATEGORIES+=("Photos Library Cache")
                     fi
                 else
                     log "Skipping Photos Library - close Photos and retry"
                     SKIP_PHOTOS_LIBRARY=true
-                    SKIPPED_CATEGORIES+=("Photos Library Cache")
                 fi
             fi
         fi
@@ -2256,22 +2292,16 @@ if run_category "17|Photos Library Cache|SKIP_PHOTOS_LIBRARY"; then
                     SELECTED_LIBS=("${PHOTOS_LIBS[@]}")
                 else
                     LIB_PATH="$USER_HOME/Pictures/${PHOTOS_LIBRARY_NAME}.photoslibrary"
-                    if [ -d "$LIB_PATH" ] && [ ! -L "$LIB_PATH" ]; then
-                        SELECTED_LIBS=("$LIB_PATH")
-                    else
-                        log "Photos library '${PHOTOS_LIBRARY_NAME}' not found"
-                        log "Available libraries: ${PHOTOS_LIBS[*]}"
-                        SKIPPED_CATEGORIES+=("Photos Library Cache")
-                    fi
+                if [ -d "$LIB_PATH" ] && [ ! -L "$LIB_PATH" ]; then
+                    SELECTED_LIBS=("$LIB_PATH")
+                else
+                    log "Photos library '${PHOTOS_LIBRARY_NAME}' not found"
+                    log "Available libraries: ${PHOTOS_LIBS[*]}"
+                fi
                 fi
             else
                 # Default: clean first library only
                 SELECTED_LIBS=("${PHOTOS_LIBS[0]}")
-            fi
-
-            # Only add to processed if we have libraries to clean
-            if [ ${#SELECTED_LIBS[@]} -gt 0 ]; then
-                PROCESSED_CATEGORIES+=("Photos Library Cache")
             fi
 
             # Process each selected library
