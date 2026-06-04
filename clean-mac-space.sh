@@ -156,6 +156,18 @@ validate_numeric() {
     return 0
 }
 
+# Validate a Photos library name. The name is later composed into
+# "$USER_HOME/Pictures/${name}.photoslibrary", so any of /, \, ~, ..,
+# or non-printable characters would break out of the intended Pictures/
+# directory or smuggle a path in. Returns 0 on success, 1 on failure.
+validate_photos_library_name() {
+    local name="$1"
+    [[ "$name" =~ [/~\\] ]] && return 1
+    [[ "$name" == *".."* ]] && return 1
+    [[ "$name" =~ [^[:print:]] ]] && return 1
+    return 0
+}
+
 # Validate configuration values
 validate_config() {
     local errors=0
@@ -243,6 +255,16 @@ load_config_file() {
                     FORCE_IOS_BACKUPS) FORCE_IOS_BACKUPS="$value" ;;
                     UPDATE) UPDATE="$value" ;;
                     VERBOSE) VERBOSE="$value" ;;
+                    PHOTOS_LIBRARY_NAME)
+                        # Apply the same path-traversal guard the CLI flag
+                        # uses (mirrors parse_arguments: --photos-library).
+                        # See validate_photos_library_name() for the rule.
+                        PHOTOS_LIBRARY_NAME="$value"
+                        if ! validate_photos_library_name "$PHOTOS_LIBRARY_NAME"; then
+                            echo "ERROR: PHOTOS_LIBRARY_NAME in config file contains path-traversal or non-printable characters — refusing to use it" >&2
+                            exit 1
+                        fi
+                        ;;
                     *) echo "WARNING: Unknown config key '$key' - ignoring" >&2 ;;
                 esac
             done < "$config_file"
@@ -438,26 +460,44 @@ parse_arguments() {
                     exit 1
                 fi
                 PHOTOS_LIBRARY_NAME="$2"
-                # Validate: reject path traversal attempts and dangerous characters
-                if [[ "$PHOTOS_LIBRARY_NAME" =~ [/~\\] ]] || \
-                   [[ "$PHOTOS_LIBRARY_NAME" == *".."* ]] || \
-                   [[ "$PHOTOS_LIBRARY_NAME" =~ [^[:print:]] ]]; then
+                # Validate: reject path traversal attempts and dangerous
+                # characters. Shared with the config-file loader via
+                # validate_photos_library_name().
+                if ! validate_photos_library_name "$PHOTOS_LIBRARY_NAME"; then
                     echo "ERROR: --photos-library must be a plain library name, not a path" >&2
                     exit 1
                 fi
                 shift 2
                 ;;
             --help|-h)
-                # Extract header comment block dynamically - find first non-comment line
-                line_num=0
+                # Extract the help block: the comment block delimited by
+                # lines of `###...###` markers in the script header.
+                # Print everything between the opening and closing
+                # marker (exclusive), stripping the leading `#` plus one
+                # optional whitespace char (space or tab). Handles:
+                #   `# foo`    -> `foo`
+                #   `#\tfoo`   -> `foo`
+                #   `#foo`     -> `foo`
+                #   `#`        -> ``
+                in_block=false
                 while IFS= read -r line; do
-                    line_num=$((line_num + 1))
-                    # Stop at first non-comment line
-                    if [[ ! "$line" =~ ^[[:space:]]*# ]]; then
-                        break
+                    # Skip the shebang
+                    [[ "$line" == "#!"* ]] && continue
+                    if [[ "$line" =~ ^[[:space:]]*#\#+[[:space:]]*$ ]]; then
+                        # A `###...###` marker line.
+                        if $in_block; then
+                            # Closing marker — done.
+                            break
+                        fi
+                        # Opening marker — start printing from the next line.
+                        in_block=true
+                        continue
                     fi
-                    # Print with # prefix stripped
-                    echo "${line#\# }"
+                    if $in_block; then
+                        local stripped="${line#\#}"   # drop leading #
+                        stripped="${stripped#[ $'\t']}"  # drop one optional space or tab
+                        echo "$stripped"
+                    fi
                 done < "$0"
                 exit 0
                 ;;

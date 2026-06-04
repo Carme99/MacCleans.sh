@@ -9,6 +9,13 @@ complete -c mac-cleans -s f -l force -d 'Skip all confirmations'
 complete -c mac-cleans -s y -l yes -d 'Skip confirmations (except Xcode)'
 complete -c mac-cleans -s i -l interactive -d 'Interactive mode'
 complete -c mac-cleans -s j -l json -d 'JSON output'
+complete -c mac-cleans -s q -l quiet -d 'Minimal output (useful for cron)'
+complete -c mac-cleans -l no-color -d 'Disable colored output'
+complete -c mac-cleans -s V -l verbose -d 'Enable verbose debug output'
+complete -c mac-cleans -s u -l update -d 'Run brew update before cleanup'
+complete -c mac-cleans -l threshold -d 'Only run if disk usage is above N%' -r
+complete -c mac-cleans -l profile -d 'Use preset profile' -r -a 'conservative developer aggressive minimal'
+complete -c mac-cleans -l photos-library -d 'Specify Photos library name or "all"' -r
 
 complete -c mac-cleans -l skip-snapshots -d 'Skip Time Machine snapshots'
 complete -c mac-cleans -l skip-homebrew -d 'Skip Homebrew cache'
