@@ -1,5 +1,11 @@
 #!/bin/bash
-# shellcheck disable=SC1090,SC1091
+# shellcheck disable=SC1090,SC1091,SC2034
+# SC2034 (var appears unused): SKIP_X vars are used via dynamic
+# `${!var}` expansion in run_category / toggle_category and via
+# `printf -v "$var"` for indirect assignment. ShellCheck can't trace
+# either pattern, so the "appears unused" warning is a false positive
+# for the entire SKIP_X family. Adding the disable at file scope
+# since the dynamic pattern is the whole point of the registry.
 
 # Enable strict error handling
 set -euo pipefail
@@ -244,12 +250,22 @@ validate_photos_library_name() {
 validate_config() {
     local errors=0
 
-    # Validate boolean values
-    for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR UPDATE VERBOSE JSON_OUTPUT SKIP_SNAPSHOTS SKIP_HOMEBREW \
-               SKIP_SPOTIFY SKIP_CLAUDE SKIP_XCODE SKIP_BROWSERS SKIP_NPM \
-               SKIP_PIP SKIP_TRASH SKIP_DSSTORE SKIP_DOCKER SKIP_SIMULATOR SKIP_MAIL \
-               SKIP_SIRI_TTS SKIP_ICLOUD_MAIL SKIP_PHOTOS_LIBRARY SKIP_ICLOUD_DRIVE SKIP_QUICKLOOK SKIP_DIAGNOSTICS SKIP_IOS_BACKUPS \
-               SKIP_IOS_UPDATES SKIP_COCOAPODS SKIP_GRADLE SKIP_GO SKIP_BUN SKIP_PNPM SKIP_SYSTEM_TMP; do
+    # Validate boolean values. SKIP_X vars are derived from the
+    # registry (single source of truth for which SKIP flags exist).
+    # The other boolean flags (DRY_RUN, AUTO_YES, etc.) don't
+    # belong to the registry, so they're listed explicitly.
+    local _entry _skip_var
+    for _entry in "${CATEGORY_REGISTRY[@]}"; do
+        _skip_var="${_entry##*|}"
+        if [ -n "$_skip_var" ]; then
+            local value="${!_skip_var}"
+            if ! validate_boolean "$value"; then
+                echo "ERROR: Invalid config value for $_skip_var: '$value' (must be true or false)" >&2
+                errors=$((errors + 1))
+            fi
+        fi
+    done
+    for var in DRY_RUN AUTO_YES FORCE QUIET NO_COLOR UPDATE VERBOSE JSON_OUTPUT; do
         local value="${!var}"
         if ! validate_boolean "$value"; then
             echo "ERROR: Invalid config value for $var: '$value' (must be true or false)" >&2
@@ -401,112 +417,29 @@ parse_arguments() {
                 THRESHOLD="$2"
                 shift 2
                 ;;
-            --skip-snapshots)
-                SKIP_SNAPSHOTS=true
-                shift
-                ;;
-            --skip-homebrew)
-                SKIP_HOMEBREW=true
-                shift
-                ;;
-            --skip-spotify)
-                SKIP_SPOTIFY=true
-                shift
-                ;;
-            --skip-claude)
-                SKIP_CLAUDE=true
-                shift
-                ;;
-            --skip-xcode)
-                SKIP_XCODE=true
-                shift
-                ;;
-            --skip-browsers)
-                SKIP_BROWSERS=true
-                shift
-                ;;
-            --skip-npm)
-                SKIP_NPM=true
-                shift
-                ;;
-            --skip-pip)
-                SKIP_PIP=true
-                shift
-                ;;
-            --skip-trash)
-                SKIP_TRASH=true
-                shift
-                ;;
-            --skip-dsstore)
-                SKIP_DSSTORE=true
-                shift
-                ;;
-            --skip-docker)
-                SKIP_DOCKER=true
-                shift
-                ;;
-            --skip-simulator)
-                SKIP_SIMULATOR=true
-                shift
-                ;;
-            --skip-mail)
-                SKIP_MAIL=true
-                shift
-                ;;
-            --skip-siri-tts)
-                SKIP_SIRI_TTS=true
-                shift
-                ;;
-            --skip-icloud-mail)
-                SKIP_ICLOUD_MAIL=true
-                shift
-                ;;
-            --skip-photos-library)
-                SKIP_PHOTOS_LIBRARY=true
-                shift
-                ;;
-            --skip-icloud-drive)
-                SKIP_ICLOUD_DRIVE=true
-                shift
-                ;;
-            --skip-quicklook)
-                SKIP_QUICKLOOK=true
-                shift
-                ;;
-            --skip-diagnostics)
-                SKIP_DIAGNOSTICS=true
-                shift
-                ;;
-            --skip-ios-backups)
-                SKIP_IOS_BACKUPS=true
-                shift
-                ;;
-            --skip-ios-updates)
-                SKIP_IOS_UPDATES=true
-                shift
-                ;;
-            --skip-cocoapods)
-                SKIP_COCOAPODS=true
-                shift
-                ;;
-            --skip-gradle)
-                SKIP_GRADLE=true
-                shift
-                ;;
-            --skip-go)
-                SKIP_GO=true
-                shift
-                ;;
-            --skip-bun)
-                SKIP_BUN=true
-                shift
-                ;;
-            --skip-pnpm)
-                SKIP_PNPM=true
-                shift
-                ;;
-            --skip-system-tmp)
-                SKIP_SYSTEM_TMP=true
+            --skip-*)
+                # Auto-derive the SKIP_X var name from the --skip-X flag.
+                # e.g. --skip-snapshots -> SKIP_SNAPSHOTS,
+                #      --skip-ios-backups -> SKIP_IOS_BACKUPS,
+                #      --skip-photos-library -> SKIP_PHOTOS_LIBRARY.
+                # Verify the derived var is actually in the registry
+                # (catches typos like --skip-snaphots).
+                local skip_suffix="${1#--skip-}"
+                local skip_var
+                skip_var="SKIP_$(printf '%s' "$skip_suffix" | tr 'a-z-' 'A-Z_')"
+                local found=0
+                local _entry
+                for _entry in "${CATEGORY_REGISTRY[@]}"; do
+                    if [ "${_entry##*|}" = "$skip_var" ]; then
+                        found=1
+                        break
+                    fi
+                done
+                if [ "$found" -eq 0 ]; then
+                    echo "ERROR: Unknown --skip option: $1 (no matching $skip_var in CATEGORY_REGISTRY)" >&2
+                    exit 1
+                fi
+                printf -v "$skip_var" '%s' true
                 shift
                 ;;
             --clean-system-tmp)
@@ -1247,116 +1180,45 @@ load_profile() {
 ###############################################################################
 
 interactive_selection() {
-    # shellcheck disable=SC2034
-    # SKIP_X vars are read via dynamic ${!var} expansion in toggle_category
-    # and run_category; shellcheck can't trace that. Disabling the
-    # "appears unused" warning. Will be cleaned up in step 2 when the
-    # function is refactored to use the registry.
     log_plain ""
     log_plain "${BOLD}Interactive Category Selection${NC}"
     log_plain "================================================"
     log_plain ""
 
-    # Category data: "display_name|skip_var"
-    # Order matches cleanup section numbers (sections without skip vars run automatically)
-    local -a categories=(
-        "Time Machine Snapshots|SKIP_SNAPSHOTS"
-        "Homebrew Cache|SKIP_HOMEBREW"
-        "Spotify Cache|SKIP_SPOTIFY"
-        "Claude Desktop Cache|SKIP_CLAUDE"
-        "XCode Derived Data|SKIP_XCODE"
-        "Browser Caches (Chrome, Firefox, Edge)|SKIP_BROWSERS"
-        "npm/Yarn Cache|SKIP_NPM"
-        "Python pip Cache|SKIP_PIP"
-        "Trash Bin|SKIP_TRASH"
-        "Docker Cache|SKIP_DOCKER"
-        "iOS Simulator Data|SKIP_SIMULATOR"
-        "Mail App Cache|SKIP_MAIL"
-        "Siri TTS Cache|SKIP_SIRI_TTS"
-        "iCloud Mail Cache|SKIP_ICLOUD_MAIL"
-        "Photos Library Cache|SKIP_PHOTOS_LIBRARY"
-        "iCloud Drive Offline Files|SKIP_ICLOUD_DRIVE"
-        "QuickLook Thumbnails|SKIP_QUICKLOOK"
-        "Diagnostic Reports (>30 days)|SKIP_DIAGNOSTICS"
-        "iOS Device Backups (⚠️  requires confirmation)|SKIP_IOS_BACKUPS"
-        "iOS/iPadOS Update Files (.ipsw)|SKIP_IOS_UPDATES"
-        "CocoaPods Cache|SKIP_COCOAPODS"
-        "Gradle Cache|SKIP_GRADLE"
-        "Go Module Cache|SKIP_GO"
-        "Bun Cache|SKIP_BUN"
-        "pnpm Store|SKIP_PNPM"
-        ".DS_Store Files|SKIP_DSSTORE"
-    )
+    # Build the categories array from CATEGORY_REGISTRY. Only entries
+    # with a skip_var appear in the menu (always-run sections like
+    # Application Cache, System Cache, Old Log Files run automatically
+    # and aren't user-toggleable). Format: "display_name|skip_var".
+    local -a categories=()
+    local _entry _skip_var _display
+    for _entry in "${CATEGORY_REGISTRY[@]}"; do
+        _skip_var="${_entry##*|}"
+        if [ -n "$_skip_var" ]; then
+            _display="${_entry#*|}"
+            _display="${_display%|*}"
+            categories+=("${_display}|${_skip_var}")
+        fi
+    done
 
     local cursor=0
     local total=${#categories[@]}
 
-    # Function to toggle category
+    # Function to toggle a category. Derives the SKIP_X var from the
+    # categories array entry, then uses printf -v for indirect
+    # assignment (no case statement, no eval). Replaces the
+    # 27-entry case statement that was here before the F-5 refactor.
     toggle_category() {
         local idx=$1
-        local var
-        var=$(echo "${categories[$idx]}" | cut -d'|' -f2)
-        local current_val="${!var}"
-        # Use case statement instead of eval for security
+        local entry var current_val new_val
+        entry="${categories[$idx]}"
+        var="${entry##*|}"
+        current_val="${!var}"
         if [ "$current_val" = "true" ]; then
-            case "$var" in
-                SKIP_SNAPSHOTS) SKIP_SNAPSHOTS=false ;;
-                SKIP_HOMEBREW) SKIP_HOMEBREW=false ;;
-                SKIP_SPOTIFY) SKIP_SPOTIFY=false ;;
-                SKIP_CLAUDE) SKIP_CLAUDE=false ;;
-                SKIP_XCODE) SKIP_XCODE=false ;;
-                SKIP_BROWSERS) SKIP_BROWSERS=false ;;
-                SKIP_NPM) SKIP_NPM=false ;;
-                SKIP_PIP) SKIP_PIP=false ;;
-                SKIP_TRASH) SKIP_TRASH=false ;;
-                SKIP_DSSTORE) SKIP_DSSTORE=false ;;
-                SKIP_DOCKER) SKIP_DOCKER=false ;;
-                SKIP_SIMULATOR) SKIP_SIMULATOR=false ;;
-                SKIP_MAIL) SKIP_MAIL=false ;;
-                SKIP_SIRI_TTS) SKIP_SIRI_TTS=false ;;
-                SKIP_ICLOUD_MAIL) SKIP_ICLOUD_MAIL=false ;;
-                SKIP_PHOTOS_LIBRARY) SKIP_PHOTOS_LIBRARY=false ;;
-                SKIP_ICLOUD_DRIVE) SKIP_ICLOUD_DRIVE=false ;;
-                SKIP_QUICKLOOK) SKIP_QUICKLOOK=false ;;
-                SKIP_DIAGNOSTICS) SKIP_DIAGNOSTICS=false ;;
-                SKIP_IOS_BACKUPS) SKIP_IOS_BACKUPS=false ;;
-                SKIP_IOS_UPDATES) SKIP_IOS_UPDATES=false ;;
-                SKIP_COCOAPODS) SKIP_COCOAPODS=false ;;
-                SKIP_GRADLE) SKIP_GRADLE=false ;;
-                SKIP_GO) SKIP_GO=false ;;
-                SKIP_BUN) SKIP_BUN=false ;;
-                SKIP_PNPM) SKIP_PNPM=false ;;
-            esac
+            new_val=false
         else
-            case "$var" in
-                SKIP_SNAPSHOTS) SKIP_SNAPSHOTS=true ;;
-                SKIP_HOMEBREW) SKIP_HOMEBREW=true ;;
-                SKIP_SPOTIFY) SKIP_SPOTIFY=true ;;
-                SKIP_CLAUDE) SKIP_CLAUDE=true ;;
-                SKIP_XCODE) SKIP_XCODE=true ;;
-                SKIP_BROWSERS) SKIP_BROWSERS=true ;;
-                SKIP_NPM) SKIP_NPM=true ;;
-                SKIP_PIP) SKIP_PIP=true ;;
-                SKIP_TRASH) SKIP_TRASH=true ;;
-                SKIP_DSSTORE) SKIP_DSSTORE=true ;;
-                SKIP_DOCKER) SKIP_DOCKER=true ;;
-                SKIP_SIMULATOR) SKIP_SIMULATOR=true ;;
-                SKIP_MAIL) SKIP_MAIL=true ;;
-                SKIP_SIRI_TTS) SKIP_SIRI_TTS=true ;;
-                SKIP_ICLOUD_MAIL) SKIP_ICLOUD_MAIL=true ;;
-                SKIP_PHOTOS_LIBRARY) SKIP_PHOTOS_LIBRARY=true ;;
-                SKIP_ICLOUD_DRIVE) SKIP_ICLOUD_DRIVE=true ;;
-                SKIP_QUICKLOOK) SKIP_QUICKLOOK=true ;;
-                SKIP_DIAGNOSTICS) SKIP_DIAGNOSTICS=true ;;
-                SKIP_IOS_BACKUPS) SKIP_IOS_BACKUPS=true ;;
-                SKIP_IOS_UPDATES) SKIP_IOS_UPDATES=true ;;
-                SKIP_COCOAPODS) SKIP_COCOAPODS=true ;;
-                SKIP_GRADLE) SKIP_GRADLE=true ;;
-                SKIP_GO) SKIP_GO=true ;;
-                SKIP_BUN) SKIP_BUN=true ;;
-                SKIP_PNPM) SKIP_PNPM=true ;;
-            esac
+            new_val=true
         fi
+        printf -v "$var" '%s' "$new_val"
     }
 
     # Function to draw menu
@@ -1816,10 +1678,7 @@ fi
 ###############################################################################
 # 5. Old Log Files
 ###############################################################################
-PROCESSED_CATEGORIES+=("Old Log Files")
-log_plain "================================================"
-log "5. Old Log Files"
-log_plain "================================================"
+if run_category "5|Old Log Files|"; then
 
 OLD_LOG_COUNT=$(find "$USER_HOME/Library/Logs" -type f -name "*.log*" -mtime +7 2>/dev/null | wc -l | tr -d ' ') || OLD_LOG_COUNT=0
 OLD_LOG_COUNT=${OLD_LOG_COUNT:-0}
@@ -1845,13 +1704,10 @@ fi
 log_plain ""
 
 ###############################################################################
+fi
 # 6. System Temporary Files
 ###############################################################################
-if [ "$SKIP_SYSTEM_TMP" = false ]; then
-    PROCESSED_CATEGORIES+=("System Temporary Files")
-    log_plain "================================================"
-    log "6. System Temporary Files"
-    log_plain "================================================"
+if run_category "6|System Temporary Files|SKIP_SYSTEM_TMP"; then
 
     TMP_COUNT=$(find /private/var/tmp /private/tmp -type f -mtime +3 2>/dev/null | wc -l | tr -d ' ') || TMP_COUNT=0
     TMP_COUNT=${TMP_COUNT:-0}
@@ -1878,14 +1734,12 @@ if [ "$SKIP_SYSTEM_TMP" = false ]; then
         log "No temporary files older than 3 days found"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("System Temporary Files")
 fi
 
 ###############################################################################
 # 7. Browser Caches (Chrome, Firefox, Edge)
 ###############################################################################
-if [ "$SKIP_BROWSERS" = false ]; then
+if run_category "7|Browser Caches (Chrome, Firefox, Edge)|SKIP_BROWSERS"; then
     PROCESSED_CATEGORIES+=("Browser Caches")
     log_plain "================================================"
     log "7. Browser Caches"
@@ -1956,18 +1810,12 @@ if [ "$SKIP_BROWSERS" = false ]; then
         log "No browser caches found"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Browser Caches")
 fi
 
 ###############################################################################
 # 8. XCode Derived Data
 ###############################################################################
-if [ "$SKIP_XCODE" = false ]; then
-    PROCESSED_CATEGORIES+=("XCode Derived Data")
-    log_plain "================================================"
-    log "8. XCode Derived Data"
-    log_plain "================================================"
+if run_category "8|XCode Derived Data|SKIP_XCODE"; then
 
     XCODE_DD="$USER_HOME/Library/Developer/Xcode/DerivedData"
     if [ -d "$XCODE_DD" ]; then
@@ -2019,18 +1867,12 @@ if [ "$SKIP_XCODE" = false ]; then
         log "XCode not installed, skipping"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("XCode Derived Data")
 fi
 
 ###############################################################################
 # 9. npm/Yarn Cache
 ###############################################################################
-if [ "$SKIP_NPM" = false ]; then
-    PROCESSED_CATEGORIES+=("npm/Yarn Cache")
-    log_plain "================================================"
-    log "9. npm/Yarn Cache"
-    log_plain "================================================"
+if run_category "9|npm/Yarn Cache|SKIP_NPM"; then
 
     NODE_TOTAL_BYTES=0
 
@@ -2081,18 +1923,12 @@ if [ "$SKIP_NPM" = false ]; then
         log "No npm/yarn caches found"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("npm/Yarn Cache")
 fi
 
 ###############################################################################
 # 10. Python pip Cache
 ###############################################################################
-if [ "$SKIP_PIP" = false ]; then
-    PROCESSED_CATEGORIES+=("Python pip Cache")
-    log_plain "================================================"
-    log "10. Python pip Cache"
-    log_plain "================================================"
+if run_category "10|Python pip Cache|SKIP_PIP"; then
 
     PIP_CACHE="$USER_HOME/Library/Caches/pip"
     if [ -d "$PIP_CACHE" ]; then
@@ -2120,18 +1956,12 @@ if [ "$SKIP_PIP" = false ]; then
         log "pip cache not found"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Python pip Cache")
 fi
 
 ###############################################################################
 # 11. Trash Bin
 ###############################################################################
-if [ "$SKIP_TRASH" = false ]; then
-    PROCESSED_CATEGORIES+=("Trash Bin")
-    log_plain "================================================"
-    log "11. Trash Bin"
-    log_plain "================================================"
+if run_category "11|Trash Bin|SKIP_TRASH"; then
 
     TRASH_DIR="$USER_HOME/.Trash"
     if [ -d "$TRASH_DIR" ]; then
@@ -2181,18 +2011,12 @@ if [ "$SKIP_TRASH" = false ]; then
         fi
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Trash Bin")
 fi
 
 ###############################################################################
 # 12. Docker Cache
 ###############################################################################
-if [ "$SKIP_DOCKER" = false ]; then
-    PROCESSED_CATEGORIES+=("Docker Cache")
-    log_plain "================================================"
-    log "12. Docker Cache"
-    log_plain "================================================"
+if run_category "12|Docker Cache|SKIP_DOCKER"; then
 
     if command -v docker &> /dev/null; then
         # Check if Docker daemon is running
@@ -2239,18 +2063,12 @@ if [ "$SKIP_DOCKER" = false ]; then
         log "Docker not installed, skipping"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Docker Cache")
 fi
 
 ###############################################################################
 # 13. iOS Simulator Data
 ###############################################################################
-if [ "$SKIP_SIMULATOR" = false ]; then
-    PROCESSED_CATEGORIES+=("iOS Simulator Data")
-    log_plain "================================================"
-    log "13. iOS Simulator Data"
-    log_plain "================================================"
+if run_category "13|iOS Simulator Data|SKIP_SIMULATOR"; then
 
     SIMULATOR_DIR="$USER_HOME/Library/Developer/CoreSimulator"
     if [ -d "$SIMULATOR_DIR" ]; then
@@ -2282,18 +2100,12 @@ if [ "$SKIP_SIMULATOR" = false ]; then
         log "iOS Simulator not found"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("iOS Simulator Data")
 fi
 
 ###############################################################################
 # 14. Mail App Cache
 ###############################################################################
-if [ "$SKIP_MAIL" = false ]; then
-    PROCESSED_CATEGORIES+=("Mail App Cache")
-    log_plain "================================================"
-    log "14. Mail App Cache"
-    log_plain "================================================"
+if run_category "14|Mail App Cache|SKIP_MAIL"; then
 
     MAIL_CACHE="$USER_HOME/Library/Caches/com.apple.mail"
     if [ -d "$MAIL_CACHE" ]; then
@@ -2321,18 +2133,12 @@ if [ "$SKIP_MAIL" = false ]; then
         log "Mail app cache not found"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Mail App Cache")
 fi
 
 ###############################################################################
 # 15. Siri TTS Cache
 ###############################################################################
-if [ "$SKIP_SIRI_TTS" = false ]; then
-    PROCESSED_CATEGORIES+=("Siri TTS Cache")
-    log_plain "================================================"
-    log "15. Siri TTS Cache"
-    log_plain "================================================"
+if run_category "15|Siri TTS Cache|SKIP_SIRI_TTS"; then
 
     SIRI_CACHE="$USER_HOME/Library/Caches/SiriTTS"
     if [ -d "$SIRI_CACHE" ]; then
@@ -2360,18 +2166,12 @@ if [ "$SKIP_SIRI_TTS" = false ]; then
         log "Siri TTS cache not found"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Siri TTS Cache")
 fi
 
 ###############################################################################
 # 16. iCloud Mail Cache
 ###############################################################################
-if [ "$SKIP_ICLOUD_MAIL" = false ]; then
-    PROCESSED_CATEGORIES+=("iCloud Mail Cache")
-    log_plain "================================================"
-    log "16. iCloud Mail Cache"
-    log_plain "================================================"
+if run_category "16|iCloud Mail Cache|SKIP_ICLOUD_MAIL"; then
 
     ICLOUD_MAIL_CACHE="$USER_HOME/Library/Caches/icloudmailagent"
     if [ -d "$ICLOUD_MAIL_CACHE" ]; then
@@ -2399,17 +2199,12 @@ if [ "$SKIP_ICLOUD_MAIL" = false ]; then
         log "iCloud Mail cache not found"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("iCloud Mail Cache")
 fi
 
 ###############################################################################
 # 17. Photos Library Cache
 ###############################################################################
-if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
-    log_plain "================================================"
-    log "17. Photos Library Cache"
-    log_plain "================================================"
+if run_category "17|Photos Library Cache|SKIP_PHOTOS_LIBRARY"; then
 
     # Check if Photos app is running (only in real run mode, not dry-run)
     if pgrep -x "Photos" > /dev/null 2>&1; then
@@ -2561,17 +2356,12 @@ if [ "$SKIP_PHOTOS_LIBRARY" = false ]; then
     fi
     
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Photos Library Cache")
 fi
 
 ###############################################################################
 # 18. iCloud Drive Offline Files
 ###############################################################################
-if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
-    log_plain "================================================"
-    log "18. iCloud Drive Offline Files"
-    log_plain "================================================"
+if run_category "18|iCloud Drive Offline Files|SKIP_ICLOUD_DRIVE"; then
 
     CLOUD_STORAGE_DIR="$USER_HOME/Library/CloudStorage"
 
@@ -2677,18 +2467,12 @@ if [ "$SKIP_ICLOUD_DRIVE" = false ]; then
     fi
     log_plain ""
     fi  # close the [ -L "$CLOUD_STORAGE_DIR" ] fail-closed check above
-else
-    SKIPPED_CATEGORIES+=("iCloud Drive Offline Files")
 fi
 
 ###############################################################################
 # 19. QuickLook Thumbnails
 ###############################################################################
-if [ "$SKIP_QUICKLOOK" = false ]; then
-    PROCESSED_CATEGORIES+=("QuickLook Thumbnails")
-    log_plain "================================================"
-    log "19. QuickLook Thumbnails"
-    log_plain "================================================"
+if run_category "19|QuickLook Thumbnails|SKIP_QUICKLOOK"; then
 
     QUICKLOOK_CACHE="$USER_HOME/Library/Caches/com.apple.QuickLook.thumbnailcache"
     if [ -d "$QUICKLOOK_CACHE" ]; then
@@ -2716,18 +2500,12 @@ if [ "$SKIP_QUICKLOOK" = false ]; then
         log "QuickLook cache not found"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("QuickLook Thumbnails")
 fi
 
 ###############################################################################
 # 20. Diagnostic Reports
 ###############################################################################
-if [ "$SKIP_DIAGNOSTICS" = false ]; then
-    PROCESSED_CATEGORIES+=("Diagnostic Reports")
-    log_plain "================================================"
-    log "20. Diagnostic Reports"
-    log_plain "================================================"
+if run_category "20|Diagnostic Reports|SKIP_DIAGNOSTICS"; then
 
     DIAG_USER="$USER_HOME/Library/Logs/DiagnosticReports"
     DIAG_SYSTEM="/Library/Logs/DiagnosticReports"
@@ -2783,17 +2561,12 @@ if [ "$SKIP_DIAGNOSTICS" = false ]; then
         log "No old diagnostic reports found (>30 days)"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Diagnostic Reports")
 fi
 
 ###############################################################################
 # 21. iOS Device Backups
 ###############################################################################
-if [ "$SKIP_IOS_BACKUPS" = false ]; then
-    log_plain "================================================"
-    log "21. iOS Device Backups"
-    log_plain "================================================"
+if run_category "21|iOS Device Backups|SKIP_IOS_BACKUPS"; then
 
     IOS_BACKUP_DIR="$USER_HOME/Library/Application Support/MobileSync/Backup"
     if [ -d "$IOS_BACKUP_DIR" ]; then
@@ -2855,14 +2628,12 @@ if [ "$SKIP_IOS_BACKUPS" = false ]; then
         log "iOS backup directory not found"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("iOS Device Backups")
 fi
 
 ###############################################################################
 # 22. iOS/iPadOS Update Files (.ipsw)
 ###############################################################################
-if [ "$SKIP_IOS_UPDATES" = false ]; then
+if run_category "22|iOS/iPadOS Update Files (.ipsw)|SKIP_IOS_UPDATES"; then
     PROCESSED_CATEGORIES+=("iOS/iPadOS Update Files")
     log_plain "================================================"
     log "22. iOS/iPadOS Update Files (.ipsw)"
@@ -2919,16 +2690,12 @@ if [ "$SKIP_IOS_UPDATES" = false ]; then
         log "No iOS/iPadOS update files (.ipsw) found"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("iOS/iPadOS Update Files")
 fi
 
 ###############################################################################
 # 23. CocoaPods Cache
 ###############################################################################
-if [ "$SKIP_COCOAPODS" = false ]; then
-    PROCESSED_CATEGORIES+=("CocoaPods Cache")
-    log_plain "================================================"
+if run_category "23|CocoaPods Cache|SKIP_COCOAPODS"; then
     log "24. CocoaPods Cache"
     log_plain "================================================"
 
@@ -2983,16 +2750,12 @@ if [ "$SKIP_COCOAPODS" = false ]; then
         log "No CocoaPods cache found"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("CocoaPods Cache")
 fi
 
 ###############################################################################
 # 24. Gradle Cache
 ###############################################################################
-if [ "$SKIP_GRADLE" = false ]; then
-    PROCESSED_CATEGORIES+=("Gradle Cache")
-    log_plain "================================================"
+if run_category "24|Gradle Cache|SKIP_GRADLE"; then
     log "25. Gradle Cache"
     log_plain "================================================"
 
@@ -3030,16 +2793,12 @@ if [ "$SKIP_GRADLE" = false ]; then
         log "No Gradle cache found (Gradle not installed or not used)"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Gradle Cache")
 fi
 
 ###############################################################################
 # 25. Go Module Cache
 ###############################################################################
-if [ "$SKIP_GO" = false ]; then
-    PROCESSED_CATEGORIES+=("Go Module Cache")
-    log_plain "================================================"
+if run_category "25|Go Module Cache|SKIP_GO"; then
     log "26. Go Module Cache"
     log_plain "================================================"
 
@@ -3092,16 +2851,12 @@ if [ "$SKIP_GO" = false ]; then
         log "No Go module cache found (Go not installed or not used)"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Go Module Cache")
 fi
 
 ###############################################################################
 # 26. Bun Cache
 ###############################################################################
-if [ "$SKIP_BUN" = false ]; then
-    PROCESSED_CATEGORIES+=("Bun Cache")
-    log_plain "================================================"
+if run_category "26|Bun Cache|SKIP_BUN"; then
     log "27. Bun Cache"
     log_plain "================================================"
 
@@ -3136,16 +2891,12 @@ if [ "$SKIP_BUN" = false ]; then
         log "No Bun cache found (Bun not installed or not used)"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("Bun Cache")
 fi
 
 ###############################################################################
 # 27. pnpm Store
 ###############################################################################
-if [ "$SKIP_PNPM" = false ]; then
-    PROCESSED_CATEGORIES+=("pnpm Store")
-    log_plain "================================================"
+if run_category "27|pnpm Store|SKIP_PNPM"; then
     log "28. pnpm Store"
     log_plain "================================================"
 
@@ -3199,16 +2950,12 @@ if [ "$SKIP_PNPM" = false ]; then
         log "No pnpm store found (pnpm not installed or not used)"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=("pnpm Store")
 fi
 
 ###############################################################################
 # 28. .DS_Store Files
 ###############################################################################
-if [ "$SKIP_DSSTORE" = false ]; then
-    PROCESSED_CATEGORIES+=(".DS_Store Files")
-    log_plain "================================================"
+if run_category "28|.DS_Store Files|SKIP_DSSTORE"; then
     log "29. .DS_Store Files"
     log_plain "================================================"
 
@@ -3235,8 +2982,6 @@ if [ "$SKIP_DSSTORE" = false ]; then
         log "No .DS_Store files found"
     fi
     log_plain ""
-else
-    SKIPPED_CATEGORIES+=(".DS_Store Files")
 fi
 
 ###############################################################################
