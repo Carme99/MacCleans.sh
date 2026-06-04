@@ -40,6 +40,8 @@ _mac_cleans() {
         '--skip-go[Skip Go module cache]'
         '--skip-bun[Skip Bun cache]'
         '--skip-pnpm[Skip pnpm store]'
+        '--skip-system-tmp[Skip /tmp and /var/tmp (default: on)]'
+        '--clean-system-tmp[Opt in to /tmp and /var/tmp cleanup]'
     )
 
     _arguments -s -S "$options[@]" "$categories[@]"

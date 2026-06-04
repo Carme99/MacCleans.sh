@@ -600,13 +600,19 @@ The release is now mostly automated by `.github/workflows/release.yml` (added in
 
 So your local checklist is just:
 
-1. Land all the changes you want in the release on `main` (PRs merged, `VERSION=` updated, CHANGELOG entry written).
-2. Tag the merge commit and push the tag:
+1. Land all the changes you want in the release on `main` (PRs merged, CHANGELOG entry written).
+2. Run the pre-tag helper to bump the version and regenerate the installer hash in lockstep:
    ```bash
+   scripts/release.sh X.Y.Z
+   ```
+   This script (a) bumps `VERSION=` in `clean-mac-space.sh`, (b) regenerates `EXPECTED_HASH` in `installer.sh` from the current script content, (c) runs `bash -n` and `shellcheck -S warning` to catch syntax regressions, (d) stages both files. The hash regen is the part v5.2.0 forgot to do — bundling it into the same command prevents that drift.
+3. Commit the staged change and tag the merge commit:
+   ```bash
+   git commit -m "chore: bump version to vX.Y.Z"
    git tag vX.Y.Z
    git push origin vX.Y.Z
    ```
-3. Watch the [Actions tab](https://github.com/Carme99/MacCleans.sh/actions) for the `Release` workflow to finish (~30 seconds). The Homebrew tap and GitHub release will both be updated automatically.
+4. Watch the [Actions tab](https://github.com/Carme99/MacCleans.sh/actions) for the `Release` workflow to finish (~30 seconds). The Homebrew tap and GitHub release will both be updated automatically.
 
 If the workflow fails, fix the underlying issue and either re-push the tag (after deleting it locally + on origin) or use the **Run workflow** button on the Actions tab to re-run it manually.
 

@@ -36,3 +36,8 @@ complete -c mac-cleans -l skip-gradle -d 'Skip Gradle cache'
 complete -c mac-cleans -l skip-go -d 'Skip Go module cache'
 complete -c mac-cleans -l skip-bun -d 'Skip Bun cache'
 complete -c mac-cleans -l skip-pnpm -d 'Skip pnpm store'
+complete -c mac-cleans -l skip-system-tmp -d 'Skip /tmp and /var/tmp (default: on)'
+complete -c mac-cleans -l clean-system-tmp -d 'Opt in to /tmp and /var/tmp cleanup'
+
+# Register the Mac-Clean alias too, for parity with bash and zsh
+complete -c Mac-Clean -w mac-cleans
