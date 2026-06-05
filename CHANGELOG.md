@@ -4,6 +4,8 @@ All notable changes to MacCleans.sh are documented in this file.
 
 ## [Unreleased]
 
+## [5.6.0] - 2026-06-05
+
 ### Added
 
 - **3 new cleanup categories (#29, #30, #31)** — adds ~3.1GB of potential free space on a typical dev machine, with a clean safety story for each:

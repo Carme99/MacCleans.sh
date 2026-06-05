@@ -52,7 +52,7 @@ Sample `--json` output:
 
 ```json
 {
-  "version": "5.5.2",
+  "version": "5.6.0",
   "timestamp": "2026-06-04T17:00:00Z",
   "dry_run": true,
   "results": {
