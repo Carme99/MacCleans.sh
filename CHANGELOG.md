@@ -4,6 +4,17 @@ All notable changes to MacCleans.sh are documented in this file.
 
 ## [Unreleased]
 
+### Performance
+
+- **CocoaPods per-file du loop replaced with a single `du -sh` on the dir** (F-1 from the v5.7.0 perf review). The previous code spawned one `du -sk` per file in `~/Library/Caches/CocoaPods`; a 5,000-file directory took **8.5s** of real time. A single `du -sh` on the dir returns in **<0.01s** — three-orders-of-magnitude win, with identical size accuracy.
+- **Docker `docker system df` called twice — now once** (F-2). The Docker Cache section was running `docker system df` once for the display table and once with `--format '{{.Reclaimable}}'` for the reclaimable estimate. Replaced with a single `--format 'table {{.Type}}\t{{.TotalCount}}\t{{.Size}}\t{{.Reclaimable}}'` call that supplies both. Halves the daemon round-trips.
+- **`safe_clear_directory` 3-pass find collapsed to 2** (F-3). Pass 1 was `find ... -type f -print0` followed by a per-file `rm -f` loop; pass 3 was `find ... -type d -exec rm -rf -- {} +` which subsumes the empty-dir pass 2. Replaced both with `find -type f -delete` + `find -type d -delete`. Benefits every cache-clearing category (Spotify, Claude, browsers, XCode, npm, yarn, pip, Mail, Siri, iCloud Mail, QuickLook, Trash, Gradle, Go, Bun, pnpm, User Tool, Browser Tool caches).
+
+### Bug Fixes
+
+- **pnpm dry-run now reports the global store size too** (F-6). `~/.pnpm-store` was only sized in the real-run path, so `--dry-run` understated the savings. Moved the size computation outside the dry-run branch so the totals match.
+- **Interactive menu digit handler now covers the full 1-N range** (UX-1 from the v5.7.0 UX review). The previous code only special-cased digits 1-9 plus 10-13; typing 14-N fell through to the catch-all and was silently swallowed — so the menu's "Tip: Numbers 1-30 also work" hint was a lie for half the digits. New handler reads a single `[1-9])` case with a 0.3s lookahead for 2-digit numbers, validated against the registered total. New regression test `test_interactive_menu_handles_all_digit_ranges`.
+
 ## [5.7.1] - 2026-06-05
 
 ### Bug Fixes

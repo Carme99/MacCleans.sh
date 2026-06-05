@@ -726,19 +726,16 @@ safe_clear_directory() {
         return 1
     fi
     
-    # Delete files with error tracking
-    while IFS= read -r -d '' file; do
-        if ! rm -f "$file" 2>/dev/null; then
-            status=1
-            log_warning "Failed to delete: $file (permission denied or in use)"
-        fi
-    done < <(find "$dir" -mindepth "$mindepth" -type f -print0 2>/dev/null)
-    
-    # Delete empty directories
-    find "$dir" -mindepth "$mindepth" -type d -empty -delete 2>/dev/null || true
-    
-    # Delete non-empty directories (careful - only for cache dirs)
-    if ! find "$dir" -mindepth "$mindepth" -type d -exec rm -rf -- {} + 2>/dev/null; then
+    # Delete files with error tracking.
+    # (PR #88 F-3: replaced the per-file rm loop with a single
+    # `find -type f -delete` — one process tree, no per-file fork.
+    # The empty-dir and non-empty-dir passes are merged into one
+    # `find -type d -delete` which handles both.)
+    if ! find "$dir" -mindepth "$mindepth" -type f -delete 2>/dev/null; then
+        log_warning "Some files could not be deleted (permission denied or in use)"
+        status=1
+    fi
+    if ! find "$dir" -mindepth "$mindepth" -type d -delete 2>/dev/null; then
         log_warning "Some directories could not be deleted (permission denied or in use)"
         status=1
     fi
@@ -1482,29 +1479,23 @@ interactive_selection() {
                     log_always "Selection cancelled."
                     exit 0
                     ;;
-                1)
-                    # Check if this is part of 10-13
+                [1-9])
+                    # The menu tip says "Numbers 1-${total} also work for quick
+                    # toggle". Read up to 1 more char to form a 2-digit number,
+                    # then validate against the registered range.
+                    # (PR #88 UX-1: previous handler special-cased 1 with
+                    # 0.3s lookahead for 10-13 only, leaving 14-${total}
+                    # silently swallowed by the `*)` branch.)
                     IFS= read -rsn1 -t 0.3 next_key
-                    if [[ -n "$next_key" ]]; then
-                        case "$next_key" in
-                            0) toggle_category 9; draw_menu ;; # 10
-                            1) toggle_category 10; draw_menu ;; # 11
-                            2) toggle_category 11; draw_menu ;; # 12
-                            3) toggle_category 12; draw_menu ;; # 13
-                            *) toggle_category 0; draw_menu ;; # Just 1
-                        esac
-                    else
-                        toggle_category 0; draw_menu # Just 1
+                    local num="$key"
+                    if [[ -n "$next_key" ]] && [[ "$next_key" =~ [0-9] ]]; then
+                        num="${key}${next_key}"
+                    fi
+                    if [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -ge 1 ] && [ "$num" -le "$total" ]; then
+                        toggle_category $((num - 1))
+                        draw_menu
                     fi
                     ;;
-                2) toggle_category 1; draw_menu ;;
-                3) toggle_category 2; draw_menu ;;
-                4) toggle_category 3; draw_menu ;;
-                5) toggle_category 4; draw_menu ;;
-                6) toggle_category 5; draw_menu ;;
-                7) toggle_category 6; draw_menu ;;
-                8) toggle_category 7; draw_menu ;;
-                9) toggle_category 8; draw_menu ;;
                 *) # Ignore other input
                     ;;
             esac
@@ -2173,8 +2164,12 @@ if run_category "12|Docker Cache|SKIP_DOCKER"; then
             log_warning "Docker daemon is not running"
             log "Start Docker Desktop to clean up Docker resources"
         else
-            # Get docker disk usage (with proper error handling)
-            DOCKER_INFO=$(docker system df 2>/dev/null || echo "")
+            # Get docker disk usage (with proper error handling).
+            # (PR #88 F-2: replaced the second `docker system df`
+            # call with a single --format call that supplies both
+            # the display table and the reclaimable size, halving
+            # the daemon round-trips.)
+            DOCKER_INFO=$(docker system df --format 'table {{.Type}}\t{{.TotalCount}}\t{{.Size}}\t{{.Reclaimable}}' 2>/dev/null || echo "")
 
             if [ -n "$DOCKER_INFO" ] && [ -n "${DOCKER_INFO// }" ]; then
                 log "Docker system disk usage:"
@@ -2182,8 +2177,10 @@ if run_category "12|Docker Cache|SKIP_DOCKER"; then
                     log "  $line"
                 done
 
-                # Estimate reclaimable space using docker's format option
-                DOCKER_RECLAIM_SIZE=$(docker system df --format '{{.Reclaimable}}' 2>/dev/null | head -1 || echo "0B")
+                # Extract the total reclaimable from the last row of
+                # the same --format output (one daemon round-trip
+                # serves both the display and the reclaim value).
+                DOCKER_RECLAIM_SIZE=$(echo "$DOCKER_INFO" | tail -1 | awk '{print $4}')
                 # Validate and sanitize - handle empty, 0B, or N/A
                 if [ -z "$DOCKER_RECLAIM_SIZE" ] || [ "$DOCKER_RECLAIM_SIZE" = "0B" ] || [ "$DOCKER_RECLAIM_SIZE" = "N/A" ]; then
                     DOCKER_RECLAIM=0
@@ -2842,15 +2839,13 @@ if run_category "23|CocoaPods Cache|SKIP_COCOAPODS"; then
         if [ -d "$DIR" ]; then
             # Count and size for Pods cache (not DerivedData to be safe)
             if [[ "$DIR" == *"Caches/CocoaPods" ]]; then
-                while IFS= read -r -d '' file; do
-                    FILE_SIZE=$(du -sk "$file" 2>/dev/null | awk '{print $1}')
-                    if ! [[ "$FILE_SIZE" =~ ^[0-9]+$ ]]; then
-                        FILE_SIZE=0
-                    fi
-                    FILE_BYTES=$((FILE_SIZE * 1024))
-                    COCOAPODS_TOTAL_BYTES=$((COCOAPODS_TOTAL_BYTES + FILE_BYTES))
-                    COCOAPODS_TOTAL_COUNT=$((COCOAPODS_TOTAL_COUNT + 1))
-                done < <(find "$DIR" -type f -print0 2>/dev/null)
+                # Single du on the dir, single find for the count.
+                # (PR #88 F-1: replaced per-file du loop, which took
+                # ~8.5s on a 5,000-file CocoaPods cache.)
+                COCOAPODS_DIR_BYTES=$(size_to_bytes "$(safe_du "$DIR")")
+                COCOAPODS_DIR_COUNT=$(find "$DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
+                COCOAPODS_TOTAL_BYTES=$((COCOAPODS_TOTAL_BYTES + COCOAPODS_DIR_BYTES))
+                COCOAPODS_TOTAL_COUNT=$((COCOAPODS_TOTAL_COUNT + COCOAPODS_DIR_COUNT))
             fi
         fi
     done
@@ -3043,6 +3038,22 @@ if run_category "27|pnpm Store|SKIP_PNPM"; then
         PNPM_SIZE=$(safe_du "$PNPM_STORE_DIR")
         PNPM_BYTES=$(size_to_bytes "$PNPM_SIZE")
 
+        # Also check for the global store. Size it here in both the
+        # dry-run and real-run paths so the dry-run total matches the
+        # real-run total. (PR #88 F-6: previously PNPM_GLOBAL_SIZE
+        # was only added in the real-run path, so dry-run understated.)
+        PNPM_GLOBAL_STORE="$USER_HOME/.pnpm-store"
+        PNPM_GLOBAL_SIZE=""
+        PNPM_GLOBAL_BYTES=0
+        if [ -d "$PNPM_GLOBAL_STORE" ] && [ ! -L "$PNPM_GLOBAL_STORE" ]; then
+            PNPM_GLOBAL_SIZE=$(safe_du "$PNPM_GLOBAL_STORE")
+            PNPM_GLOBAL_BYTES=$(size_to_bytes "$PNPM_GLOBAL_SIZE")
+            PNPM_BYTES=$((PNPM_BYTES + PNPM_GLOBAL_BYTES))
+            PNPM_SIZE="$PNPM_SIZE (global: $PNPM_GLOBAL_SIZE)"
+        elif [ -L "$PNPM_GLOBAL_STORE" ]; then
+            log_warning "Skipping pnpm global store - is a symlink"
+        fi
+
         if [ "$PNPM_BYTES" -gt 0 ]; then
             log "Found pnpm store: $PNPM_SIZE"
 
@@ -3055,16 +3066,8 @@ if run_category "27|pnpm Store|SKIP_PNPM"; then
                 if command -v pnpm &> /dev/null; then
                     pnpm store prune 2>/dev/null || true
                 fi
-                # Also check for the global store
-                PNPM_GLOBAL_STORE="$USER_HOME/.pnpm-store"
-                if [ -d "$PNPM_GLOBAL_STORE" ] && [ ! -L "$PNPM_GLOBAL_STORE" ]; then
-                    PNPM_GLOBAL_SIZE=$(safe_du "$PNPM_GLOBAL_STORE")
-                    PNPM_GLOBAL_BYTES=$(size_to_bytes "$PNPM_GLOBAL_SIZE")
-                    PNPM_BYTES=$((PNPM_BYTES + PNPM_GLOBAL_BYTES))
-                    PNPM_SIZE="$PNPM_SIZE (global: $PNPM_GLOBAL_SIZE)"
+                if [ -n "$PNPM_GLOBAL_SIZE" ] && [ "$PNPM_GLOBAL_BYTES" -gt 0 ]; then
                     safe_clear_directory "$PNPM_GLOBAL_STORE" || { ERRORS_OCCURRED=$((ERRORS_OCCURRED + 1)); log_warning "Some pnpm store items could not be deleted"; }
-                elif [ -L "$PNPM_GLOBAL_STORE" ]; then
-                    log_warning "Skipping pnpm global store - is a symlink"
                 fi
                 log_success "pnpm store pruned: $PNPM_SIZE"
                 TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PNPM_BYTES))

@@ -482,6 +482,33 @@ test_config_loader_covers_every_registry_skip_x() {
     fi
     return 0
 }
+test_interactive_menu_handles_all_digit_ranges() {
+    # The menu tip says "Numbers 1-${#categories[@]} also work for quick
+    # toggle". The case statement in interactive_selection's main loop
+    # must handle the full range, not just 1-9 (with 10-13 special-cased).
+    # PR #88 UX-1: prior version only handled 1-9 + 10-13, so typing
+    # 14-30 was silently swallowed.
+    #
+    # The fix is a single `[1-9])` case that reads up to 1 more char
+    # for 2-digit numbers and validates against the registered total.
+    # This test asserts that the case pattern is `[1-9])` (not separate
+    # `1)`, `2)`, ... `9)` cases) and that there's a numeric range check.
+    if /usr/bin/grep -qE '^\s+[1-9]\)\s*$' "$SCRIPT_PATH"; then
+        # Old style: per-digit cases. The fix removed these.
+        echo "Interactive menu still has per-digit case arms (1)..9))." >&2
+        echo "Should be a single [1-9]) case that handles 2-digit lookahead." >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qE '^\s+\[1-9\]\)' "$SCRIPT_PATH"; then
+        echo "Interactive menu is missing the [1-9]) case arm." >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qE 'num=\"\$\{key\}\$\{next_key\}\"' "$SCRIPT_PATH"; then
+        echo "Interactive menu digit handler does not form a 2-digit num." >&2
+        return 1
+    fi
+    return 0
+}
 test_config_files_defined_before_load_config_file_call() {
     # The audit (PR #85) moved CONFIG_FILES to after USER_HOME derivation
     # so it could use $USER_HOME, but accidentally left the call at
@@ -571,6 +598,7 @@ assert "scripts/release.sh supports --check mode"                       test_rel
 assert ".github/workflows/release-check.yml exists"                      test_release_check_workflow_exists
 assert "Completions include the 3 v5.6.0 --skip-X flags"                 test_completions_include_v56_skip_flags
 assert "load_config_file case statement covers every registry SKIP_X"     test_config_loader_covers_every_registry_skip_x
+assert "Interactive menu digit handler covers 1-N (no silent swallow)"    test_interactive_menu_handles_all_digit_ranges
 
 TOTAL=$(( PASS + FAIL ))
 echo ""
