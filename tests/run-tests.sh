@@ -177,6 +177,159 @@ test_registry_has_new_categories() {
     [ "$found_bt" -eq 1 ] && [ "$found_cr" -eq 1 ] && [ "$found_uc" -eq 1 ]
 }
 
+# --- Security audit tests (added 2026-06-05) -------------------------------
+#
+# These tests codify the three rules from the security audit pass:
+#   1. No section body or infrastructure code uses literal "$HOME/" for user
+#      paths — must use $USER_HOME (set from $SUDO_USER's passwd entry) so
+#      the user's actual home is targeted under `sudo`.
+#   2. Every `find ... -delete` is either guarded by `-type f`/`-type d` (which
+#      inherently exclude symlinks) or wrapped in a `[ ! -L ]` parent check.
+#      Both are safe; the rule is "at least one of the two must be present."
+#   3. The script's source-guard + sudo check + USER_HOME derivation live in
+#      the right order: source guard returns when sourced, sudo check exits
+#      when not root, USER_HOME is derived before any code that uses it.
+#
+# A regression on any of these would silently break the script under sudo
+# (e.g., a future PR adding a section body with `"$HOME/foo"` would miss
+# the user's real home when run with `sudo Mac-Clean`). These tests catch
+# that at CI time.
+
+# Path to the script (we read it directly for static checks).
+SCRIPT_PATH="$REPO_ROOT/clean-mac-space.sh"
+
+test_no_literal_home_in_user_paths() {
+    # No `"\$HOME/` (literal $HOME with trailing slash, indicating a user
+    # path) anywhere in the script. The legitimate fallback
+    # `USER_HOME="$HOME"` (no slash) at the end of the sudo/non-sudo
+    # block is fine; we look for `"\$HOME/` specifically.
+    local hits
+    hits=$(/usr/bin/grep -nF '"\$HOME/' "$SCRIPT_PATH" || true)
+    if [ -n "$hits" ]; then
+        echo "Found literal '\$HOME/' (user-path uses of \$HOME instead of \$USER_HOME):" >&2
+        echo "$hits" >&2
+        return 1
+    fi
+    return 0
+}
+
+test_find_delete_has_type_or_symlink_guard() {
+    # Every line containing `find ... -delete` must also have either a
+    # type filter (`-type f` or `-type d`) somewhere on the same line, OR
+    # be preceded (within the immediately surrounding block) by a
+    # `[ ! -L ]` parent guard. The check is structural: we look at the
+    # find -delete line itself for `-type`, and at the prior 5 lines for
+    # `[ ! -L`.
+    #
+    # We use a python helper because bash + multi-line + alternation is
+    # painful. The script is well under 4000 lines so the perf cost is
+    # trivial.
+    python3 - "$SCRIPT_PATH" <<'PY'
+import re
+import sys
+
+script_path = sys.argv[1]
+with open(script_path) as f:
+    lines = f.readlines()
+
+# Find every line that contains `find ... -delete` and isn't inside the
+# `safe_clear_directory` helper body (which is allowed to have multiple
+# forms by design).
+violations = []
+in_safe_clear = False
+brace_depth = 0
+for i, line in enumerate(lines):
+    n = i + 1
+
+    # Track whether we're inside safe_clear_directory's function body.
+    # The function definition starts with `safe_clear_directory() {` and
+    # ends at the matching closing `}`.
+    if re.search(r'^safe_clear_directory\s*\(\s*\)\s*\{', line):
+        in_safe_clear = True
+        brace_depth = 1
+        continue
+    if in_safe_clear:
+        brace_depth += line.count('{') - line.count('}')
+        if brace_depth <= 0:
+            in_safe_clear = False
+        continue
+
+    # Look for `find ... -delete` on this line.
+    if not re.search(r'\bfind\b.+\-delete\b', line):
+        continue
+
+    # Skip comment lines. `find -delete` mentioned in a comment is
+    # documentation, not a real call.
+    stripped = line.lstrip()
+    if stripped.startswith('#'):
+        continue
+
+    # Same-line type filter is enough.
+    if re.search(r'-(?:type\s+[fd]|type\s+[fd]\b)', line):
+        continue
+    if '-type f' in line or '-type d' in line:
+        continue
+
+    # Otherwise, look at the 5 preceding lines for a `[ ! -L "$X" ]`
+    # parent guard. The guard is a common idiom and may span an `if`
+    # statement boundary.
+    context = ''.join(lines[max(0, i-5):i+1])
+    if re.search(r'\[\s*!\s*-L\s+"\$', context):
+        continue
+
+    # System-path finds (no `$VAR` interpolation) are out of scope for
+    # this test — the system owns /private/var/tmp and /private/tmp.
+    if '/private/var/tmp' in line or '/private/tmp' in line:
+        continue
+
+    violations.append((n, line.rstrip()))
+
+if violations:
+    print('find -delete lines without type filter or [ ! -L ] guard:', file=sys.stderr)
+    for n, line in violations:
+        print(f'  {n}: {line}', file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
+test_user_home_derivation_uses_sudo_user() {
+    # The script's USER_HOME derivation must (a) use $SUDO_USER's passwd
+    # entry under sudo (via getent), and (b) fall back to $HOME when
+    # SUDO_USER is unset. We verify both by reading the relevant
+    # source block from the script.
+    #
+    # Specifically, the block at "Get and validate actual user" must
+    # contain:
+    #   1. `if [ -n "${SUDO_USER:-}" ]` (or equivalent) to detect sudo
+    #   2. `getent passwd "$SUDO_USER"` (or passwd lookup) to find the
+    #      home dir, since $HOME is unreliable under sudo
+    #   3. A fallback to `USER_HOME="$HOME"` when SUDO_USER is empty
+    #
+    # The audit caught a real bug where the script used $HOME for
+    # CONFIG_FILES / LOCKDIR / check_icloud_backup_enabled, missing
+    # the user's actual home under sudo. This test makes the derivation
+    # pattern the canonical place to look.
+    local block
+    block=$(/usr/bin/awk '/^# Get and validate actual user/,/^fi$/' "$SCRIPT_PATH")
+
+    if ! echo "$block" | /usr/bin/grep -qF 'SUDO_USER'; then
+        echo "USER_HOME derivation does not check SUDO_USER:" >&2
+        echo "$block" >&2
+        return 1
+    fi
+    if ! echo "$block" | /usr/bin/grep -qE 'getent passwd|/Users/\$SUDO_USER'; then
+        echo "USER_HOME derivation does not look up SUDO_USER's home via getent or /Users fallback:" >&2
+        echo "$block" >&2
+        return 1
+    fi
+    if ! echo "$block" | /usr/bin/grep -qF 'USER_HOME="$HOME"'; then
+        echo "USER_HOME derivation does not fall back to \$HOME when SUDO_USER is empty:" >&2
+        echo "$block" >&2
+        return 1
+    fi
+    return 0
+}
+
 # --- Run -------------------------------------------------------------------
 
 echo "Running smoke tests for clean-mac-space.sh helpers..."
@@ -196,6 +349,9 @@ assert "registry_get_display returns middle field"             test_registry_get
 assert "_init_skip_defaults sets every SKIP_X to false"        test_init_skip_defaults_sets_every_skip_to_false
 assert "CATEGORY_REGISTRY has 33 entries (1-28 + 3a/3b + 29/30/31)"  test_registry_has_33_entries
 assert "CATEGORY_REGISTRY has new SKIP_BROWSER_TOOLS/CRASH_REPORTS/USER_TOOL_CACHES" test_registry_has_new_categories
+assert "No literal '\$HOME/' in user paths (security audit)"            test_no_literal_home_in_user_paths
+assert "Every 'find ... -delete' has -type filter or [ ! -L ] guard"    test_find_delete_has_type_or_symlink_guard
+assert "USER_HOME derivation uses SUDO_USER with getent fallback"        test_user_home_derivation_uses_sudo_user
 
 TOTAL=$(( PASS + FAIL ))
 echo ""

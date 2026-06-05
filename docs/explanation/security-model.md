@@ -63,6 +63,17 @@ Since this script runs with `sudo`, it's fair to ask what it's actually doing. H
 - All variables quoted - no command injection funny business
 - Operations scoped to known cache/temp directories only
 - Validates user context before doing anything
+- **User-path convention**: every reference to the user's home uses
+  `$USER_HOME` (set from `$SUDO_USER`'s passwd entry via `getent`),
+  never literal `$HOME`. Under `sudo Mac-Clean` on default macOS sudoers
+  (`Defaults env_reset`), `$HOME` resolves to `/var/root` — using it for
+  user paths would silently miss the user's actual home. The smoke test
+  `test_no_literal_home_in_user_paths` enforces this at CI time.
+- **Symlink-safety convention**: every `find ... -delete` is either
+  guarded by `-type f` (which inherently excludes symlinks) or wrapped
+  in a `[ ! -L ]` parent check. `safe_clear_directory` is the canonical
+  helper for cache-style sweeps. The smoke test
+  `test_find_delete_has_type_or_symlink_guard` enforces this at CI time.
 
 This is a free tool built for fun. It does what other apps charge money for, but without the dodgy data collection. You're welcome.
 

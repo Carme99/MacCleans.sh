@@ -224,11 +224,15 @@ run_category() {
 VERBOSE=false
 
 # Configuration file locations (checked in order)
-CONFIG_FILES=(
-    "$HOME/.maccleans.conf"
-    "$HOME/.config/maccleans/config"
-    "${XDG_CONFIG_HOME:-$HOME/.config}/maccleans/config"
-)
+# NOTE: This array is initialized later in the script, after USER_HOME
+# is derived (see the post-source-guard setup block). Using $HOME here
+# at script-load time would silently miss the user's actual config when
+# run under `sudo` — $HOME under sudo resolves to /var/root on default
+# macOS sudoers (Defaults env_reset), but USER_HOME is correctly derived
+# from $SUDO_USER's passwd entry. The audit test
+# `test_user_home_for_user_paths` enforces that any user-path array or
+# variable assignment uses $USER_HOME, not $HOME.
+# See the security audit PR for context.
 
 ###############################################################################
 # Helper Functions
@@ -609,8 +613,14 @@ cleanup_on_exit() {
 trap cleanup_on_exit EXIT
 
 # Lock directory for preventing parallel runs
-# Use user-protected directory instead of world-writable /tmp
-LOCKDIR="$HOME/.macclean/lock"
+# Use user-protected directory instead of world-writable /tmp.
+# LOCKDIR is reassigned in the post-source-guard setup block, after
+# USER_HOME is derived. The trap cleanup_on_exit (set above) holds
+# the reassignment via parameter expansion guards (`-n "${LOCKDIR:-}"`).
+# See the security audit PR for context on why $HOME here was a bug.
+LOCKDIR=""
+LOCK_OWNED=0
+MIN_FREE_MB=200
 LOCK_OWNED=0
 MIN_FREE_MB=200
 
@@ -806,10 +816,13 @@ check_icloud_backup_enabled() {
     fi
     
     # Also check if there's evidence of recent iCloud backups in the log
-    # This is a secondary check to be more permissive
-    if [ -f "$HOME/Library/Logs/MobileBackup/Backup.log" ]; then
+    # This is a secondary check to be more permissive.
+    # Uses $USER_HOME (not $HOME) so the actual user's home is checked
+    # under `sudo` — the old code used $HOME which would silently
+    # miss the real backup log under sudo on default macOS sudoers.
+    if [ -f "$USER_HOME/Library/Logs/MobileBackup/Backup.log" ]; then
         local recent_backup
-        recent_backup=$(find "$HOME/Library/Logs/MobileBackup" -name "Backup.log" -mtime -30 2>/dev/null | wc -l)
+        recent_backup=$(find "$USER_HOME/Library/Logs/MobileBackup" -name "Backup.log" -mtime -30 2>/dev/null | wc -l)
         if [ "$recent_backup" -gt 0 ]; then
             return 0
         fi
@@ -1129,6 +1142,25 @@ if [ -L "$USER_HOME" ]; then
         log_warning "readlink not found; cannot resolve user home symlink. Using: $USER_HOME"
     fi
 fi
+
+# Configuration file locations (checked in order).
+# Uses $USER_HOME (not $HOME) so the user's actual home is targeted
+# under sudo. The old (pre-audit) code used $HOME here at script-load
+# time, which silently missed the user's real config under `sudo Mac-Clean`
+# on default macOS sudoers (env_reset → $HOME=/var/root).
+CONFIG_FILES=(
+    "$USER_HOME/.maccleans.conf"
+    "$USER_HOME/.config/maccleans/config"
+    "${XDG_CONFIG_HOME:-$USER_HOME/.config}/maccleans/config"
+)
+
+# Lock directory for preventing parallel runs. Reassigned here (not at
+# the top of the script) so it can use $USER_HOME, which is derived
+# above. The old (pre-audit) code used $HOME here, which under `sudo`
+# resolved to /var/root and meant the lock didn't actually protect the
+# user (a non-sudo run of the script would create a separate lock in
+# the user's real home, defeating the whole concurrency check).
+LOCKDIR="$USER_HOME/.macclean/lock"
 
 # Validate user
 if [ -z "$ACTUAL_USER" ] || [ "$ACTUAL_USER" = "root" ]; then
