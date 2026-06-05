@@ -217,11 +217,52 @@ run_category() {
         log_plain "================================================"
         return 0
     else
-        SKIPPED_CATEGORIES+=("$name")
-        return 1
-    fi
-}
-VERBOSE=false
+         SKIPPED_CATEGORIES+=("$name")
+         return 1
+     fi
+ }
+ VERBOSE=false
+
+# Per-category size estimates for the --json output's "details"
+# object. Section bodies that compute sizes call
+# `record_category_size` to publish them; the JSON output block
+# looks the values up via indirect variable expansion when building
+# the per-category fragment.
+#
+# Why indirect variables? `declare -A` is bash 4+ syntax, and this
+# script supports macOS's bundled bash 3.2.57. Indirect expansion
+# (`${!var_name}`) works on all bash 2.0+ and gives us a clean
+# per-name lookup that avoids the duplicate-key JSON bug a flat
+# accumulator would cause (see PR #86 review).
+#
+# Naming convention: the display name is normalized to a valid bash
+# variable identifier (spaces and non-alphanumerics -> underscores)
+# and prefixed with DETAIL_BYTES_ / DETAIL_HUMAN_. Section bodies
+# must only call record_category_size with names drawn from
+# CATEGORY_REGISTRY's display names; an off-registry name will
+# silently not appear in the JSON output.
+CATEGORY_DETAIL_PREFIX="DETAIL"
+
+# Record a per-category size estimate for the --json output. Called
+# by section bodies that already compute a size in bytes + human
+# (e.g. BROWSER_TOOLS_BYTES / $(bytes_to_human ...)). The JSON output
+# block looks up the values via `${!DETAIL_BYTES_<name>}` /
+# `${!DETAIL_HUMAN_<name>}` when building each per-category
+# fragment, so there's exactly one `"Category": {...}` entry per
+# category in the output.
+record_category_size() {
+     local name="$1"
+     local bytes="$2"
+     local human="$3"
+     # Normalize name to a valid bash variable identifier. Display
+     # names use spaces ("Browser Testing Tool Caches") which need
+     # to become underscores for indirect var expansion. Strip any
+     # other non-alphanumeric chars defensively.
+     local var_name="${name// /_}"
+     var_name="${var_name//[^A-Za-z0-9_]/_}"
+     printf -v "${CATEGORY_DETAIL_PREFIX}_BYTES_${var_name}" '%s' "$bytes"
+     printf -v "${CATEGORY_DETAIL_PREFIX}_HUMAN_${var_name}" '%s' "$human"
+ }
 
 # Configuration file locations (checked in order)
 # NOTE: This array is initialized later in the script, after USER_HOME
@@ -3099,6 +3140,7 @@ if run_category "29|Browser Testing Tool Caches|SKIP_BROWSER_TOOLS"; then
 
     if [ "$BROWSER_TOOLS_HIT" -gt 0 ]; then
         BROWSER_TOOLS_HUMAN=$(bytes_to_human "$BROWSER_TOOLS_BYTES")
+        record_category_size "Browser Testing Tool Caches" "$BROWSER_TOOLS_BYTES" "$BROWSER_TOOLS_HUMAN"
         if [ "$DRY_RUN" = true ]; then
             log "Would clear browser testing tool caches: $BROWSER_TOOLS_HUMAN"
             TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BROWSER_TOOLS_BYTES))
@@ -3148,6 +3190,7 @@ if run_category "30|Crash Reports|SKIP_CRASH_REPORTS"; then
 
     if [ "$CRASH_COUNT" -gt 0 ]; then
         CRASH_HUMAN=$(bytes_to_human "$CRASH_BYTES")
+        record_category_size "Crash Reports" "$CRASH_BYTES" "$CRASH_HUMAN"
         log "Found $CRASH_COUNT old crash report(s) (>7 days): $CRASH_HUMAN"
 
         if [ "$DRY_RUN" = true ]; then
@@ -3200,6 +3243,7 @@ if run_category "31|User Tool Caches|SKIP_USER_TOOL_CACHES"; then
 
     if [ "$USER_TOOL_HIT" -gt 0 ]; then
         USER_TOOL_HUMAN=$(bytes_to_human "$USER_TOOL_BYTES")
+        record_category_size "User Tool Caches" "$USER_TOOL_BYTES" "$USER_TOOL_HUMAN"
         if [ "$DRY_RUN" = true ]; then
             log "Would clear user tool caches: $USER_TOOL_HUMAN"
             TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + USER_TOOL_BYTES))
@@ -3360,7 +3404,7 @@ if [ "$JSON_OUTPUT" = true ]; then
         json_processed="$json_processed\"$escaped_cat\","
     done
     json_processed="${json_processed%,}"
-    
+
     # Build skipped array with proper JSON quoting
     json_skipped=""
     for cat in "${SKIPPED_CATEGORIES[@]}"; do
@@ -3368,6 +3412,65 @@ if [ "$JSON_OUTPUT" = true ]; then
         json_skipped="$json_skipped\"$escaped_cat\","
     done
     json_skipped="${json_skipped%,}"
+
+    # Build per-category "details" object. For every entry in
+    # CATEGORY_REGISTRY, emit { status, skip_flag (if any),
+    # estimated_bytes / estimated_human (if the section called
+    # record_category_size) }. Order follows CATEGORY_REGISTRY for
+    # stable output. Status is "would_run" if the category ran (i.e.
+    # it's in PROCESSED_CATEGORIES), else "skipped".
+    #
+    # Size info (estimated_bytes / estimated_human) is looked up via
+    # indirect variable expansion (DETAIL_BYTES_<name> /
+    # DETAIL_HUMAN_<name>) so each category is emitted exactly once
+    # with its full fragment, avoiding the duplicate-key bug a flat
+    # accumulator would produce.
+    json_details_parts=""
+    for entry in "${CATEGORY_REGISTRY[@]}"; do
+        name=$(registry_get_display "$entry")
+        skip_var=$(registry_get_skip_var "$entry")
+        # Resolve status: "would_run" or "skipped"
+        status="skipped"
+        for processed in "${PROCESSED_CATEGORIES[@]}"; do
+            if [ "$processed" = "$name" ]; then
+                status="would_run"
+                break
+            fi
+        done
+        # Build the per-category JSON fragment
+        escaped_name="${name//\"/\\\"}"
+        per_cat="\"status\":\"$status\""
+        if [ -n "$skip_var" ]; then
+            # SKIP_FOO_BAR -> --skip-foo-bar
+            flag="${skip_var#SKIP_}"
+            flag="$(printf '%s' "$flag" | tr '[:upper:]' '[:lower:]' | tr '_' '-')"
+            per_cat="$per_cat,\"skip_flag\":\"--skip-$flag\""
+        fi
+        # Look up the size info (if the section called
+        # record_category_size). Normalize the name to a valid bash
+        # variable identifier for indirect expansion.
+        detail_var="${name// /_}"
+        detail_var="${detail_var//[^A-Za-z0-9_]/_}"
+        detail_bytes_var="${CATEGORY_DETAIL_PREFIX}_BYTES_${detail_var}"
+        detail_human_var="${CATEGORY_DETAIL_PREFIX}_HUMAN_${detail_var}"
+        # Use eval-free indirect expansion. Under `set -u` the
+        # `${!var:-}` form returns empty if the var is unset, so
+        # categories that didn't call record_category_size just
+        # get status + skip_flag.
+        detail_bytes="${!detail_bytes_var:-}"
+        detail_human="${!detail_human_var:-}"
+        if [ -n "$detail_bytes" ]; then
+            per_cat="$per_cat,\"estimated_bytes\":$detail_bytes"
+            if [ -n "$detail_human" ]; then
+                escaped_human="${detail_human//\"/\\\"}"
+                per_cat="$per_cat,\"estimated_human\":\"$escaped_human\""
+            fi
+        fi
+        json_details_parts="$json_details_parts\"$escaped_name\":{$per_cat},"
+    done
+    # Strip the trailing comma
+    json_details_parts="${json_details_parts%,}"
+    json_details="{$json_details_parts}"
 
     cat <<EOF
 {
@@ -3381,7 +3484,8 @@ if [ "$JSON_OUTPUT" = true ]; then
             ],
             "skipped": [
                 $json_skipped
-            ]
+            ],
+            "details": $json_details
         },
         "disk_usage": {
             "before": $disk_before,

@@ -23,6 +23,7 @@ A version bump touches exactly four files, all in the same commit:
 
 ## The release checklist
 
+0. **CI release-check passes on the latest main** — `.github/workflows/release-check.yml` runs `scripts/release.sh --check` on every push to main and every PR. If the check is red, drift was introduced; fix it before starting the next release. Catches the "bumped VERSION but forgot to regen the EXPECTED_HASH" bug class.
 1. **All PRs for this release are merged on `main`**, with their `[Unreleased]` entries in `CHANGELOG.md`.
 2. **Worktree is clean and on `main`**:
    ```bash
@@ -39,6 +40,7 @@ A version bump touches exactly four files, all in the same commit:
    - Regenerates `EXPECTED_HASH` in `installer.sh` from the new script content (this is the part v5.2.0 forgot to do — bundling it into the same command prevents that drift)
    - Runs `bash -n` and `shellcheck -S warning` to catch syntax regressions
    - **Stages** both files but does **not** commit
+    - `--check` (added v5.7.0) runs the same state verification without making changes; used by the CI gate and for a "would the release prep do anything?" sanity check. Exits 0 on clean, 1 on drift. The X.Y.Z argument is OPTIONAL in `--check` mode (the CI workflow calls `bash scripts/release.sh --check` with no version arg). `--check` distinguishes in-progress from real drift: if `clean-mac-space.sh` has been modified since the last VERSION bump, the EXPECTED_HASH mismatch is a warning (release-in-progress), not a failure. Catches: stale EXPECTED_HASH, invalid VERSION, missing CHANGELOG versioned sections.
 4. **Edit `CHANGELOG.md` manually**: rename the `[Unreleased]` section to `## [5.5.3] - YYYY-MM-DD` and add a fresh empty `## [Unreleased]` above it for the next cycle.
 5. **Edit the version badge** in `README.md` (and `docs/README.md` if it has one). One-line edit each.
 6. **Commit the release prep as a single chore commit**:

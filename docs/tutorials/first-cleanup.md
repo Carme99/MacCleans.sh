@@ -52,13 +52,23 @@ Sample `--json` output:
 
 ```json
 {
-  "version": "5.6.0",
-  "timestamp": "2026-06-04T17:00:00Z",
+  "version": "5.7.0",
+  "timestamp": "2026-06-05T18:30:00Z",
   "dry_run": true,
   "results": {
     "categories": {
       "processed": ["Time Machine Local Snapshots", "Homebrew Cache"],
-      "skipped": []
+      "skipped": [],
+      "details": {
+        "Time Machine Local Snapshots": {
+          "status": "would_run",
+          "skip_flag": "--skip-snapshots"
+        },
+        "Homebrew Cache": {
+          "status": "would_run",
+          "skip_flag": "--skip-homebrew"
+        }
+      }
     },
     "disk_usage": { "before": 480000000000, "after": null },
     "space_freed": { "bytes": 0, "human": "0 B" }
@@ -66,7 +76,7 @@ Sample `--json` output:
 }
 ```
 
-(`disk_usage.after` is `null` in dry-run because we don't measure after — the disk isn't actually changed.)
+(`disk_usage.after` is `null` in dry-run because we don't measure after — the disk isn't actually changed. The `details` object, added in v5.7.0, gives you per-category status and skip-flag info for scripting. See [the command reference](../reference/commands.md#json) for jq recipes.)
 
 ## Next
 
