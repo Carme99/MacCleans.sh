@@ -14,7 +14,7 @@ A version bump touches exactly four files, all in the same commit:
 
 | File | What changes |
 |---|---|
-| `clean-mac-space.sh` | `VERSION="X.Y.Z"` (line 7) |
+| `clean-mac-space.sh` | `VERSION="X.Y.Z"` |
 | `installer.sh` | `EXPECTED_HASH="<sha256 of clean-mac-space.sh>"` — **regenerated** by `scripts/release.sh` |
 | `CHANGELOG.md` | Move the `[Unreleased]` entry into a new `## [X.Y.Z] - YYYY-MM-DD` section |
 | `README.md` (and `docs/README.md` if it exists) | The version badge |
