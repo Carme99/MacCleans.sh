@@ -585,7 +585,9 @@ refactor(logging): improve error message formatting
 
 ## Release Process
 
-For maintainers releasing new versions:
+For maintainers releasing new versions.
+
+> **Full step-by-step lives in [docs/contributing/release-process.md](docs/contributing/release-process.md)** — the canonical checklist with the "release before next PR" rule, the four version files, and a worked example. This section is the short version.
 
 ### Version Numbering
 
