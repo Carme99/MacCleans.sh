@@ -392,12 +392,6 @@ load_config_file() {
     done
 }
 
-# Load configuration. Skipped in TEST_MODE so the sourced script
-# doesn't read or write user-level config files from tests.
-if [ -z "${TEST_MODE:-}" ]; then
-    load_config_file
-fi
-
 # Parse command-line arguments
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
@@ -1152,6 +1146,20 @@ CONFIG_FILES=(
     "$USER_HOME/.config/maccleans/config"
     "${XDG_CONFIG_HOME:-$USER_HOME/.config}/maccleans/config"
 )
+
+# Load configuration. Skipped in TEST_MODE so the sourced script
+# doesn't read or write user-level config files from tests. Lives
+# here (not at the top of the script) so it runs AFTER CONFIG_FILES
+# is initialized — which itself has to be after USER_HOME is derived.
+# The audit caught a regression where the call was at the top of the
+# script but CONFIG_FILES had moved to after USER_HOME, so the for
+# loop in load_config_file iterated an empty array and no config was
+# ever loaded. The test
+# test_config_files_defined_before_load_config_file_call enforces
+# the ordering.
+if [ -z "${TEST_MODE:-}" ]; then
+    load_config_file
+fi
 
 # Lock directory for preventing parallel runs. Reassigned here (not at
 # the top of the script) so it can use $USER_HOME, which is derived

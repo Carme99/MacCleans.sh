@@ -310,6 +310,32 @@ if violations:
 PY
 }
 
+test_config_files_defined_before_load_config_file_call() {
+    # CONFIG_FILES array must be defined (i.e. the `CONFIG_FILES=(`
+    # line appears) BEFORE the `load_config_file` call site. The
+    # audit (PR #85) moved CONFIG_FILES to after USER_HOME derivation
+    # so it could use $USER_HOME, but accidentally left the call at
+    # its old position at the top of the script — the result was a
+    # for-loop in load_config_file iterating an empty array, silently
+    # loading no config. This test enforces the ordering.
+    local config_files_line load_call_line
+    config_files_line=$(/usr/bin/grep -nE '^CONFIG_FILES=\(' "$SCRIPT_PATH" | /usr/bin/head -1 | /usr/bin/cut -d: -f1 || echo 0)
+    load_call_line=$(/usr/bin/grep -nE '^\s*load_config_file\s*$' "$SCRIPT_PATH" | /usr/bin/head -1 | /usr/bin/cut -d: -f1 || echo 0)
+    if [ -z "$config_files_line" ] || [ "$config_files_line" = "0" ]; then
+        echo "No CONFIG_FILES=( assignment found in script" >&2
+        return 1
+    fi
+    if [ -z "$load_call_line" ] || [ "$load_call_line" = "0" ]; then
+        echo "No load_config_file call site found in script" >&2
+        return 1
+    fi
+    if [ "$config_files_line" -ge "$load_call_line" ]; then
+        echo "CONFIG_FILES is at line $config_files_line but load_config_file is called at line $load_call_line" >&2
+        echo "CONFIG_FILES must be defined before load_config_file is called" >&2
+        return 1
+    fi
+    return 0
+}
 test_user_home_derivation_uses_sudo_user() {
     # The script's USER_HOME derivation must (a) use $SUDO_USER's passwd
     # entry under sudo (via getent), and (b) fall back to $HOME when
@@ -368,6 +394,7 @@ assert "CATEGORY_REGISTRY has new SKIP_BROWSER_TOOLS/CRASH_REPORTS/USER_TOOL_CAC
 assert "No literal '\$HOME/' in user paths (security audit)"            test_no_literal_home_in_user_paths
 assert "Every 'find ... -delete' has -type filter or [ ! -L ] guard"    test_find_delete_has_type_or_symlink_guard
 assert "USER_HOME derivation uses SUDO_USER with getent fallback"        test_user_home_derivation_uses_sudo_user
+assert "CONFIG_FILES=() defined before load_config_file is called"      test_config_files_defined_before_load_config_file_call
 
 TOTAL=$(( PASS + FAIL ))
 echo ""
