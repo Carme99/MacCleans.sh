@@ -17,6 +17,7 @@ _mac_cleans() {
         --skip-icloud-drive --skip-quicklook --skip-diagnostics
         --skip-ios-backups --skip-ios-updates --skip-cocoapods
         --skip-gradle --skip-go --skip-bun --skip-pnpm
+        --skip-browser-tools --skip-crash-reports --skip-user-tool-caches
         --skip-system-tmp --clean-system-tmp
     )
 

@@ -217,11 +217,38 @@ run_category() {
         log_plain "================================================"
         return 0
     else
-        SKIPPED_CATEGORIES+=("$name")
-        return 1
-    fi
-}
-VERBOSE=false
+         SKIPPED_CATEGORIES+=("$name")
+         return 1
+     fi
+ }
+ VERBOSE=false
+
+# Per-category size estimates for the --json output's "details"
+# object. Section bodies that compute sizes call
+# `record_category_size` to publish them; the JSON output block
+# embeds them in the "details" object.
+#
+# Why a string and not an associative array? `declare -A` is bash 4+
+# syntax, and this script supports macOS's bundled bash 3.2.57. A
+# string accumulator works on all bash 3.1+ and is straightforward to
+# embed into JSON (with proper escaping). The cost is O(n) parsing
+# of a CSV-like structure, but the registry has ~33 entries and
+# records a few KB at most.
+CATEGORY_SIZES_JSON=""
+
+# Record a per-category size estimate for the --json output. Called
+# by section bodies that already compute a size in bytes + human
+# (e.g. BROWSER_TOOLS_BYTES / $(bytes_to_human ...)). The JSON output
+# block reads CATEGORY_SIZES_JSON and embeds the entries in the
+# "details" object.
+record_category_size() {
+     local name="$1"
+     local bytes="$2"
+     local human="$3"
+     local escaped_name="${name//\"/\\\"}"
+     local escaped_human="${human//\"/\\\"}"
+     CATEGORY_SIZES_JSON="$CATEGORY_SIZES_JSON\"$escaped_name\":{\"estimated_bytes\":$bytes,\"estimated_human\":\"$escaped_human\"},"
+ }
 
 # Configuration file locations (checked in order)
 # NOTE: This array is initialized later in the script, after USER_HOME
@@ -3099,6 +3126,7 @@ if run_category "29|Browser Testing Tool Caches|SKIP_BROWSER_TOOLS"; then
 
     if [ "$BROWSER_TOOLS_HIT" -gt 0 ]; then
         BROWSER_TOOLS_HUMAN=$(bytes_to_human "$BROWSER_TOOLS_BYTES")
+        record_category_size "Browser Testing Tool Caches" "$BROWSER_TOOLS_BYTES" "$BROWSER_TOOLS_HUMAN"
         if [ "$DRY_RUN" = true ]; then
             log "Would clear browser testing tool caches: $BROWSER_TOOLS_HUMAN"
             TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BROWSER_TOOLS_BYTES))
@@ -3148,6 +3176,7 @@ if run_category "30|Crash Reports|SKIP_CRASH_REPORTS"; then
 
     if [ "$CRASH_COUNT" -gt 0 ]; then
         CRASH_HUMAN=$(bytes_to_human "$CRASH_BYTES")
+        record_category_size "Crash Reports" "$CRASH_BYTES" "$CRASH_HUMAN"
         log "Found $CRASH_COUNT old crash report(s) (>7 days): $CRASH_HUMAN"
 
         if [ "$DRY_RUN" = true ]; then
@@ -3200,6 +3229,7 @@ if run_category "31|User Tool Caches|SKIP_USER_TOOL_CACHES"; then
 
     if [ "$USER_TOOL_HIT" -gt 0 ]; then
         USER_TOOL_HUMAN=$(bytes_to_human "$USER_TOOL_BYTES")
+        record_category_size "User Tool Caches" "$USER_TOOL_BYTES" "$USER_TOOL_HUMAN"
         if [ "$DRY_RUN" = true ]; then
             log "Would clear user tool caches: $USER_TOOL_HUMAN"
             TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + USER_TOOL_BYTES))
@@ -3360,7 +3390,7 @@ if [ "$JSON_OUTPUT" = true ]; then
         json_processed="$json_processed\"$escaped_cat\","
     done
     json_processed="${json_processed%,}"
-    
+
     # Build skipped array with proper JSON quoting
     json_skipped=""
     for cat in "${SKIPPED_CATEGORIES[@]}"; do
@@ -3368,6 +3398,47 @@ if [ "$JSON_OUTPUT" = true ]; then
         json_skipped="$json_skipped\"$escaped_cat\","
     done
     json_skipped="${json_skipped%,}"
+
+    # Build per-category "details" object. For every entry in
+    # CATEGORY_REGISTRY, emit { status, skip_flag (if any),
+    # estimated_bytes / estimated_human (if the section called
+    # record_category_size) }. Order follows CATEGORY_REGISTRY for
+    # stable output. Status is "would_run" if the category ran (i.e.
+    # it's in PROCESSED_CATEGORIES), else "skipped".
+    #
+    # We build a JSON fragment of "name":{...} entries in the same
+    # iteration, then concatenate the optional size fragments
+    # appended to CATEGORY_SIZES_JSON by the section bodies. The
+    # accumulated CATEGORY_SIZES_JSON is a string (not an associative
+    # array) for bash 3.2 compatibility.
+    json_details_parts=""
+    for entry in "${CATEGORY_REGISTRY[@]}"; do
+        name=$(registry_get_display "$entry")
+        skip_var=$(registry_get_skip_var "$entry")
+        # Resolve status: "would_run" or "skipped"
+        status="skipped"
+        for processed in "${PROCESSED_CATEGORIES[@]}"; do
+            if [ "$processed" = "$name" ]; then
+                status="would_run"
+                break
+            fi
+        done
+        # Build the per-category JSON fragment
+        escaped_name="${name//\"/\\\"}"
+        per_cat="\"status\":\"$status\""
+        if [ -n "$skip_var" ]; then
+            # SKIP_FOO_BAR -> --skip-foo-bar
+            flag="${skip_var#SKIP_}"
+            flag="$(printf '%s' "$flag" | tr '[:upper:]' '[:lower:]' | tr '_' '-')"
+            per_cat="$per_cat,\"skip_flag\":\"--skip-$flag\""
+        fi
+        json_details_parts="$json_details_parts\"$escaped_name\":{$per_cat},"
+    done
+    # Append the per-category size fragments (if any section bodies
+    # called record_category_size). Strip the trailing comma.
+    json_details_parts="$json_details_parts$CATEGORY_SIZES_JSON"
+    json_details_parts="${json_details_parts%,}"
+    json_details="{$json_details_parts}"
 
     cat <<EOF
 {
@@ -3381,7 +3452,8 @@ if [ "$JSON_OUTPUT" = true ]; then
             ],
             "skipped": [
                 $json_skipped
-            ]
+            ],
+            "details": $json_details
         },
         "disk_usage": {
             "before": $disk_before,

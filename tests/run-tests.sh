@@ -310,10 +310,113 @@ if violations:
 PY
 }
 
+test_record_category_size_helper() {
+    # Verifies the new `record_category_size` helper exists and stores
+    # the per-category size info into CATEGORY_SIZES_JSON. Used by the
+    # --json output to embed estimated_bytes / estimated_human in the
+    # "details" object.
+    if ! declare -f record_category_size >/dev/null 2>&1; then
+        echo "record_category_size helper is not defined" >&2
+        return 1
+    fi
+    # Reset the accumulator and call the helper twice
+    CATEGORY_SIZES_JSON=""
+    record_category_size "Test Category A" 1024 "1.0K"
+    record_category_size "Test Category B" 2048 "2.0K"
+    # CATEGORY_SIZES_JSON should now contain two "name":{...} entries
+    if ! echo "$CATEGORY_SIZES_JSON" | grep -qF '"Test Category A":{'; then
+        echo "record_category_size did not record Test Category A: $CATEGORY_SIZES_JSON" >&2
+        return 1
+    fi
+    if ! echo "$CATEGORY_SIZES_JSON" | grep -qF '"estimated_bytes":1024'; then
+        echo "record_category_size did not record bytes for Test Category A" >&2
+        return 1
+    fi
+    if ! echo "$CATEGORY_SIZES_JSON" | grep -qF '"estimated_human":"1.0K"'; then
+        echo "record_category_size did not record human-readable size" >&2
+        return 1
+    fi
+    if ! echo "$CATEGORY_SIZES_JSON" | grep -qF '"Test Category B":{'; then
+        echo "record_category_size did not record Test Category B" >&2
+        return 1
+    fi
+    return 0
+}
+
+test_json_output_uses_details() {
+    # Static check: the --json output block in clean-mac-space.sh
+    # should include a "details" object (added in v5.7.0). This is a
+    # structural test that fails if the field is removed or renamed
+    # in a future refactor.
+    if ! /usr/bin/grep -qF '"details":' "$SCRIPT_PATH"; then
+        echo '--json output block does not include a "details" field' >&2
+        echo '(the per-category details object is the v5.7.0 structured-output feature)' >&2
+        return 1
+    fi
+    return 0
+}
+
+test_release_sh_check_mode() {
+    # The release script should accept --check (added in v5.7.0) and
+    # have a --check branch in the source. We grep the file rather
+    # than running the script because --check requires git/CHANGELOG
+    # state that's not portable across the test environment.
+    if ! /usr/bin/grep -qF -- '--check' "$REPO_ROOT/scripts/release.sh"; then
+        echo "scripts/release.sh does not mention --check flag" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qE 'CHECK_ONLY' "$REPO_ROOT/scripts/release.sh"; then
+        echo "scripts/release.sh does not have a CHECK_ONLY branch" >&2
+        return 1
+    fi
+    return 0
+}
+
+test_release_check_workflow_exists() {
+    # The CI gate (.github/workflows/release-check.yml) should exist
+    # so the --check mode actually runs on every PR.
+    if [ ! -f "$REPO_ROOT/.github/workflows/release-check.yml" ]; then
+        echo ".github/workflows/release-check.yml not found" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qF 'release.sh' "$REPO_ROOT/.github/workflows/release-check.yml"; then
+        echo "release-check.yml does not reference release.sh" >&2
+        return 1
+    fi
+    return 0
+}
+
+test_completions_include_v56_skip_flags() {
+    # v5.6.0 added --skip-browser-tools, --skip-crash-reports, and
+    # --skip-user-tool-caches but missed updating the bash/zsh/fish
+    # completions. v5.7.0 added them. This test fails if any future
+    # PR adds a new --skip-X flag and forgets the completions again.
+    #
+    # Note: bash and zsh use the literal --skip-foo token in their
+    # options arrays; fish uses `-l skip-foo` (the long-form flag
+    # pattern, no leading --). So we grep for "skip-foo" in all 3.
+    local flag
+    for flag in browser-tools crash-reports user-tool-caches; do
+        # bash: literal --skip-foo in the options array
+        if ! /usr/bin/grep -qF -e "--skip-$flag" "$REPO_ROOT/completions/mac-cleans.bash"; then
+            echo "completions/mac-cleans.bash missing --skip-$flag" >&2
+            return 1
+        fi
+        # zsh: literal --skip-foo in the options array
+        if ! /usr/bin/grep -qF -e "--skip-$flag" "$REPO_ROOT/completions/_mac-cleans"; then
+            echo "completions/_mac-cleans missing --skip-$flag" >&2
+            return 1
+        fi
+        # fish: -l skip-foo (long-form flag, no leading --)
+        if ! /usr/bin/grep -qF -e "-l skip-$flag" "$REPO_ROOT/completions/mac-cleans.fish"; then
+            echo "completions/mac-cleans.fish missing -l skip-$flag" >&2
+            return 1
+        fi
+    done
+    return 0
+}
 test_config_files_defined_before_load_config_file_call() {
-    # CONFIG_FILES array must be defined (i.e. the `CONFIG_FILES=(`
-    # line appears) BEFORE the `load_config_file` call site. The
-    # audit (PR #85) moved CONFIG_FILES to after USER_HOME derivation
+    # The audit (PR #85) moved CONFIG_FILES to after USER_HOME derivation
     # so it could use $USER_HOME, but accidentally left the call at
     # its old position at the top of the script — the result was a
     # for-loop in load_config_file iterating an empty array, silently
@@ -395,6 +498,11 @@ assert "No literal '\$HOME/' in user paths (security audit)"            test_no_
 assert "Every 'find ... -delete' has -type filter or [ ! -L ] guard"    test_find_delete_has_type_or_symlink_guard
 assert "USER_HOME derivation uses SUDO_USER with getent fallback"        test_user_home_derivation_uses_sudo_user
 assert "CONFIG_FILES=() defined before load_config_file is called"      test_config_files_defined_before_load_config_file_call
+assert "record_category_size helper builds the size JSON accumulator"   test_record_category_size_helper
+assert '--json output block includes the "details" object'              test_json_output_uses_details
+assert "scripts/release.sh supports --check mode"                       test_release_sh_check_mode
+assert ".github/workflows/release-check.yml exists"                      test_release_check_workflow_exists
+assert "Completions include the 3 v5.6.0 --skip-X flags"                 test_completions_include_v56_skip_flags
 
 TOTAL=$(( PASS + FAIL ))
 echo ""

@@ -47,6 +47,9 @@ _mac_cleans() {
         '--skip-go[Skip Go module cache]'
         '--skip-bun[Skip Bun cache]'
         '--skip-pnpm[Skip pnpm store]'
+        '--skip-browser-tools[Skip browser testing tool caches (puppeteer, selenium)]'
+        '--skip-crash-reports[Skip crash reports cleanup]'
+        '--skip-user-tool-caches[Skip user tool caches in ~/.cache/]'
         '--skip-system-tmp[Skip /tmp and /var/tmp (default: on)]'
         '--clean-system-tmp[Opt in to /tmp and /var/tmp cleanup]'
     )

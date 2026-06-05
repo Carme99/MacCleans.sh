@@ -124,28 +124,67 @@ sudo Mac-Clean --dry-run --json
 **Example output:**
 ```json
 {
-  "version": "5.6.0",
-  "timestamp": "2026-04-09T12:00:00Z",
+  "version": "5.7.0",
+  "timestamp": "2026-06-05T18:30:00Z",
   "dry_run": true,
   "results": {
     "categories": {
       "processed": [
-        "Xcode Derived Data",
         "Homebrew Cache",
-        "Docker"
+        "Browser Testing Tool Caches"
       ],
       "skipped": [
-        "Time Machine Snapshots"
-      ]
+        "Time Machine Local Snapshots"
+      ],
+      "details": {
+        "Time Machine Local Snapshots": {
+          "status": "skipped",
+          "skip_flag": "--skip-snapshots"
+        },
+        "Homebrew Cache": {
+          "status": "would_run",
+          "skip_flag": "--skip-homebrew"
+        },
+        "Browser Testing Tool Caches": {
+          "status": "would_run",
+          "skip_flag": "--skip-browser-tools",
+          "estimated_bytes": 1610612736,
+          "estimated_human": "1.5G"
+        }
+      }
     },
     "disk_usage": {
       "before": 85,
-      "after": 77
+      "after": null
     },
     "space_freed": {
-      "bytes": 24696061952,
-      "human": "23.00 GB"
+      "bytes": 1610612736,
+      "human": "1.50 GB"
     }
+  }
+}
+```
+
+**The `details` object** (added in v5.7.0) gives you per-category info
+for scripting — status (`would_run` or `skipped`), the skip flag,
+and (when known) the size estimate. Use it like:
+
+```bash
+# What would get cleaned up?
+sudo Mac-Clean --dry-run --json | jq '.results.categories.details | to_entries | map(select(.value.status == "would_run")) | .[].key'
+
+# Which categories were skipped and why?
+sudo Mac-Clean --dry-run --json | jq '.results.categories.details | to_entries | map(select(.value.status == "skipped")) | map({category: .key, flag: .value.skip_flag})'
+
+# Sum of all estimated bytes for would_run categories
+sudo Mac-Clean --dry-run --json | jq '[.results.categories.details | to_entries[] | select(.value.status == "would_run" and .value.estimated_bytes != null) | .value.estimated_bytes] | add'
+```
+
+Note: `estimated_bytes` / `estimated_human` are populated only for
+categories whose section body calls `record_category_size`. As of
+v5.7.0, that's categories #29 (Browser Testing Tool Caches), #30
+(Crash Reports), and #31 (User Tool Caches). Other categories still
+appear in `details` with just `status` and `skip_flag`.
   }
 }
 ```

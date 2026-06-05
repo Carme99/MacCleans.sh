@@ -1,0 +1,48 @@
+name: Release check
+
+# Runs `scripts/release.sh --check` to verify the repo's release
+# state is consistent — catches the "bumped VERSION but forgot to
+# regenerate EXPECTED_HASH" bug class that the v5.2.0 release
+# tripped over, and that the v5.5.0/v5.5.1/v5.5.2 release prep
+# had to remember to do manually.
+#
+# The check is read-only (it just inspects the working tree) so it's
+# safe to run on every PR. Failures point at the drift and tell you
+# which command to run to fix it.
+#
+# Triggers:
+#   - push to main (catches drift on the main branch)
+#   - pull_request (PR gate; fails PRs that introduce drift)
+#   - workflow_dispatch (manual re-run)
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-check:
+    name: scripts/release.sh --check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          # fetch-depth: 0 so `git describe --tags` (used inside the
+          # --check block) can see all tags, not just the current
+          # commit's reachable ones.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      # Use a placeholder version; --check inspects the current
+      # VERSION in clean-mac-space.sh, not the X.Y.Z argument. The
+      # X.Y.Z is only used in error messages ("fix: run scripts/release.sh
+      # X.Y.Z to regenerate") so any valid semver string works.
+      - name: Run release state check
+        run: bash scripts/release.sh 0.0.0 --check

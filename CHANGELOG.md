@@ -4,20 +4,18 @@ All notable changes to MacCleans.sh are documented in this file.
 
 ## [Unreleased]
 
-### Security
+## [5.7.0] - 2026-06-05
 
-- **Three-pass security audit + 3 audit tests** — script-wide review of `$USER_HOME` usage, `find -delete` symlink-safety, and sudo path resolution. Found and fixed 3 real bugs (below). The audit patterns are now codified as 3 CI tests in `tests/run-tests.sh` so future regressions get caught at PR time.
-- **Fixed: `CONFIG_FILES` (script entry points) used literal `$HOME`** — under `sudo Mac-Clean` on default macOS sudoers, `$HOME` resolves to `/var/root`, which meant the script silently missed the user's `~/.maccleans.conf` and `~/.config/maccleans/config`. The config-file load would then use no config, and the user wouldn't see the warning. Moved the array to after the `USER_HOME` derivation and switched to `$USER_HOME`.
-- **Fixed: `LOCKDIR="$HOME/.macclean/lock"`** — the per-invocation lock went to `/var/root/.macclean/lock` under sudo, while a non-sudo invocation would create a separate lock in the user's real home. Two separate locks = no actual concurrency protection. Reassigned `LOCKDIR` after `USER_HOME` derivation to use `$USER_HOME/.macclean/lock`.
-- **Fixed: `check_icloud_backup_enabled` used `$HOME`** — the iOS backup detection logic looked for `~/Library/Logs/MobileBackup/Backup.log`, which under sudo would silently miss the user's real backup log. This affected the safety check that warns before deleting iOS device backups (category #21). Switched to `$USER_HOME`.
+### Added
+
+- **Per-category `details` object in the `--json` output** — for every category in `CATEGORY_REGISTRY`, the output now includes `{ "status": "would_run" | "skipped", "skip_flag": "--skip-...", "estimated_bytes": N, "estimated_human": "X" }`. Lets users pipe `--json` to `jq` and inspect per-category decisions before committing to a run. As of this release, the size fields are populated by categories #29 (Browser Testing Tool Caches), #30 (Crash Reports), and #31 (User Tool Caches) — all other categories show `status` + `skip_flag` only. Future PRs can extend the call sites in the section bodies.
+- **Bash/zsh/fish completions for the 3 v5.6.0 `--skip-X` flags** — `--skip-browser-tools`, `--skip-crash-reports`, and `--skip-user-tool-caches` are now tab-completable in all 3 shells (added to the corresponding entries in `completions/mac-cleans.bash`, `completions/_mac-cleans`, `completions/mac-cleans.fish`). The v5.6.0 release shipped the flags but missed updating the completions.
+- **`scripts/release.sh --check` mode + `.github/workflows/release-check.yml`** — the release script now supports a `--check` flag that verifies the release state (VERSION, EXPECTED_HASH, CHANGELOG) without making any changes. Exits 0 on clean, 1 on drift. The new CI workflow runs this check on every push to main and every PR, catching the "bumped VERSION but forgot to regen EXPECTED_HASH" bug class (which the v5.2.0 release tripped over, and the v5.5.0/v5.5.1/v5.5.2 release prep had to remember manually). Failed checks print the fix command.
 
 ### Internal
 
-- `tests/run-tests.sh`: 14 → 17 tests. The 3 new tests are:
-  - `test_no_literal_home_in_user_paths` — fails if any future PR adds `"$HOME/..."` to the script
-  - `test_find_delete_has_type_or_symlink_guard` — fails if any future `find ... -delete` lacks a type filter or `[ ! -L ]` guard
-  - `test_user_home_derivation_uses_sudo_user` — verifies the sudo/non-sudo derivation block in the script has the right shape (uses `$SUDO_USER` + `getent` with a `$HOME` fallback)
-- `docs/explanation/security-model.md`: documents the `$USER_HOME` and `find -delete` symlink-safety conventions so the next contributor knows the rules without having to re-derive them.
+- New `record_category_size` helper (defined in `clean-mac-space.sh`, called from the 3 section bodies that calculate sizes) publishes per-category estimates for the new JSON `details` object. Implemented as a string accumulator rather than an associative array for bash 3.2 compatibility (the script still supports macOS's bundled bash 3.2.57, which predates `declare -A`).
+- The `--json` output block now derives `status` from `PROCESSED_CATEGORIES` and `skip_flag` from the registry entry (no per-section call needed) — sections only call `record_category_size` when they have a size to publish. This means every category gets at least a `status` + `skip_flag` entry in `details` without any new per-section wiring.
 
 ## [5.6.0] - 2026-06-05
 
