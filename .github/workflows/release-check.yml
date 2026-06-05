@@ -37,12 +37,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install shellcheck
-        run: sudo apt-get install -y shellcheck
-
-      # Use a placeholder version; --check inspects the current
-      # VERSION in clean-mac-space.sh, not the X.Y.Z argument. The
-      # X.Y.Z is only used in error messages ("fix: run scripts/release.sh
-      # X.Y.Z to regenerate") so any valid semver string works.
+      # The X.Y.Z version argument is optional in --check mode. The
+      # check reads SCRIPT_VERSION (the VERSION= line in
+      # clean-mac-space.sh) for the remediation hint, so we don't
+      # need a placeholder here. No shellcheck needed — this job is
+      # the release-state gate, not the lint gate (that's shellcheck.yml).
       - name: Run release state check
-        run: bash scripts/release.sh 0.0.0 --check
+        run: bash scripts/release.sh --check

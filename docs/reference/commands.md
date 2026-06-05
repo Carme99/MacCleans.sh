@@ -185,9 +185,6 @@ categories whose section body calls `record_category_size`. As of
 v5.7.0, that's categories #29 (Browser Testing Tool Caches), #30
 (Crash Reports), and #31 (User Tool Caches). Other categories still
 appear in `details` with just `status` and `skip_flag`.
-  }
-}
-```
 
 ---
 

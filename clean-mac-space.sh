@@ -226,28 +226,42 @@ run_category() {
 # Per-category size estimates for the --json output's "details"
 # object. Section bodies that compute sizes call
 # `record_category_size` to publish them; the JSON output block
-# embeds them in the "details" object.
+# looks the values up via indirect variable expansion when building
+# the per-category fragment.
 #
-# Why a string and not an associative array? `declare -A` is bash 4+
-# syntax, and this script supports macOS's bundled bash 3.2.57. A
-# string accumulator works on all bash 3.1+ and is straightforward to
-# embed into JSON (with proper escaping). The cost is O(n) parsing
-# of a CSV-like structure, but the registry has ~33 entries and
-# records a few KB at most.
-CATEGORY_SIZES_JSON=""
+# Why indirect variables? `declare -A` is bash 4+ syntax, and this
+# script supports macOS's bundled bash 3.2.57. Indirect expansion
+# (`${!var_name}`) works on all bash 2.0+ and gives us a clean
+# per-name lookup that avoids the duplicate-key JSON bug a flat
+# accumulator would cause (see PR #86 review).
+#
+# Naming convention: the display name is normalized to a valid bash
+# variable identifier (spaces and non-alphanumerics -> underscores)
+# and prefixed with DETAIL_BYTES_ / DETAIL_HUMAN_. Section bodies
+# must only call record_category_size with names drawn from
+# CATEGORY_REGISTRY's display names; an off-registry name will
+# silently not appear in the JSON output.
+CATEGORY_DETAIL_PREFIX="DETAIL"
 
 # Record a per-category size estimate for the --json output. Called
 # by section bodies that already compute a size in bytes + human
 # (e.g. BROWSER_TOOLS_BYTES / $(bytes_to_human ...)). The JSON output
-# block reads CATEGORY_SIZES_JSON and embeds the entries in the
-# "details" object.
+# block looks up the values via `${!DETAIL_BYTES_<name>}` /
+# `${!DETAIL_HUMAN_<name>}` when building each per-category
+# fragment, so there's exactly one `"Category": {...}` entry per
+# category in the output.
 record_category_size() {
      local name="$1"
      local bytes="$2"
      local human="$3"
-     local escaped_name="${name//\"/\\\"}"
-     local escaped_human="${human//\"/\\\"}"
-     CATEGORY_SIZES_JSON="$CATEGORY_SIZES_JSON\"$escaped_name\":{\"estimated_bytes\":$bytes,\"estimated_human\":\"$escaped_human\"},"
+     # Normalize name to a valid bash variable identifier. Display
+     # names use spaces ("Browser Testing Tool Caches") which need
+     # to become underscores for indirect var expansion. Strip any
+     # other non-alphanumeric chars defensively.
+     local var_name="${name// /_}"
+     var_name="${var_name//[^A-Za-z0-9_]/_}"
+     printf -v "${CATEGORY_DETAIL_PREFIX}_BYTES_${var_name}" '%s' "$bytes"
+     printf -v "${CATEGORY_DETAIL_PREFIX}_HUMAN_${var_name}" '%s' "$human"
  }
 
 # Configuration file locations (checked in order)
@@ -3406,11 +3420,11 @@ if [ "$JSON_OUTPUT" = true ]; then
     # stable output. Status is "would_run" if the category ran (i.e.
     # it's in PROCESSED_CATEGORIES), else "skipped".
     #
-    # We build a JSON fragment of "name":{...} entries in the same
-    # iteration, then concatenate the optional size fragments
-    # appended to CATEGORY_SIZES_JSON by the section bodies. The
-    # accumulated CATEGORY_SIZES_JSON is a string (not an associative
-    # array) for bash 3.2 compatibility.
+    # Size info (estimated_bytes / estimated_human) is looked up via
+    # indirect variable expansion (DETAIL_BYTES_<name> /
+    # DETAIL_HUMAN_<name>) so each category is emitted exactly once
+    # with its full fragment, avoiding the duplicate-key bug a flat
+    # accumulator would produce.
     json_details_parts=""
     for entry in "${CATEGORY_REGISTRY[@]}"; do
         name=$(registry_get_display "$entry")
@@ -3432,11 +3446,29 @@ if [ "$JSON_OUTPUT" = true ]; then
             flag="$(printf '%s' "$flag" | tr '[:upper:]' '[:lower:]' | tr '_' '-')"
             per_cat="$per_cat,\"skip_flag\":\"--skip-$flag\""
         fi
+        # Look up the size info (if the section called
+        # record_category_size). Normalize the name to a valid bash
+        # variable identifier for indirect expansion.
+        detail_var="${name// /_}"
+        detail_var="${detail_var//[^A-Za-z0-9_]/_}"
+        detail_bytes_var="${CATEGORY_DETAIL_PREFIX}_BYTES_${detail_var}"
+        detail_human_var="${CATEGORY_DETAIL_PREFIX}_HUMAN_${detail_var}"
+        # Use eval-free indirect expansion. Under `set -u` the
+        # `${!var:-}` form returns empty if the var is unset, so
+        # categories that didn't call record_category_size just
+        # get status + skip_flag.
+        detail_bytes="${!detail_bytes_var:-}"
+        detail_human="${!detail_human_var:-}"
+        if [ -n "$detail_bytes" ]; then
+            per_cat="$per_cat,\"estimated_bytes\":$detail_bytes"
+            if [ -n "$detail_human" ]; then
+                escaped_human="${detail_human//\"/\\\"}"
+                per_cat="$per_cat,\"estimated_human\":\"$escaped_human\""
+            fi
+        fi
         json_details_parts="$json_details_parts\"$escaped_name\":{$per_cat},"
     done
-    # Append the per-category size fragments (if any section bodies
-    # called record_category_size). Strip the trailing comma.
-    json_details_parts="$json_details_parts$CATEGORY_SIZES_JSON"
+    # Strip the trailing comma
     json_details_parts="${json_details_parts%,}"
     json_details="{$json_details_parts}"
 

@@ -312,44 +312,60 @@ PY
 
 test_record_category_size_helper() {
     # Verifies the new `record_category_size` helper exists and stores
-    # the per-category size info into CATEGORY_SIZES_JSON. Used by the
+    # the per-category size info via indirect variable expansion
+    # (DETAIL_BYTES_<name> / DETAIL_HUMAN_<name>). Used by the
     # --json output to embed estimated_bytes / estimated_human in the
-    # "details" object.
+    # "details" object. The previous implementation used a flat
+    # string accumulator (CATEGORY_SIZES_JSON) which produced
+    # duplicate keys in the output JSON when both a registry entry
+    # and a size call existed for the same category — the
+    # indirect-var approach lets the main loop merge the size info
+    # into the per-category fragment, emitting each category exactly
+    # once.
     if ! declare -f record_category_size >/dev/null 2>&1; then
         echo "record_category_size helper is not defined" >&2
         return 1
     fi
-    # Reset the accumulator and call the helper twice
-    CATEGORY_SIZES_JSON=""
-    record_category_size "Test Category A" 1024 "1.0K"
-    record_category_size "Test Category B" 2048 "2.0K"
-    # CATEGORY_SIZES_JSON should now contain two "name":{...} entries
-    if ! echo "$CATEGORY_SIZES_JSON" | grep -qF '"Test Category A":{'; then
-        echo "record_category_size did not record Test Category A: $CATEGORY_SIZES_JSON" >&2
+    # Use a unique name so we don't collide with the v5.6.0 sections
+    # that also call record_category_size in some test setups.
+    local TEST_NAME="RecordCategorySize Test Subject"
+    local BYTES_VAR="DETAIL_BYTES_RecordCategorySize_Test_Subject"
+    local HUMAN_VAR="DETAIL_HUMAN_RecordCategorySize_Test_Subject"
+    # Clean up any leftover state from a previous test run
+    unset "$BYTES_VAR" "$HUMAN_VAR"
+    record_category_size "$TEST_NAME" 1024 "1.0K"
+    # Verify the indirect vars got set
+    local recorded_bytes="${!BYTES_VAR:-}"
+    local recorded_human="${!HUMAN_VAR:-}"
+    if [ "$recorded_bytes" != "1024" ]; then
+        echo "record_category_size did not set DETAIL_BYTES_<name>=1024 (got '$recorded_bytes')" >&2
         return 1
     fi
-    if ! echo "$CATEGORY_SIZES_JSON" | grep -qF '"estimated_bytes":1024'; then
-        echo "record_category_size did not record bytes for Test Category A" >&2
+    if [ "$recorded_human" != "1.0K" ]; then
+        echo "record_category_size did not set DETAIL_HUMAN_<name>=1.0K (got '$recorded_human')" >&2
         return 1
     fi
-    if ! echo "$CATEGORY_SIZES_JSON" | grep -qF '"estimated_human":"1.0K"'; then
-        echo "record_category_size did not record human-readable size" >&2
-        return 1
-    fi
-    if ! echo "$CATEGORY_SIZES_JSON" | grep -qF '"Test Category B":{'; then
-        echo "record_category_size did not record Test Category B" >&2
-        return 1
-    fi
+    # Cleanup
+    unset "$BYTES_VAR" "$HUMAN_VAR"
     return 0
 }
 
 test_json_output_uses_details() {
     # Static check: the --json output block in clean-mac-space.sh
-    # should include a "details" object (added in v5.7.0). This is a
-    # structural test that fails if the field is removed or renamed
-    # in a future refactor.
-    if ! /usr/bin/grep -qF '"details":' "$SCRIPT_PATH"; then
-        echo '--json output block does not include a "details" field' >&2
+    # should include a "details" object (added in v5.7.0). Scoped
+    # to the JSON emitter template (`cat <<EOF` block) so a comment
+    # mentioning `"details":` elsewhere in the file doesn't false-
+    # positive. We grep for the more specific pattern `"details":
+    # $json_details` — that's the line that actually emits the
+    # per-category details into the output.
+    local json_template
+    json_template=$(/usr/bin/awk '/^[[:space:]]*cat <<EOF$/,/^EOF$/' "$SCRIPT_PATH")
+    if [ -z "$json_template" ]; then
+        echo "could not extract JSON emitter block from $SCRIPT_PATH" >&2
+        return 1
+    fi
+    if ! echo "$json_template" | /usr/bin/grep -qF '"details": $json_details'; then
+        echo '--json output block does not include a "details": $json_details field' >&2
         echo '(the per-category details object is the v5.7.0 structured-output feature)' >&2
         return 1
     fi
