@@ -4,6 +4,21 @@ All notable changes to MacCleans.sh are documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- **Three-pass security audit + 3 audit tests** — script-wide review of `$USER_HOME` usage, `find -delete` symlink-safety, and sudo path resolution. Found and fixed 3 real bugs (below). The audit patterns are now codified as 3 CI tests in `tests/run-tests.sh` so future regressions get caught at PR time.
+- **Fixed: `CONFIG_FILES` (script entry points) used literal `$HOME`** — under `sudo Mac-Clean` on default macOS sudoers, `$HOME` resolves to `/var/root`, which meant the script silently missed the user's `~/.maccleans.conf` and `~/.config/maccleans/config`. The config-file load would then use no config, and the user wouldn't see the warning. Moved the array to after the `USER_HOME` derivation and switched to `$USER_HOME`.
+- **Fixed: `LOCKDIR="$HOME/.macclean/lock"`** — the per-invocation lock went to `/var/root/.macclean/lock` under sudo, while a non-sudo invocation would create a separate lock in the user's real home. Two separate locks = no actual concurrency protection. Reassigned `LOCKDIR` after `USER_HOME` derivation to use `$USER_HOME/.macclean/lock`.
+- **Fixed: `check_icloud_backup_enabled` used `$HOME`** — the iOS backup detection logic looked for `~/Library/Logs/MobileBackup/Backup.log`, which under sudo would silently miss the user's real backup log. This affected the safety check that warns before deleting iOS device backups (category #21). Switched to `$USER_HOME`.
+
+### Internal
+
+- `tests/run-tests.sh`: 14 → 17 tests. The 3 new tests are:
+  - `test_no_literal_home_in_user_paths` — fails if any future PR adds `"$HOME/..."` to the script
+  - `test_find_delete_has_type_or_symlink_guard` — fails if any future `find ... -delete` lacks a type filter or `[ ! -L ]` guard
+  - `test_user_home_derivation_uses_sudo_user` — verifies the sudo/non-sudo derivation block in the script has the right shape (uses `$SUDO_USER` + `getent` with a `$HOME` fallback)
+- `docs/explanation/security-model.md`: documents the `$USER_HOME` and `find -delete` symlink-safety conventions so the next contributor knows the rules without having to re-derive them.
+
 ## [5.6.0] - 2026-06-05
 
 ### Added

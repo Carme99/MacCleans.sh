@@ -224,11 +224,15 @@ run_category() {
 VERBOSE=false
 
 # Configuration file locations (checked in order)
-CONFIG_FILES=(
-    "$HOME/.maccleans.conf"
-    "$HOME/.config/maccleans/config"
-    "${XDG_CONFIG_HOME:-$HOME/.config}/maccleans/config"
-)
+# NOTE: This array is initialized later in the script, after USER_HOME
+# is derived (see the post-source-guard setup block). Using $HOME here
+# at script-load time would silently miss the user's actual config when
+# run under `sudo` — $HOME under sudo resolves to /var/root on default
+# macOS sudoers (Defaults env_reset), but USER_HOME is correctly derived
+# from $SUDO_USER's passwd entry. The audit test
+# `test_user_home_for_user_paths` enforces that any user-path array or
+# variable assignment uses $USER_HOME, not $HOME.
+# See the security audit PR for context.
 
 ###############################################################################
 # Helper Functions
@@ -387,12 +391,6 @@ load_config_file() {
         fi
     done
 }
-
-# Load configuration. Skipped in TEST_MODE so the sourced script
-# doesn't read or write user-level config files from tests.
-if [ -z "${TEST_MODE:-}" ]; then
-    load_config_file
-fi
 
 # Parse command-line arguments
 parse_arguments() {
@@ -608,11 +606,12 @@ cleanup_on_exit() {
 }
 trap cleanup_on_exit EXIT
 
-# Lock directory for preventing parallel runs
-# Use user-protected directory instead of world-writable /tmp
-LOCKDIR="$HOME/.macclean/lock"
-LOCK_OWNED=0
-MIN_FREE_MB=200
+# Lock directory for preventing parallel runs. Initialised in the
+# post-source-guard setup block (after USER_HOME is derived) so it
+# can use $USER_HOME. The trap cleanup_on_exit (set above) holds
+# the unset value via parameter expansion guards
+# (`${LOCK_OWNED:-0}` and `-n "${LOCKDIR:-}"`).
+# See the security audit PR for context on why $HOME here was a bug.
 
 # Acquire exclusive lock atomically using mkdir
 # Uses atomic mkdir for lock acquisition to avoid TOCTOU race conditions
@@ -806,10 +805,13 @@ check_icloud_backup_enabled() {
     fi
     
     # Also check if there's evidence of recent iCloud backups in the log
-    # This is a secondary check to be more permissive
-    if [ -f "$HOME/Library/Logs/MobileBackup/Backup.log" ]; then
+    # This is a secondary check to be more permissive.
+    # Uses $USER_HOME (not $HOME) so the actual user's home is checked
+    # under `sudo` — the old code used $HOME which would silently
+    # miss the real backup log under sudo on default macOS sudoers.
+    if [ -f "$USER_HOME/Library/Logs/MobileBackup/Backup.log" ]; then
         local recent_backup
-        recent_backup=$(find "$HOME/Library/Logs/MobileBackup" -name "Backup.log" -mtime -30 2>/dev/null | wc -l)
+        recent_backup=$(find "$USER_HOME/Library/Logs/MobileBackup" -name "Backup.log" -mtime -30 2>/dev/null | wc -l)
         if [ "$recent_backup" -gt 0 ]; then
             return 0
         fi
@@ -1105,6 +1107,10 @@ else
     ACTUAL_USER=$(whoami)
     USER_HOME="$HOME"
 fi
+# AUDIT_MARKER: end of sudo_user_derivation_block
+# Used by tests/run-tests.sh::test_user_home_derivation_uses_sudo_user
+# as a stable end-anchor for the block extraction. Don't move this
+# marker; if you need to refactor the block above, update the test.
 
 # Resolve symlinks in USER_HOME to prevent operating on wrong directory
 if [ -L "$USER_HOME" ]; then
@@ -1129,6 +1135,41 @@ if [ -L "$USER_HOME" ]; then
         log_warning "readlink not found; cannot resolve user home symlink. Using: $USER_HOME"
     fi
 fi
+
+# Configuration file locations (checked in order).
+# Uses $USER_HOME (not $HOME) so the user's actual home is targeted
+# under sudo. The old (pre-audit) code used $HOME here at script-load
+# time, which silently missed the user's real config under `sudo Mac-Clean`
+# on default macOS sudoers (env_reset → $HOME=/var/root).
+CONFIG_FILES=(
+    "$USER_HOME/.maccleans.conf"
+    "$USER_HOME/.config/maccleans/config"
+    "${XDG_CONFIG_HOME:-$USER_HOME/.config}/maccleans/config"
+)
+
+# Load configuration. Skipped in TEST_MODE so the sourced script
+# doesn't read or write user-level config files from tests. Lives
+# here (not at the top of the script) so it runs AFTER CONFIG_FILES
+# is initialized — which itself has to be after USER_HOME is derived.
+# The audit caught a regression where the call was at the top of the
+# script but CONFIG_FILES had moved to after USER_HOME, so the for
+# loop in load_config_file iterated an empty array and no config was
+# ever loaded. The test
+# test_config_files_defined_before_load_config_file_call enforces
+# the ordering.
+if [ -z "${TEST_MODE:-}" ]; then
+    load_config_file
+fi
+
+# Lock directory for preventing parallel runs. Reassigned here (not at
+# the top of the script) so it can use $USER_HOME, which is derived
+# above. The old (pre-audit) code used $HOME here, which under `sudo`
+# resolved to /var/root and meant the lock didn't actually protect the
+# user (a non-sudo run of the script would create a separate lock in
+# the user's real home, defeating the whole concurrency check).
+LOCKDIR="$USER_HOME/.macclean/lock"
+LOCK_OWNED=0
+MIN_FREE_MB=200
 
 # Validate user
 if [ -z "$ACTUAL_USER" ] || [ "$ACTUAL_USER" = "root" ]; then
