@@ -941,6 +941,28 @@ safe_du() {
     fi
 }
 
+# Measure a single cache directory for the size-aggregation pattern
+# used by the Browser Testing Tool Caches (#29) and User Tool Caches
+# (#31) sections. Echoes "BYTES|HUMAN_SIZE" if the directory exists,
+# is not a symlink, and has non-zero content. Returns 0 in that case.
+# Returns 1 otherwise. Centralises the safe_du + size_to_bytes +
+# symlink guard + non-zero check so the pattern isn't repeated for
+# every subdirectory.
+measure_cache_dir() {
+    local dir="$1"
+    if [ ! -d "$dir" ] || [ -L "$dir" ]; then
+        return 1
+    fi
+    local human bytes
+    human=$(safe_du "$dir")
+    bytes=$(size_to_bytes "$human")
+    if [ "$bytes" -gt 0 ]; then
+        printf '%s|%s\n' "$bytes" "$human"
+        return 0
+    fi
+    return 1
+}
+
 # Function to convert human-readable size to bytes
 # Uses awk to avoid bash integer overflow on large sizes (TB+)
 # POSIX-compatible: uses match() with RSTART/RLENGTH instead of GNU-only capture groups
@@ -3012,21 +3034,25 @@ if run_category "29|Browser Testing Tool Caches|SKIP_BROWSER_TOOLS"; then
     # download full browser binaries into ~/.cache. The binaries are
     # re-downloaded automatically the next time a test runs, so deleting
     # them is safe and a major space win (often 500MB-2GB per machine).
-    PUPPETEER_DIR="$HOME/.cache/puppeteer"
-    SELENIUM_DIR="$HOME/.cache/selenium"
+    # Use $USER_HOME (not $HOME) so the user's home is targeted under
+    # sudo — matches the convention used by every other category in the
+    # script. $HOME under sudo can resolve to /var/root, which would
+    # miss the user's actual cache directories.
+    PUPPETEER_DIR="$USER_HOME/.cache/puppeteer"
+    SELENIUM_DIR="$USER_HOME/.cache/selenium"
 
     BROWSER_TOOLS_BYTES=0
     BROWSER_TOOLS_HIT=0
 
-    for browser_dir in "$PUPPETEER_DIR" "$SELENIUM_DIR"; do
-        if [ -d "$browser_dir" ] && [ ! -L "$browser_dir" ]; then
-            dir_size=$(safe_du "$browser_dir")
-            dir_bytes=$(size_to_bytes "$dir_size")
-            if [ "$dir_bytes" -gt 0 ]; then
-                BROWSER_TOOLS_BYTES=$((BROWSER_TOOLS_BYTES + dir_bytes))
-                BROWSER_TOOLS_HIT=$((BROWSER_TOOLS_HIT + 1))
-                log "Found $(basename "$browser_dir") cache: $dir_size"
-            fi
+    for label_dir in "Puppeteer:$PUPPETEER_DIR" "Selenium:$SELENIUM_DIR"; do
+        label="${label_dir%%:*}"
+        dir="${label_dir#*:}"
+        if measured=$(measure_cache_dir "$dir"); then
+            bytes="${measured%%|*}"
+            human="${measured#*|}"
+            BROWSER_TOOLS_BYTES=$((BROWSER_TOOLS_BYTES + bytes))
+            BROWSER_TOOLS_HIT=$((BROWSER_TOOLS_HIT + 1))
+            log "Found $label cache: $human"
         fi
     done
 
@@ -3112,26 +3138,24 @@ if run_category "31|User Tool Caches|SKIP_USER_TOOL_CACHES"; then
     # directory, so we cover it here. (We considered extending #10 to
     # include ~/.cache/uv, but that would require renaming the
     # category and is a larger change than this PR's scope.)
-    USER_CACHE_BASE="$HOME/.cache"
+    # Use $USER_HOME (not $HOME) so the user's home is targeted under
+    # sudo — same convention as every other category in the script.
+    USER_CACHE_BASE="$USER_HOME/.cache"
     USER_TOOL_SUBDIRS=(uv giget opencode opencode-agent-skills powershell gh starship)
 
     USER_TOOL_BYTES=0
     USER_TOOL_HIT=0
 
-    if [ -d "$USER_CACHE_BASE" ] && [ ! -L "$USER_CACHE_BASE" ]; then
-        for subdir in "${USER_TOOL_SUBDIRS[@]}"; do
-            tool_dir="$USER_CACHE_BASE/$subdir"
-            if [ -d "$tool_dir" ] && [ ! -L "$tool_dir" ]; then
-                dir_size=$(safe_du "$tool_dir")
-                dir_bytes=$(size_to_bytes "$dir_size")
-                if [ "$dir_bytes" -gt 0 ]; then
-                    USER_TOOL_BYTES=$((USER_TOOL_BYTES + dir_bytes))
-                    USER_TOOL_HIT=$((USER_TOOL_HIT + 1))
-                    log "Found $subdir cache: $dir_size"
-                fi
-            fi
-        done
-    fi
+    for subdir in "${USER_TOOL_SUBDIRS[@]}"; do
+        tool_dir="$USER_CACHE_BASE/$subdir"
+        if measured=$(measure_cache_dir "$tool_dir"); then
+            bytes="${measured%%|*}"
+            human="${measured#*|}"
+            USER_TOOL_BYTES=$((USER_TOOL_BYTES + bytes))
+            USER_TOOL_HIT=$((USER_TOOL_HIT + 1))
+            log "Found $subdir cache: $human"
+        fi
+    done
 
     if [ "$USER_TOOL_HIT" -gt 0 ]; then
         USER_TOOL_HUMAN=$(bytes_to_human "$USER_TOOL_BYTES")
