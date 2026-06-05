@@ -729,17 +729,31 @@ safe_clear_directory() {
     # Delete files with error tracking.
     # (PR #88 F-3: replaced the per-file rm loop with a single
     # `find -type f -delete` — one process tree, no per-file fork.
-    # The empty-dir and non-empty-dir passes are merged into one
-    # `find -type d -delete` which handles both.)
+    # Trade-off: lose per-file error granularity. Mitigated by
+    # verbose-mode fallback that re-walks the dir to surface
+    # a sample of undeleted files for troubleshooting.)
     if ! find "$dir" -mindepth "$mindepth" -type f -delete 2>/dev/null; then
         log_warning "Some files could not be deleted (permission denied or in use)"
+        if [ "${VERBOSE:-false}" = true ]; then
+            local leftover
+            leftover=$(find "$dir" -mindepth "$mindepth" -type f 2>/dev/null | head -5)
+            if [ -n "$leftover" ]; then
+                log_warning "Sample undeleted files (verbose):"
+                while IFS= read -r f; do
+                    log_warning "  $f"
+                done <<< "$leftover"
+            fi
+        fi
         status=1
     fi
-    if ! find "$dir" -mindepth "$mindepth" -type d -delete 2>/dev/null; then
-        log_warning "Some directories could not be deleted (permission denied or in use)"
+    # Remove the directory itself. `rm -rf` is one fork, and unlike
+    # `find -type d -delete` it also removes non-empty directories
+    # containing non-regular entries (symlinks, sockets, fifos).
+    if ! rm -rf "$dir" 2>/dev/null; then
+        log_warning "Directory could not be removed: $dir (permission denied or in use)"
         status=1
     fi
-    
+
     return $status
 }
 
@@ -1486,10 +1500,19 @@ interactive_selection() {
                     # (PR #88 UX-1: previous handler special-cased 1 with
                     # 0.3s lookahead for 10-13 only, leaving 14-${total}
                     # silently swallowed by the `*)` branch.)
-                    IFS= read -rsn1 -t 0.3 next_key
-                    local num="$key"
+                    #
+                    # UX: If the 2-digit combo is invalid (e.g. 20 when only 1–9
+                    # exist) or the lookahead is non-digit / times out, treat
+                    # the first digit as a single-digit selection instead of
+                    # discarding the whole sequence.
+                    first_key="$key"
+                    IFS= read -rsn1 -t 0.3 next_key || next_key=""
+                    local num="$first_key"
                     if [[ -n "$next_key" ]] && [[ "$next_key" =~ [0-9] ]]; then
-                        num="${key}${next_key}"
+                        local num2="${first_key}${next_key}"
+                        if [ "$num2" -le "$total" ] 2>/dev/null; then
+                            num="$num2"
+                        fi
                     fi
                     if [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -ge 1 ] && [ "$num" -le "$total" ]; then
                         toggle_category $((num - 1))
@@ -2180,7 +2203,13 @@ if run_category "12|Docker Cache|SKIP_DOCKER"; then
                 # Extract the total reclaimable from the last row of
                 # the same --format output (one daemon round-trip
                 # serves both the display and the reclaim value).
-                DOCKER_RECLAIM_SIZE=$(echo "$DOCKER_INFO" | tail -1 | awk '{print $4}')
+                # Anchor on the column header "RECLAIMABLE" rather than
+                # a hard-coded field index, so localised columns or
+                # future format changes don't break the parse.
+                DOCKER_RECLAIM_SIZE=$(echo "$DOCKER_INFO" | awk '
+                    NR==1 { for (i=1; i<=NF; i++) if ($i=="RECLAIMABLE") col=i; next }
+                    col   { print $col; exit }
+                ')
                 # Validate and sanitize - handle empty, 0B, or N/A
                 if [ -z "$DOCKER_RECLAIM_SIZE" ] || [ "$DOCKER_RECLAIM_SIZE" = "0B" ] || [ "$DOCKER_RECLAIM_SIZE" = "N/A" ]; then
                     DOCKER_RECLAIM=0

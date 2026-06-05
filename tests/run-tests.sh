@@ -503,7 +503,7 @@ test_interactive_menu_handles_all_digit_ranges() {
         echo "Interactive menu is missing the [1-9]) case arm." >&2
         return 1
     fi
-    if ! /usr/bin/grep -qE 'num=\"\$\{key\}\$\{next_key\}\"' "$SCRIPT_PATH"; then
+    if ! /usr/bin/grep -qE 'num[0-9]*=\"\$\{(first_key|key)\}\$\{next_key\}\"' "$SCRIPT_PATH"; then
         echo "Interactive menu digit handler does not form a 2-digit num." >&2
         return 1
     fi
