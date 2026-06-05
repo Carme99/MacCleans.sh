@@ -409,6 +409,9 @@ load_config_file() {
                     SKIP_BUN) SKIP_BUN="$value" ;;
                     SKIP_PNPM) SKIP_PNPM="$value" ;;
                     SKIP_SYSTEM_TMP) SKIP_SYSTEM_TMP="$value" ;;
+                    SKIP_BROWSER_TOOLS) SKIP_BROWSER_TOOLS="$value" ;;
+                    SKIP_CRASH_REPORTS) SKIP_CRASH_REPORTS="$value" ;;
+                    SKIP_USER_TOOL_CACHES) SKIP_USER_TOOL_CACHES="$value" ;;
                     FORCE_XCODE) FORCE_XCODE="$value" ;;
                     FORCE_TRASH) FORCE_TRASH="$value" ;;
                     FORCE_ICLOUD_DRIVE) FORCE_ICLOUD_DRIVE="$value" ;;

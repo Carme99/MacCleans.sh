@@ -4,6 +4,10 @@ All notable changes to MacCleans.sh are documented in this file.
 
 ## [Unreleased]
 
+### Bug Fixes
+
+- **`load_config_file` now honors the 3 v5.6.0 SKIP_X keys** (`SKIP_BROWSER_TOOLS`, `SKIP_CRASH_REPORTS`, `SKIP_USER_TOOL_CACHES`) — PR #84 (v5.6.0) added 3 new categories and updated CATEGORY_REGISTRY, the section bodies, the `--skip-X` CLI flags, and (per PR #86) the bash/zsh/fish completions, but missed the case statement in `load_config_file` and `maccleans.conf.example`. As a result, users who set `SKIP_BROWSER_TOOLS=true` (or the other two) in `~/.maccleans.conf` got a `WARNING: Unknown config key` at startup, the variable stayed at its default `false`, and the category was cleaned anyway — silently ignoring the user's intent. Caught by the v5.7.0 UX review. New regression test `test_config_loader_covers_every_registry_skip_x` enforces that every future SKIP_X in CATEGORY_REGISTRY has a corresponding case arm.
+
 ## [5.7.0] - 2026-06-05
 
 ### Added
