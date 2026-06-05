@@ -153,11 +153,28 @@ test_init_skip_defaults_sets_every_skip_to_false() {
     done
     return $rc
 }
-test_registry_has_30_entries() {
+test_registry_has_33_entries() {
     # 28 numbered sections (1-28) + 2 sub-numbered (3a Spotify, 3b Claude)
-    # = 30 array entries. Adding a new category = edit this count,
-    # add a line to CATEGORY_REGISTRY, and write one section body.
-    [ "${#CATEGORY_REGISTRY[@]}" -eq 30 ]
+    # + 3 new (29 Browser Testing Tool Caches, 30 Crash Reports,
+    # 31 User Tool Caches) = 33 array entries. Adding a new category =
+    # edit this count, add a line to CATEGORY_REGISTRY, and write one
+    # section body.
+    [ "${#CATEGORY_REGISTRY[@]}" -eq 33 ]
+}
+test_registry_has_new_categories() {
+    # Verify the 3 new entries exist with the right skip_var wiring.
+    local entry found_bt found_cr found_uc
+    found_bt=0
+    found_cr=0
+    found_uc=0
+    for entry in "${CATEGORY_REGISTRY[@]}"; do
+        case "$(registry_get_skip_var "$entry")" in
+            SKIP_BROWSER_TOOLS)   found_bt=1 ;;
+            SKIP_CRASH_REPORTS)   found_cr=1 ;;
+            SKIP_USER_TOOL_CACHES) found_uc=1 ;;
+        esac
+    done
+    [ "$found_bt" -eq 1 ] && [ "$found_cr" -eq 1 ] && [ "$found_uc" -eq 1 ]
 }
 
 # --- Run -------------------------------------------------------------------
@@ -177,7 +194,8 @@ assert "size_to_bytes is case-insensitive on unit"             test_size_to_byte
 assert "registry_get_skip_var returns last field"              test_registry_get_skip_var
 assert "registry_get_display returns middle field"             test_registry_get_display
 assert "_init_skip_defaults sets every SKIP_X to false"        test_init_skip_defaults_sets_every_skip_to_false
-assert "CATEGORY_REGISTRY has 30 entries (1-28 + 3a/3b)"      test_registry_has_30_entries
+assert "CATEGORY_REGISTRY has 33 entries (1-28 + 3a/3b + 29/30/31)"  test_registry_has_33_entries
+assert "CATEGORY_REGISTRY has new SKIP_BROWSER_TOOLS/CRASH_REPORTS/USER_TOOL_CACHES" test_registry_has_new_categories
 
 TOTAL=$(( PASS + FAIL ))
 echo ""

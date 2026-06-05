@@ -75,6 +75,9 @@ VERSION="5.5.2"
 #   --skip-go           Skip Go module cache cleanup (NEW)
 #   --skip-bun          Skip Bun cache cleanup (NEW)
 #   --skip-pnpm         Skip pnpm cache cleanup (NEW)
+#   --skip-browser-tools Skip browser testing tool caches (puppeteer, selenium) (NEW)
+#   --skip-crash-reports Skip crash reports cleanup (NEW)
+#   --skip-user-tool-caches Skip user tool caches in ~/.cache/ (NEW)
 #   --skip-system-tmp   Skip /tmp and /var/tmp cleanup (default: on, opt-in via --clean-system-tmp)
 #   --clean-system-tmp  Opt in to /tmp and /var/tmp cleanup (default off; overrides --skip-system-tmp)
 #   --photos-library    Specify Photos library name or "all" to clean all libraries
@@ -129,6 +132,9 @@ CATEGORY_REGISTRY=(
     "26|Bun Cache|SKIP_BUN"
     "27|pnpm Store|SKIP_PNPM"
     "28|.DS_Store Files|SKIP_DSSTORE"
+    "29|Browser Testing Tool Caches|SKIP_BROWSER_TOOLS"
+    "30|Crash Reports|SKIP_CRASH_REPORTS"
+    "31|User Tool Caches|SKIP_USER_TOOL_CACHES"
 )
 
 # Single-field accessors for CATEGORY_REGISTRY entries. Format is
@@ -933,6 +939,28 @@ safe_du() {
     else
         echo "$size"
     fi
+}
+
+# Measure a single cache directory for the size-aggregation pattern
+# used by the Browser Testing Tool Caches (#29) and User Tool Caches
+# (#31) sections. Echoes "BYTES|HUMAN_SIZE" if the directory exists,
+# is not a symlink, and has non-zero content. Returns 0 in that case.
+# Returns 1 otherwise. Centralises the safe_du + size_to_bytes +
+# symlink guard + non-zero check so the pattern isn't repeated for
+# every subdirectory.
+measure_cache_dir() {
+    local dir="$1"
+    if [ ! -d "$dir" ] || [ -L "$dir" ]; then
+        return 1
+    fi
+    local human bytes
+    human=$(safe_du "$dir")
+    bytes=$(size_to_bytes "$human")
+    if [ "$bytes" -gt 0 ]; then
+        printf '%s|%s\n' "$bytes" "$human"
+        return 0
+    fi
+    return 1
 }
 
 # Function to convert human-readable size to bytes
@@ -2992,6 +3020,159 @@ if run_category "28|.DS_Store Files|SKIP_DSSTORE"; then
         fi
     else
         log "No .DS_Store files found"
+    fi
+    log_plain ""
+fi
+
+###############################################################################
+# 29. Browser Testing Tool Caches
+###############################################################################
+if run_category "29|Browser Testing Tool Caches|SKIP_BROWSER_TOOLS"; then
+
+    # Puppeteer (used by Playwright, Cypress, generic headless Chrome/Chromium
+    # testing) and Selenium (used by webdriver-driven test suites) both
+    # download full browser binaries into ~/.cache. The binaries are
+    # re-downloaded automatically the next time a test runs, so deleting
+    # them is safe and a major space win (often 500MB-2GB per machine).
+    # Use $USER_HOME (not $HOME) so the user's home is targeted under
+    # sudo — matches the convention used by every other category in the
+    # script. $HOME under sudo can resolve to /var/root, which would
+    # miss the user's actual cache directories.
+    PUPPETEER_DIR="$USER_HOME/.cache/puppeteer"
+    SELENIUM_DIR="$USER_HOME/.cache/selenium"
+
+    BROWSER_TOOLS_BYTES=0
+    BROWSER_TOOLS_HIT=0
+
+    for label_dir in "Puppeteer:$PUPPETEER_DIR" "Selenium:$SELENIUM_DIR"; do
+        label="${label_dir%%:*}"
+        dir="${label_dir#*:}"
+        if measured=$(measure_cache_dir "$dir"); then
+            bytes="${measured%%|*}"
+            human="${measured#*|}"
+            BROWSER_TOOLS_BYTES=$((BROWSER_TOOLS_BYTES + bytes))
+            BROWSER_TOOLS_HIT=$((BROWSER_TOOLS_HIT + 1))
+            log "Found $label cache: $human"
+        fi
+    done
+
+    if [ "$BROWSER_TOOLS_HIT" -gt 0 ]; then
+        BROWSER_TOOLS_HUMAN=$(bytes_to_human "$BROWSER_TOOLS_BYTES")
+        if [ "$DRY_RUN" = true ]; then
+            log "Would clear browser testing tool caches: $BROWSER_TOOLS_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BROWSER_TOOLS_BYTES))
+        else
+            log "Clearing browser testing tool caches..."
+            [ -d "$PUPPETEER_DIR" ] && [ ! -L "$PUPPETEER_DIR" ] && safe_clear_directory "$PUPPETEER_DIR" 2>/dev/null || true
+            [ -d "$SELENIUM_DIR" ] && [ ! -L "$SELENIUM_DIR" ] && safe_clear_directory "$SELENIUM_DIR" 2>/dev/null || true
+            log_success "Browser testing tool caches cleared: $BROWSER_TOOLS_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + BROWSER_TOOLS_BYTES))
+        fi
+    else
+        log "No browser testing tool caches found"
+    fi
+    log_plain ""
+fi
+
+###############################################################################
+# 30. Crash Reports
+###############################################################################
+if run_category "30|Crash Reports|SKIP_CRASH_REPORTS"; then
+
+    # macOS writes per-app crash dumps (.crash, .ips, .diag) to two
+    # locations whenever a process dies unexpectedly. The 7-day threshold
+    # keeps recent crashes available for "Report a bug to vendor"
+    # workflows while clearing the long tail of old dumps.
+    CRASH_LOG_DIR="$USER_HOME/Library/Logs/CrashReporter"
+    CRASH_AS_DIR="$USER_HOME/Library/Application Support/CrashReporter"
+
+    CRASH_COUNT=0
+    CRASH_BYTES=0
+
+    for crash_dir in "$CRASH_LOG_DIR" "$CRASH_AS_DIR"; do
+        if [ -d "$crash_dir" ] && [ ! -L "$crash_dir" ]; then
+            local_count=$(find "$crash_dir" -type f -mtime +7 2>/dev/null | wc -l | tr -d ' ') || local_count=0
+            local_count=${local_count:-0}
+            CRASH_COUNT=$((CRASH_COUNT + local_count))
+
+            if [ "$local_count" -gt 0 ]; then
+                local_size=$(find "$crash_dir" -type f -mtime +7 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
+                [ -z "$local_size" ] && local_size="0B"
+                if [ -n "$local_size" ] && [ "$local_size" != "0B" ]; then
+                    CRASH_BYTES=$((CRASH_BYTES + $(size_to_bytes "$local_size")))
+                fi
+            fi
+        fi
+    done
+
+    if [ "$CRASH_COUNT" -gt 0 ]; then
+        CRASH_HUMAN=$(bytes_to_human "$CRASH_BYTES")
+        log "Found $CRASH_COUNT old crash report(s) (>7 days): $CRASH_HUMAN"
+
+        if [ "$DRY_RUN" = true ]; then
+            log "Would delete $CRASH_COUNT crash report(s)"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + CRASH_BYTES))
+        else
+            log "Cleaning old crash reports..."
+            [ -d "$CRASH_LOG_DIR" ] && [ ! -L "$CRASH_LOG_DIR" ] && find "$CRASH_LOG_DIR" -type f -mtime +7 -delete 2>/dev/null || true
+            [ -d "$CRASH_AS_DIR" ] && [ ! -L "$CRASH_AS_DIR" ] && find "$CRASH_AS_DIR" -type f -mtime +7 -delete 2>/dev/null || true
+            log_success "Old crash reports cleaned"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + CRASH_BYTES))
+        fi
+    else
+        log "No old crash reports found (>7 days)"
+    fi
+    log_plain ""
+fi
+
+###############################################################################
+# 31. User Tool Caches
+###############################################################################
+if run_category "31|User Tool Caches|SKIP_USER_TOOL_CACHES"; then
+
+    # Modern CLI tools (uv, giget, opencode, powershell, gh, starship) all
+    # write caches under ~/.cache. None of these contain user data —
+    # they're package/module/API caches that the tools redownload on
+    # demand. uv's cache (Python packages) is conceptually similar to
+    # the existing pip cache category (#10) but lives in a different
+    # directory, so we cover it here. (We considered extending #10 to
+    # include ~/.cache/uv, but that would require renaming the
+    # category and is a larger change than this PR's scope.)
+    # Use $USER_HOME (not $HOME) so the user's home is targeted under
+    # sudo — same convention as every other category in the script.
+    USER_CACHE_BASE="$USER_HOME/.cache"
+    USER_TOOL_SUBDIRS=(uv giget opencode opencode-agent-skills powershell gh starship)
+
+    USER_TOOL_BYTES=0
+    USER_TOOL_HIT=0
+
+    for subdir in "${USER_TOOL_SUBDIRS[@]}"; do
+        tool_dir="$USER_CACHE_BASE/$subdir"
+        if measured=$(measure_cache_dir "$tool_dir"); then
+            bytes="${measured%%|*}"
+            human="${measured#*|}"
+            USER_TOOL_BYTES=$((USER_TOOL_BYTES + bytes))
+            USER_TOOL_HIT=$((USER_TOOL_HIT + 1))
+            log "Found $subdir cache: $human"
+        fi
+    done
+
+    if [ "$USER_TOOL_HIT" -gt 0 ]; then
+        USER_TOOL_HUMAN=$(bytes_to_human "$USER_TOOL_BYTES")
+        if [ "$DRY_RUN" = true ]; then
+            log "Would clear user tool caches: $USER_TOOL_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + USER_TOOL_BYTES))
+        else
+            log "Clearing user tool caches..."
+            for subdir in "${USER_TOOL_SUBDIRS[@]}"; do
+                tool_dir="$USER_CACHE_BASE/$subdir"
+                [ -d "$tool_dir" ] && [ ! -L "$tool_dir" ] && safe_clear_directory "$tool_dir" 2>/dev/null || true
+            done
+            log_success "User tool caches cleared: $USER_TOOL_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + USER_TOOL_BYTES))
+        fi
+    else
+        log "No user tool caches found"
     fi
     log_plain ""
 fi

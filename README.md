@@ -50,6 +50,9 @@ sudo Mac-Clean --yes
 | iOS Simulator | 1-10GB | Slow rebuild |
 | Time Machine | 10-100GB | Local snapshots |
 | Trash | Variable | Permanent deletion |
+| Browser Testing Tool Caches | 500MB-2GB | Re-downloaded on next test |
+| Crash Reports | 100MB-1GB | Old crash dumps (>7 days) |
+| User Tool Caches | 500MB-2GB | `~/.cache/` redownloads on demand |
 | +20 more | | [See all categories](docs/reference/categories.md) |
 
 ---
@@ -58,7 +61,7 @@ sudo Mac-Clean --yes
 
 | | | |
 |----------|----------|----------|
-| Safe by design | 29 categories | Interactive mode |
+| Safe by design | 32 categories | Interactive mode |
 | Profile presets | JSON output | CI/CD ready |
 
 ---

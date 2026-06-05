@@ -33,6 +33,9 @@ Complete reference of all cleanup categories in MacCleans.
 | Photos Library | 500MB-5GB | Low | `--skip-photos-library` |
 | System Logs | 100MB-1GB | Low | (always safe) |
 | User Logs | 100MB-500MB | Low | (always safe) |
+| Browser Testing Tool Caches | 500MB-2GB | Low | `--skip-browser-tools` |
+| Crash Reports | 100MB-1GB | Low | `--skip-crash-reports` |
+| User Tool Caches | 500MB-2GB | Low | `--skip-user-tool-caches` |
 | System Cache | 100MB-1GB | Low | (always safe) |
 | User Cache | 100MB-1GB | Low | (always safe) |
 
@@ -485,6 +488,67 @@ sudo Mac-Clean --yes --skip-ios-updates
 ```bash
 # Skip Photos
 sudo Mac-Clean --yes --skip-photos-library
+```
+
+---
+
+### Browser Testing Tool Caches
+
+**Path:** `~/.cache/puppeteer`, `~/.cache/selenium`
+
+**Typical Size:** 500MB-2GB (often 1.5GB+ on a dev machine that has run Puppeteer/Selenium tests)
+
+**What it does:** Puppeteer and Selenium both download full browser binaries (Chrome, headless Chrome, Firefox) into `~/.cache`. The next test run re-downloads whatever it needs.
+
+**Note:** Covers the *cache* directories only. Browser installations in `/Applications` or via Homebrew are not touched.
+
+**Risk:** Low - browsers are re-downloaded on the next test run, no user data is lost.
+
+```bash
+# Skip browser testing tool caches
+sudo Mac-Clean --yes --skip-browser-tools
+```
+
+---
+
+### Crash Reports
+
+**Paths:** `~/Library/Logs/CrashReporter`, `~/Library/Application Support/CrashReporter`
+
+**Typical Size:** 100MB-1GB (varies wildly; can be 0 on machines that don't crash)
+
+**What it does:** macOS writes per-app crash dumps (`.crash`, `.ips`, `.diag`) to these locations whenever a process dies unexpectedly. MacCleans deletes dumps **older than 7 days**, so recent crashes stay available for "report a bug to vendor" workflows.
+
+**Risk:** Low - older crash dumps are rarely useful and take up substantial space.
+
+```bash
+# Skip crash reports cleanup
+sudo Mac-Clean --yes --skip-crash-reports
+```
+
+---
+
+### User Tool Caches
+
+**Paths:** `~/.cache/uv`, `~/.cache/giget`, `~/.cache/opencode`, `~/.cache/opencode-agent-skills`, `~/.cache/powershell`, `~/.cache/gh`, `~/.cache/starship`
+
+**Typical Size:** 500MB-2GB (depends heavily on which CLI tools you use)
+
+**What it does:** Modern CLI tools write their own caches to `~/.cache`:
+- `uv` — downloaded Python packages (similar in spirit to the existing pip cache category #10, but in a different directory)
+- `giget` — git-template downloads (used by Nuxt, Vite, and other JS toolchains)
+- `opencode` and `opencode-agent-skills` — AI code editor's internal caches
+- `powershell` — PowerShell module cache
+- `gh` — GitHub CLI's API response cache
+- `starship` — prompt configuration cache
+
+**Note:** All of these are redownloaded on demand. `uv` and `giget` in particular can be 500MB+ each after a few weeks of use.
+
+**Risk:** Low - none of these contain user data. Tools redownload what they need on the next invocation.
+
+```bash
+# Skip user tool caches
+sudo Mac-Clean --yes --skip-user-tool-caches
 ```
 
 ---

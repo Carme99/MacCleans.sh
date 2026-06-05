@@ -227,6 +227,9 @@ sudo Mac-Clean --yes \
   --skip-go \
   --skip-bun \
   --skip-pnpm \
+  --skip-browser-tools \
+  --skip-crash-reports \
+  --skip-user-tool-caches \
   --skip-system-tmp \
   --clean-system-tmp
 ```
