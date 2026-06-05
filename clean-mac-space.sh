@@ -1677,6 +1677,7 @@ if run_category "2|Homebrew Cache|SKIP_HOMEBREW"; then
         if [ -n "$BREW_CACHE_SIZE" ] && [ "$BREW_CACHE_SIZE" != "0B" ]; then
             log "Current Homebrew cache: $BREW_CACHE_SIZE"
             BREW_BYTES=$(size_to_bytes "$BREW_CACHE_SIZE")
+            record_category_size "Homebrew Cache" "$BREW_BYTES" "$BREW_CACHE_SIZE"
 
             if [ "$DRY_RUN" = true ]; then
                 log "Would clean Homebrew cache: $BREW_CACHE_SIZE"
@@ -1723,6 +1724,7 @@ if run_category "3a|Spotify Cache|SKIP_SPOTIFY"; then
         if [ -n "$SPOTIFY_SIZE" ] && [ "$SPOTIFY_SIZE" != "0B" ]; then
             log "Spotify cache: $SPOTIFY_SIZE"
             SPOTIFY_BYTES=$(size_to_bytes "$SPOTIFY_SIZE")
+            record_category_size "Spotify Cache" "$SPOTIFY_BYTES" "$SPOTIFY_SIZE"
 
             if [ "$DRY_RUN" = true ]; then
                 log "Would clear Spotify cache: $SPOTIFY_SIZE"
@@ -1752,6 +1754,7 @@ if run_category "3b|Claude Desktop Cache|SKIP_CLAUDE"; then
         if [ -n "$CLAUDE_SIZE" ] && [ "$CLAUDE_SIZE" != "0B" ]; then
             log "Claude Desktop update cache: $CLAUDE_SIZE"
             CLAUDE_BYTES=$(size_to_bytes "$CLAUDE_SIZE")
+            record_category_size "Claude Desktop Cache" "$CLAUDE_BYTES" "$CLAUDE_SIZE"
 
             if [ "$DRY_RUN" = true ]; then
                 log "Would clear Claude update cache: $CLAUDE_SIZE"
@@ -1819,6 +1822,7 @@ if [ "$OLD_CACHE_COUNT" -gt 0 ]; then
         fi
     done
     OLD_CACHE_SIZE=$(echo "$CACHE_BYTES" | awk '{if ($1>=1073741824) printf "%.1fG", $1/1073741824; else if ($1>=1048576) printf "%.1fM", $1/1048576; else if ($1>=1024) printf "%.1fK", $1/1024; else printf "%dB", $1}')
+    record_category_size "System Cache Files" "$CACHE_BYTES" "$OLD_CACHE_SIZE"
     log "Found $OLD_CACHE_COUNT old cache file(s) (>30 days): $OLD_CACHE_SIZE"
 
     if [ "$DRY_RUN" = true ]; then
@@ -1858,6 +1862,7 @@ if [ "$OLD_LOG_COUNT" -gt 0 ]; then
     [ -z "$OLD_LOG_SIZE" ] && OLD_LOG_SIZE="0B"
     log "Found $OLD_LOG_COUNT old log file(s) (>7 days): $OLD_LOG_SIZE"
     LOG_BYTES=$(size_to_bytes "$OLD_LOG_SIZE")
+    record_category_size "Old Log Files" "$LOG_BYTES" "$OLD_LOG_SIZE"
 
     if [ "$DRY_RUN" = true ]; then
         log "Would delete $OLD_LOG_COUNT log file(s): $OLD_LOG_SIZE"
@@ -1886,6 +1891,7 @@ if run_category "6|System Temporary Files|SKIP_SYSTEM_TMP"; then
         TMP_SIZE=$(find /private/var/tmp /private/tmp -type f -mtime +3 -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
         [ -z "$TMP_SIZE" ] && TMP_SIZE="0B"
         TMP_BYTES=$(size_to_bytes "$TMP_SIZE")
+        record_category_size "System Temporary Files" "$TMP_BYTES" "$TMP_SIZE"
         log "Found $TMP_COUNT temporary file(s) older than 3 days: $TMP_SIZE"
 
         if [ "$DRY_RUN" = true ]; then
@@ -1965,6 +1971,7 @@ if run_category "7|Browser Caches (Chrome, Firefox, Edge)|SKIP_BROWSERS"; then
 
     if [ "$BROWSER_TOTAL_BYTES" -gt 0 ]; then
         BROWSER_HUMAN=$(bytes_to_human "$BROWSER_TOTAL_BYTES")
+        record_category_size "Browser Caches (Chrome, Firefox, Edge)" "$BROWSER_TOTAL_BYTES" "$BROWSER_HUMAN"
         if [ "$DRY_RUN" = true ]; then
             log "Would clear browser caches: $BROWSER_HUMAN"
         else
@@ -1989,6 +1996,7 @@ if run_category "8|XCode Derived Data|SKIP_XCODE"; then
         if [ -n "$XCODE_SIZE" ] && [ "$XCODE_SIZE" != "0B" ]; then
             log "XCode derived data: $XCODE_SIZE"
             XCODE_BYTES=$(size_to_bytes "$XCODE_SIZE")
+            record_category_size "XCode Derived Data" "$XCODE_BYTES" "$XCODE_SIZE"
 
             # XCode cleanup has special consideration: long rebuild times
             # Issue #22: --force-xcode skips warning entirely, --yes NO LONGER bypasses (requires --force-xcode)
@@ -2133,6 +2141,7 @@ if run_category "9|npm/Yarn Cache|SKIP_NPM"; then
 
     if [ "$NODE_TOTAL_BYTES" -gt 0 ]; then
         NODE_HUMAN=$(bytes_to_human "$NODE_TOTAL_BYTES")
+        record_category_size "npm/Yarn Cache" "$NODE_TOTAL_BYTES" "$NODE_HUMAN"
         if [ "$DRY_RUN" = true ]; then
             log "Would clear npm/yarn caches: $NODE_HUMAN"
         else
@@ -2187,10 +2196,34 @@ if run_category "10|Python Tool Caches (pip + uv)|SKIP_PIP"; then
             TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PYTHON_TOOL_BYTES))
         else
             log "Cleaning Python tool caches..."
-            [ -d "$PIP_CACHE" ] && [ ! -L "$PIP_CACHE" ] && safe_clear_directory "$PIP_CACHE" 2>/dev/null || true
-            [ -d "$UV_CACHE" ] && [ ! -L "$UV_CACHE" ] && safe_clear_directory "$UV_CACHE" 2>/dev/null || true
-            log_success "Python tool caches cleared: $PYTHON_TOOL_HUMAN"
-            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PYTHON_TOOL_BYTES))
+            # PR #89 Sourcery: only count bytes that were actually
+            # freed, not bytes that failed. The prior
+            # `... && safe_clear_directory ... 2>/dev/null || true`
+            # swallowed the failure but still incremented
+            # TOTAL_BYTES_FREED by the full pre-clean size.
+            PYTHON_TOOL_FREED=0
+            if [ -d "$PIP_CACHE" ] && [ ! -L "$PIP_CACHE" ]; then
+                if safe_clear_directory "$PIP_CACHE" 2>/dev/null; then
+                    PYTHON_TOOL_FREED=$((PYTHON_TOOL_FREED + PIP_BYTES))
+                else
+                    ERRORS_OCCURRED=$((ERRORS_OCCURRED + 1))
+                    log_warning "Some pip cache items could not be deleted"
+                fi
+            fi
+            if [ -d "$UV_CACHE" ] && [ ! -L "$UV_CACHE" ]; then
+                if safe_clear_directory "$UV_CACHE" 2>/dev/null; then
+                    PYTHON_TOOL_FREED=$((PYTHON_TOOL_FREED + UV_BYTES))
+                else
+                    ERRORS_OCCURRED=$((ERRORS_OCCURRED + 1))
+                    log_warning "Some uv cache items could not be deleted"
+                fi
+            fi
+            if [ "$PYTHON_TOOL_FREED" -gt 0 ]; then
+                log_success "Python tool caches cleared: $(bytes_to_human "$PYTHON_TOOL_FREED")"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PYTHON_TOOL_FREED))
+            else
+                log_warning "Python tool caches could not be cleared"
+            fi
         fi
     else
         log "No Python tool caches found (pip / uv)"
@@ -2210,6 +2243,7 @@ if run_category "11|Trash Bin|SKIP_TRASH"; then
         if [ -n "$TRASH_SIZE" ] && [ "$TRASH_SIZE" != "0B" ]; then
             log "Trash size: $TRASH_SIZE"
             TRASH_BYTES=$(size_to_bytes "$TRASH_SIZE")
+            record_category_size "Trash Bin" "$TRASH_BYTES" "$TRASH_SIZE"
 
             if [ "$DRY_RUN" = true ]; then
                 log "Would empty trash: $TRASH_SIZE"
@@ -2340,6 +2374,9 @@ if run_category "13|iOS Simulator Data|SKIP_SIMULATOR"; then
                         SIM_FREED=$(( (SIM_BEFORE - SIM_AFTER) * 1024 ))
                         if [ "$SIM_FREED" -lt 0 ]; then SIM_FREED=0; fi
                         TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + SIM_FREED))
+                        if [ "$SIM_FREED" -gt 0 ]; then
+                            record_category_size "iOS Simulator Data" "$SIM_FREED" "$(bytes_to_human "$SIM_FREED")"
+                        fi
                         log_success "Unavailable iOS Simulators removed"
                     else
                         log_warning "Could not delete unavailable simulators"
@@ -2369,6 +2406,7 @@ if run_category "14|Mail App Cache|SKIP_MAIL"; then
         if [ -n "$MAIL_SIZE" ] && [ "$MAIL_SIZE" != "0B" ]; then
             log "Mail app cache: $MAIL_SIZE"
             MAIL_BYTES=$(size_to_bytes "$MAIL_SIZE")
+            record_category_size "Mail App Cache" "$MAIL_BYTES" "$MAIL_SIZE"
 
             if [ "$DRY_RUN" = true ]; then
                 log "Would clear Mail app cache: $MAIL_SIZE"
@@ -2402,6 +2440,7 @@ if run_category "15|Siri TTS Cache|SKIP_SIRI_TTS"; then
         if [ -n "$SIRI_SIZE" ] && [ "$SIRI_SIZE" != "0B" ]; then
             log "Siri TTS cache: $SIRI_SIZE"
             SIRI_BYTES=$(size_to_bytes "$SIRI_SIZE")
+            record_category_size "Siri TTS Cache" "$SIRI_BYTES" "$SIRI_SIZE"
 
             if [ "$DRY_RUN" = true ]; then
                 log "Would clear Siri TTS cache: $SIRI_SIZE"
@@ -2435,6 +2474,7 @@ if run_category "16|iCloud Mail Cache|SKIP_ICLOUD_MAIL"; then
         if [ -n "$ICLOUD_MAIL_SIZE" ] && [ "$ICLOUD_MAIL_SIZE" != "0B" ]; then
             log "iCloud Mail cache: $ICLOUD_MAIL_SIZE"
             ICLOUD_MAIL_BYTES=$(size_to_bytes "$ICLOUD_MAIL_SIZE")
+            record_category_size "iCloud Mail Cache" "$ICLOUD_MAIL_BYTES" "$ICLOUD_MAIL_SIZE"
 
             if [ "$DRY_RUN" = true ]; then
                 log "Would clear iCloud Mail cache: $ICLOUD_MAIL_SIZE"
@@ -2722,6 +2762,7 @@ if run_category "19|QuickLook Thumbnails|SKIP_QUICKLOOK"; then
         if [ -n "$QUICKLOOK_SIZE" ] && [ "$QUICKLOOK_SIZE" != "0B" ]; then
             log "QuickLook thumbnails: $QUICKLOOK_SIZE"
             QUICKLOOK_BYTES=$(size_to_bytes "$QUICKLOOK_SIZE")
+            record_category_size "QuickLook Thumbnails" "$QUICKLOOK_BYTES" "$QUICKLOOK_SIZE"
 
             if [ "$DRY_RUN" = true ]; then
                 log "Would clear QuickLook thumbnails: $QUICKLOOK_SIZE"
@@ -2784,6 +2825,7 @@ if run_category "20|Diagnostic Reports|SKIP_DIAGNOSTICS"; then
 
     if [ "$DIAG_COUNT" -gt 0 ]; then
         DIAG_SIZE_HUMAN=$(bytes_to_human "$DIAG_SIZE_BYTES")
+        record_category_size "Diagnostic Reports" "$DIAG_SIZE_BYTES" "$DIAG_SIZE_HUMAN"
         log "Found $DIAG_COUNT old diagnostic report(s) (>30 days): $DIAG_SIZE_HUMAN"
 
         if [ "$DRY_RUN" = true ]; then
@@ -2817,6 +2859,7 @@ if run_category "21|iOS Device Backups|SKIP_IOS_BACKUPS"; then
         if [ "$IOS_BACKUP_COUNT" -gt 0 ]; then
             IOS_BACKUP_SIZE=$(safe_du "$IOS_BACKUP_DIR")
             IOS_BACKUP_BYTES=$(size_to_bytes "$IOS_BACKUP_SIZE")
+            record_category_size "iOS Device Backups" "$IOS_BACKUP_BYTES" "$IOS_BACKUP_SIZE"
 
             log "Found $IOS_BACKUP_COUNT iOS device backup(s): $IOS_BACKUP_SIZE"
             log_warning "These are local iTunes/Finder device backups"
@@ -2903,6 +2946,7 @@ if run_category "22|iOS/iPadOS Update Files (.ipsw)|SKIP_IOS_UPDATES"; then
 
     if [ "$IPSW_TOTAL_COUNT" -gt 0 ]; then
         IPSW_TOTAL_HUMAN=$(bytes_to_human "$IPSW_TOTAL_BYTES")
+        record_category_size "iOS/iPadOS Update Files (.ipsw)" "$IPSW_TOTAL_BYTES" "$IPSW_TOTAL_HUMAN"
         log "Total: $IPSW_TOTAL_COUNT file(s), $IPSW_TOTAL_HUMAN"
         log "${DIM}Note: These are iOS/iPadOS firmware files used for device restores/updates.${NC}"
         log "${DIM}They can be re-downloaded from Apple if needed.${NC}"
@@ -2996,6 +3040,7 @@ if run_category "24|Gradle Cache|SKIP_GRADLE"; then
         GRADLE_BYTES=$(size_to_bytes "$GRADLE_SIZE")
 
         if [ "$GRADLE_BYTES" -gt 0 ]; then
+            record_category_size "Gradle Cache" "$GRADLE_BYTES" "$GRADLE_SIZE"
             log "Found Gradle cache: $GRADLE_SIZE"
 
             if [ "$DRY_RUN" = true ]; then
@@ -3051,6 +3096,7 @@ if run_category "25|Go Module Cache|SKIP_GO"; then
     done
 
     if [ "$GO_TOTAL_BYTES" -gt 0 ]; then
+        record_category_size "Go Module Cache" "$GO_TOTAL_BYTES" "$GO_HUMAN"
         log "Found Go module cache: $GO_HUMAN"
 
         if [ "$DRY_RUN" = true ]; then
@@ -3096,6 +3142,7 @@ if run_category "26|Bun Cache|SKIP_BUN"; then
         BUN_BYTES=$(size_to_bytes "$BUN_SIZE")
 
         if [ "$BUN_BYTES" -gt 0 ]; then
+            record_category_size "Bun Cache" "$BUN_BYTES" "$BUN_SIZE"
             log "Found Bun cache: $BUN_SIZE"
 
             if [ "$DRY_RUN" = true ]; then
@@ -3161,6 +3208,7 @@ if run_category "27|pnpm Store|SKIP_PNPM"; then
         fi
 
         if [ "$PNPM_BYTES" -gt 0 ]; then
+            record_category_size "pnpm Store" "$PNPM_BYTES" "$PNPM_SIZE"
             log "Found pnpm store: $PNPM_SIZE"
 
             if [ "$DRY_RUN" = true ]; then
@@ -3201,6 +3249,7 @@ if run_category "28|.DS_Store Files|SKIP_DSSTORE"; then
         DSSTORE_SIZE=$(find "$USER_HOME" -name ".DS_Store" -type f -exec du -ch {} + 2>/dev/null | tail -1 | awk '{print $1}')
         [ -z "$DSSTORE_SIZE" ] && DSSTORE_SIZE="0B"
         DSSTORE_BYTES=$(size_to_bytes "$DSSTORE_SIZE")
+        record_category_size ".DS_Store Files" "$DSSTORE_BYTES" "$DSSTORE_SIZE"
         log "Found $DSSTORE_COUNT .DS_Store file(s): $DSSTORE_SIZE"
 
         if [ "$DRY_RUN" = true ]; then
