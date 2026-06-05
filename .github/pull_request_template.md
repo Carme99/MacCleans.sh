@@ -28,7 +28,8 @@ Pick the conventional-commit type that matches (this drives the version bump):
 ## Release follow-up (maintainer)
 
 > This section is a reminder for the maintainer — not a blocker for merging.
+> The `scripts/release.sh` step runs **after this PR is merged, on a clean `main` checkout, before opening the next PR**. It is never run from a feature branch.
 
-- [ ] This PR changes user-visible behavior → schedule a release (run `scripts/release.sh X.Y.Z`) **before opening the next PR**
+- [ ] This PR changes user-visible behavior → schedule a release (run `bash scripts/release.sh X.Y.Z` on `main`) **after merge, before opening the next PR**
 - [ ] This PR is `refactor:` / `docs:` / `chore:` etc. → no release needed
 - [ ] I have **not** already run `scripts/release.sh` for this change (the release commit goes on a separate, clean PR)

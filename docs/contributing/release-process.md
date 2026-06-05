@@ -24,7 +24,7 @@ A version bump touches exactly four files, all in the same commit:
 ## The release checklist
 
 1. **All PRs for this release are merged on `main`**, with their `[Unreleased]` entries in `CHANGELOG.md`.
-2. **Worktree's clean and on `main`**:
+2. **Worktree is clean and on `main`**:
    ```bash
    git checkout main
    git pull --rebase
@@ -45,10 +45,10 @@ A version bump touches exactly four files, all in the same commit:
    ```bash
    git commit -m "chore: bump version to v5.5.3"
    ```
-7. **Tag and push**:
+7. **Tag and push** (push both the `main` refspec and the tag in one command — `git push origin <tag>` only uploads the tag ref, the underlying release commit and the new `main` tip need an explicit push too):
    ```bash
    git tag v5.5.3
-   git push origin v5.5.3
+   git push origin main v5.5.3
    ```
    The tag push is what fires `.github/workflows/release.yml`.
 8. **Watch the [Actions tab](https://github.com/Carme99/MacCleans.sh/actions)** for the `Release` workflow to finish (~30 seconds). On success, the homebrew tap formula (`carme99/homebrew-tap/mac-cleans.rb`) is updated and a GitHub release is created.
@@ -77,7 +77,7 @@ Say PR #83 is a `fix:` for a Photos Library edge case:
    git add CHANGELOG.md README.md docs/README.md   # the files you edited in step 2
    git commit -m "chore: bump version to v5.5.3"
    git tag v5.5.3
-   git push origin v5.5.3
+   git push origin main v5.5.3
    ```
 4. Watch Actions. 30 seconds later, `brew upgrade mac-cleans` picks up v5.5.3.
 
