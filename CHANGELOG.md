@@ -2,6 +2,21 @@
 
 All notable changes to MacCleans.sh are documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **3 new cleanup categories (#29, #30, #31)** — adds ~3.1GB of potential free space on a typical dev machine, with a clean safety story for each:
+  - **#29 Browser Testing Tool Caches** (`--skip-browser-tools`) — `~/.cache/puppeteer` and `~/.cache/selenium`. Downloads browser binaries (full Chrome, headless Chrome, etc.) for headless testing. Safe to delete — re-downloaded on next test run. **Typical savings: 500MB-2GB.**
+  - **#30 Crash Reports** (`--skip-crash-reports`) — `~/Library/Logs/CrashReporter` and `~/Library/Application Support/CrashReporter`. macOS writes per-app `.crash`/`.ips`/`.diag` dumps here when processes die. 7-day age threshold so recent crashes stay available for "report a bug" workflows. **Typical savings: 100MB-1GB.**
+  - **#31 User Tool Caches** (`--skip-user-tool-caches`) — `~/.cache/{uv, giget, opencode, opencode-agent-skills, powershell, gh, starship}`. Modern CLI tool caches — packages, modules, API responses, all redownloaded on demand. **Typical savings: 500MB-2GB.** (uv's cache is conceptually similar to the existing pip category (#10) but lives in `~/.cache/uv` rather than pip's directory; we covered it here to keep this PR's scope small. Renaming/extending #10 is a candidate for a future cleanup PR.)
+- **3 new `--skip-X` flags wired through the registry** — `--skip-browser-tools`, `--skip-crash-reports`, `--skip-user-tool-caches`. The typo check (e.g., `--skip-brower-tools`) catches the misspelling and exits with a clear error, because the auto-derivation looks up the registry.
+
+### Internal
+
+- CATEGORY_REGISTRY: 30 entries → **33 entries** (1-28 + 3a/3b + 29/30/31). The `test_registry_has_33_entries` and `test_registry_has_new_categories` smoke tests in `tests/run-tests.sh` enforce the count and the new skip-var wiring. Adding a future category = one new line in the registry + one section body, as before.
+- 3 new section bodies follow the existing `if run_category "N|Name|SKIP_X"; then ... fi` pattern. Each one uses `safe_clear_directory` (browser tools + user tool caches) or the `find -mtime +X -delete` age-threshold pattern (crash reports) so symlink-safety and write-permission checks come for free.
+
 ## [5.5.2] - 2026-06-04
 
 ### Documentation
