@@ -85,3 +85,6 @@ SKIP_DSSTORE=false            # Stray .DS_Store files on the home volume
 
 # System /tmp (default ON for safety; opt in with --clean-system-tmp on the CLI)
 SKIP_SYSTEM_TMP=true          # /tmp, /var/tmp, /private/var/folders/.../T/
+SKIP_BROWSER_TOOLS=false      # ~/.cache/puppeteer, ~/.cache/selenium (browser test binaries)
+SKIP_CRASH_REPORTS=false       # ~/Library/Logs/CrashReporter, ~/Library/Application Support/CrashReporter (7-day age threshold)
+SKIP_USER_TOOL_CACHES=false    # ~/.cache/{uv, giget, opencode, powershell, gh, starship, ...}

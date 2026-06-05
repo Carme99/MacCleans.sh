@@ -431,6 +431,57 @@ test_completions_include_v56_skip_flags() {
     done
     return 0
 }
+test_config_loader_covers_every_registry_skip_x() {
+    # load_config_file's case statement must have a SKIP_X arm for every
+    # SKIP_X var declared in CATEGORY_REGISTRY. Otherwise a user's
+    # `SKIP_NEW_CATEGORY=true` in ~/.maccleans.conf silently falls through
+    # to the "Unknown config key" warning, the var stays at its default
+    # `false`, and the category gets cleaned anyway.
+    #
+    # v5.6.0 (PR #84) added 3 categories — SKIP_BROWSER_TOOLS,
+    # SKIP_CRASH_REPORTS, SKIP_USER_TOOL_CACHES — and updated the
+    # registry, the --skip-X flags, the section bodies, and the
+    # completions, but missed the load_config_file case statement AND
+    # maccleans.conf.example. Caught by the v5.7.0 UX review.
+    #
+    # Constrain the extraction to the CATEGORY_REGISTRY=() block (between
+    # the assignment opener and the closing paren). If the registry ever
+    # moves, refactor the extractor first; this test should fail loud
+    # rather than silently miss vars.
+    local registry_block
+    registry_block=$(/usr/bin/awk '
+        /^CATEGORY_REGISTRY=\(/   { in_block=1; next }
+        in_block && /^\)/         { in_block=0 }
+        in_block                  { print }
+    ' "$SCRIPT_PATH")
+    if [ -z "$registry_block" ]; then
+        echo "CATEGORY_REGISTRY=() block not found in $SCRIPT_PATH — test misconfigured" >&2
+        return 1
+    fi
+    local registry_skip
+    registry_skip=$(printf '%s\n' "$registry_block" | /usr/bin/grep -oE '\|SKIP_[A-Z_]+' | /usr/bin/sed -E 's/^\|//' | /usr/bin/sort -u)
+    if [ -z "$registry_skip" ]; then
+        echo "No SKIP_X vars found in CATEGORY_REGISTRY — test misconfigured" >&2
+        return 1
+    fi
+    local missing=()
+    local var
+    while IFS= read -r var; do
+        # Anchored match: a case arm starts with optional leading whitespace
+        # then the var name followed by ')'. The FORCE_*/VERBOSE/etc. arms
+        # are non-SKIP keys and are not checked here — only SKIP_X.
+        if ! /usr/bin/grep -qE "^[[:space:]]+${var}\)" "$SCRIPT_PATH"; then
+            missing+=("$var")
+        fi
+    done <<< "$registry_skip"
+    if [ "${#missing[@]}" -gt 0 ]; then
+        echo "load_config_file case statement is missing arms for: ${missing[*]}" >&2
+        echo "Every SKIP_X var declared in CATEGORY_REGISTRY must have a case arm" >&2
+        echo "in load_config_file (otherwise config-file settings are silently ignored)." >&2
+        return 1
+    fi
+    return 0
+}
 test_config_files_defined_before_load_config_file_call() {
     # The audit (PR #85) moved CONFIG_FILES to after USER_HOME derivation
     # so it could use $USER_HOME, but accidentally left the call at
@@ -519,6 +570,7 @@ assert '--json output block includes the "details" object'              test_jso
 assert "scripts/release.sh supports --check mode"                       test_release_sh_check_mode
 assert ".github/workflows/release-check.yml exists"                      test_release_check_workflow_exists
 assert "Completions include the 3 v5.6.0 --skip-X flags"                 test_completions_include_v56_skip_flags
+assert "load_config_file case statement covers every registry SKIP_X"     test_config_loader_covers_every_registry_skip_x
 
 TOTAL=$(( PASS + FAIL ))
 echo ""
