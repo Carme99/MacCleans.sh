@@ -11,7 +11,7 @@ _mac_cleans() {
         --quiet --no-color --verbose --update
         --threshold --profile --photos-library
         --skip-snapshots --skip-homebrew --skip-spotify --skip-claude
-        --skip-xcode --skip-browsers --skip-npm --skip-pip --skip-trash
+        --skip-xcode --skip-xcode-archives --skip-browsers --skip-npm --skip-pip --skip-trash
         --skip-dsstore --skip-docker --skip-simulator --skip-mail
         --skip-siri-tts --skip-icloud-mail --skip-photos-library
         --skip-icloud-drive --skip-quicklook --skip-diagnostics

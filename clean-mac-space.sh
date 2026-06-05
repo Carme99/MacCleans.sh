@@ -113,7 +113,7 @@ CATEGORY_REGISTRY=(
     "7|Browser Caches (Chrome, Firefox, Edge)|SKIP_BROWSERS"
     "8|XCode Derived Data|SKIP_XCODE"
     "9|npm/Yarn Cache|SKIP_NPM"
-    "10|Python pip Cache|SKIP_PIP"
+    "10|Python Tool Caches (pip + uv)|SKIP_PIP"
     "11|Trash Bin|SKIP_TRASH"
     "12|Docker Cache|SKIP_DOCKER"
     "13|iOS Simulator Data|SKIP_SIMULATOR"
@@ -135,6 +135,7 @@ CATEGORY_REGISTRY=(
     "29|Browser Testing Tool Caches|SKIP_BROWSER_TOOLS"
     "30|Crash Reports|SKIP_CRASH_REPORTS"
     "31|User Tool Caches|SKIP_USER_TOOL_CACHES"
+    "34|Xcode Archives|SKIP_XCODE_ARCHIVES"
 )
 
 # Single-field accessors for CATEGORY_REGISTRY entries. Format is
@@ -412,6 +413,7 @@ load_config_file() {
                     SKIP_BROWSER_TOOLS) SKIP_BROWSER_TOOLS="$value" ;;
                     SKIP_CRASH_REPORTS) SKIP_CRASH_REPORTS="$value" ;;
                     SKIP_USER_TOOL_CACHES) SKIP_USER_TOOL_CACHES="$value" ;;
+                    SKIP_XCODE_ARCHIVES) SKIP_XCODE_ARCHIVES="$value" ;;
                     FORCE_XCODE) FORCE_XCODE="$value" ;;
                     FORCE_TRASH) FORCE_TRASH="$value" ;;
                     FORCE_ICLOUD_DRIVE) FORCE_ICLOUD_DRIVE="$value" ;;
@@ -2033,6 +2035,61 @@ if run_category "8|XCode Derived Data|SKIP_XCODE"; then
 fi
 
 ###############################################################################
+# 34. Xcode Archives
+###############################################################################
+if run_category "34|Xcode Archives|SKIP_XCODE_ARCHIVES"; then
+
+    XCODE_ARCHIVES="$USER_HOME/Library/Developer/Xcode/Archives"
+    if [ -d "$XCODE_ARCHIVES" ]; then
+        XCODE_ARCHIVES_SIZE=$(safe_du "$XCODE_ARCHIVES")
+
+        if [ -n "$XCODE_ARCHIVES_SIZE" ] && [ "$XCODE_ARCHIVES_SIZE" != "0B" ]; then
+            log "Xcode Archives: $XCODE_ARCHIVES_SIZE"
+            XCODE_ARCHIVES_BYTES=$(size_to_bytes "$XCODE_ARCHIVES_SIZE")
+
+            # Archives hold release builds + dSYMs. They are NOT
+            # regenerated (unlike DerivedData, which rebuilds on the
+            # next compile). Stronger warning than #8 and the same
+            # --force-xcode gate.
+            if [ "$DRY_RUN" = true ]; then
+                log "Would clear Xcode Archives: $XCODE_ARCHIVES_SIZE"
+                log_warning "NOTE: Archives hold release builds and dSYMs. Once deleted they cannot be recovered."
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_ARCHIVES_BYTES))
+            elif [ "$FORCE_XCODE" = true ]; then
+                log "Cleaning Xcode Archives..."
+                if [ -d "$XCODE_ARCHIVES" ] && [ ! -L "$XCODE_ARCHIVES" ]; then
+                    safe_clear_directory "$XCODE_ARCHIVES"
+                fi
+                log_success "Xcode Archives cleared"
+                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_ARCHIVES_BYTES))
+            else
+                log_warning "WARNING: This will delete Xcode Archives (release builds + dSYMs)."
+                log "   Unlike DerivedData, archives are NOT regenerated. Recovery requires a backup."
+                log ""
+                read -p "Continue with Xcode Archives cleanup? [y/N] " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    log "Cleaning Xcode Archives..."
+                    if [ -d "$XCODE_ARCHIVES" ] && [ ! -L "$XCODE_ARCHIVES" ]; then
+                        safe_clear_directory "$XCODE_ARCHIVES"
+                    fi
+                    log_success "Xcode Archives cleared"
+                    TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + XCODE_ARCHIVES_BYTES))
+                else
+                    log "Xcode Archives cleanup skipped by user"
+                    SKIPPED_CATEGORIES+=("Xcode Archives (user declined)")
+                fi
+            fi
+        else
+            log "Xcode Archives is empty"
+        fi
+    else
+        log "Xcode not installed, skipping"
+    fi
+    log_plain ""
+fi
+
+###############################################################################
 # 9. npm/Yarn Cache
 ###############################################################################
 if run_category "9|npm/Yarn Cache|SKIP_NPM"; then
@@ -2091,32 +2148,52 @@ fi
 ###############################################################################
 # 10. Python pip Cache
 ###############################################################################
-if run_category "10|Python pip Cache|SKIP_PIP"; then
+if run_category "10|Python Tool Caches (pip + uv)|SKIP_PIP"; then
 
+    PYTHON_TOOL_BYTES=0
+    PYTHON_TOOL_HIT=0
+
+    # pip's cache (legacy location: ~/Library/Caches/pip on macOS)
     PIP_CACHE="$USER_HOME/Library/Caches/pip"
-    if [ -d "$PIP_CACHE" ]; then
+    if [ -d "$PIP_CACHE" ] && [ ! -L "$PIP_CACHE" ]; then
         PIP_SIZE=$(safe_du "$PIP_CACHE")
-
         if [ -n "$PIP_SIZE" ] && [ "$PIP_SIZE" != "0B" ]; then
             log "pip cache: $PIP_SIZE"
             PIP_BYTES=$(size_to_bytes "$PIP_SIZE")
+            PYTHON_TOOL_BYTES=$((PYTHON_TOOL_BYTES + PIP_BYTES))
+            PYTHON_TOOL_HIT=$((PYTHON_TOOL_HIT + 1))
+        fi
+    fi
 
-            if [ "$DRY_RUN" = true ]; then
-                log "Would clear pip cache: $PIP_SIZE"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PIP_BYTES))
-            else
-                log "Cleaning pip cache..."
-                if [ -d "$PIP_CACHE" ] && [ ! -L "$PIP_CACHE" ]; then
-                    safe_clear_directory "$PIP_CACHE"
-                fi
-                log_success "pip cache cleared"
-                TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PIP_BYTES))
-            fi
+    # uv's cache (modern Python package manager, ~/.cache/uv).
+    # Folded in from User Tool Caches (#31) per v5.8.0 — uv is
+    # conceptually a Python package manager, so it belongs here.
+    UV_CACHE="$USER_HOME/.cache/uv"
+    if [ -d "$UV_CACHE" ] && [ ! -L "$UV_CACHE" ]; then
+        UV_SIZE=$(safe_du "$UV_CACHE")
+        if [ -n "$UV_SIZE" ] && [ "$UV_SIZE" != "0B" ]; then
+            log "uv cache: $UV_SIZE"
+            UV_BYTES=$(size_to_bytes "$UV_SIZE")
+            PYTHON_TOOL_BYTES=$((PYTHON_TOOL_BYTES + UV_BYTES))
+            PYTHON_TOOL_HIT=$((PYTHON_TOOL_HIT + 1))
+        fi
+    fi
+
+    if [ "$PYTHON_TOOL_HIT" -gt 0 ]; then
+        PYTHON_TOOL_HUMAN=$(bytes_to_human "$PYTHON_TOOL_BYTES")
+        record_category_size "Python Tool Caches (pip + uv)" "$PYTHON_TOOL_BYTES" "$PYTHON_TOOL_HUMAN"
+        if [ "$DRY_RUN" = true ]; then
+            log "Would clear Python tool caches: $PYTHON_TOOL_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PYTHON_TOOL_BYTES))
         else
-            log "pip cache is empty"
+            log "Cleaning Python tool caches..."
+            [ -d "$PIP_CACHE" ] && [ ! -L "$PIP_CACHE" ] && safe_clear_directory "$PIP_CACHE" 2>/dev/null || true
+            [ -d "$UV_CACHE" ] && [ ! -L "$UV_CACHE" ] && safe_clear_directory "$UV_CACHE" 2>/dev/null || true
+            log_success "Python tool caches cleared: $PYTHON_TOOL_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + PYTHON_TOOL_BYTES))
         fi
     else
-        log "pip cache not found"
+        log "No Python tool caches found (pip / uv)"
     fi
     log_plain ""
 fi
@@ -3249,18 +3326,16 @@ fi
 ###############################################################################
 if run_category "31|User Tool Caches|SKIP_USER_TOOL_CACHES"; then
 
-    # Modern CLI tools (uv, giget, opencode, powershell, gh, starship) all
+    # Modern CLI tools (giget, opencode, powershell, gh, starship) all
     # write caches under ~/.cache. None of these contain user data —
     # they're package/module/API caches that the tools redownload on
-    # demand. uv's cache (Python packages) is conceptually similar to
-    # the existing pip cache category (#10) but lives in a different
-    # directory, so we cover it here. (We considered extending #10 to
-    # include ~/.cache/uv, but that would require renaming the
-    # category and is a larger change than this PR's scope.)
+    # demand. uv's cache (Python packages) was here in v5.6.0–v5.7.x
+    # but is now folded into the Python Tool Caches category (#10)
+    # where it conceptually belongs.
     # Use $USER_HOME (not $HOME) so the user's home is targeted under
     # sudo — same convention as every other category in the script.
     USER_CACHE_BASE="$USER_HOME/.cache"
-    USER_TOOL_SUBDIRS=(uv giget opencode opencode-agent-skills powershell gh starship)
+    USER_TOOL_SUBDIRS=(giget opencode opencode-agent-skills powershell gh starship)
 
     USER_TOOL_BYTES=0
     USER_TOOL_HIT=0

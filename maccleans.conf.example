@@ -87,4 +87,5 @@ SKIP_DSSTORE=false            # Stray .DS_Store files on the home volume
 SKIP_SYSTEM_TMP=true          # /tmp, /var/tmp, /private/var/folders/.../T/
 SKIP_BROWSER_TOOLS=false      # ~/.cache/puppeteer, ~/.cache/selenium (browser test binaries)
 SKIP_CRASH_REPORTS=false       # ~/Library/Logs/CrashReporter, ~/Library/Application Support/CrashReporter (7-day age threshold)
+SKIP_XCODE_ARCHIVES=false      # ~/Library/Developer/Xcode/Archives (release builds + dSYMs; --force-xcode required on CLI)
 SKIP_USER_TOOL_CACHES=false    # ~/.cache/{uv, giget, opencode, powershell, gh, starship, ...}

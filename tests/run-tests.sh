@@ -153,28 +153,31 @@ test_init_skip_defaults_sets_every_skip_to_false() {
     done
     return $rc
 }
-test_registry_has_33_entries() {
+test_registry_has_34_entries() {
     # 28 numbered sections (1-28) + 2 sub-numbered (3a Spotify, 3b Claude)
-    # + 3 new (29 Browser Testing Tool Caches, 30 Crash Reports,
-    # 31 User Tool Caches) = 33 array entries. Adding a new category =
-    # edit this count, add a line to CATEGORY_REGISTRY, and write one
-    # section body.
-    [ "${#CATEGORY_REGISTRY[@]}" -eq 33 ]
+    # + 3 (29 Browser Testing Tool Caches, 30 Crash Reports,
+    # 31 User Tool Caches) + 1 (34 Xcode Archives) = 34 array entries.
+    # Adding a new category = edit this count, add a line to
+    # CATEGORY_REGISTRY, and write one section body.
+    [ "${#CATEGORY_REGISTRY[@]}" -eq 34 ]
 }
 test_registry_has_new_categories() {
-    # Verify the 3 new entries exist with the right skip_var wiring.
-    local entry found_bt found_cr found_uc
+    # Verify the v5.6.0 3 new entries (29, 30, 31) and the v5.8.0
+    # entry (34 Xcode Archives) exist with the right skip_var wiring.
+    local entry found_bt found_cr found_uc found_xa
     found_bt=0
     found_cr=0
     found_uc=0
+    found_xa=0
     for entry in "${CATEGORY_REGISTRY[@]}"; do
         case "$(registry_get_skip_var "$entry")" in
-            SKIP_BROWSER_TOOLS)   found_bt=1 ;;
-            SKIP_CRASH_REPORTS)   found_cr=1 ;;
+            SKIP_BROWSER_TOOLS)    found_bt=1 ;;
+            SKIP_CRASH_REPORTS)    found_cr=1 ;;
             SKIP_USER_TOOL_CACHES) found_uc=1 ;;
+            SKIP_XCODE_ARCHIVES)   found_xa=1 ;;
         esac
     done
-    [ "$found_bt" -eq 1 ] && [ "$found_cr" -eq 1 ] && [ "$found_uc" -eq 1 ]
+    [ "$found_bt" -eq 1 ] && [ "$found_cr" -eq 1 ] && [ "$found_uc" -eq 1 ] && [ "$found_xa" -eq 1 ]
 }
 
 # --- Security audit tests (added 2026-06-05) -------------------------------
@@ -402,6 +405,25 @@ test_release_check_workflow_exists() {
     return 0
 }
 
+test_completions_include_xcode_archives_skip_flag() {
+    # v5.8.0 added --skip-xcode-archives for the new #34 category.
+    # Without this test, a future refactor of the completion files
+    # could quietly drop the new flag (the same bug class that
+    # test_completions_include_v56_skip_flags covers for v5.6.0).
+    if ! /usr/bin/grep -qF -e "--skip-xcode-archives" "$REPO_ROOT/completions/mac-cleans.bash"; then
+        echo "completions/mac-cleans.bash missing --skip-xcode-archives" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qF -e "--skip-xcode-archives" "$REPO_ROOT/completions/_mac-cleans"; then
+        echo "completions/_mac-cleans missing --skip-xcode-archives" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qF -e "-l skip-xcode-archives" "$REPO_ROOT/completions/mac-cleans.fish"; then
+        echo "completions/mac-cleans.fish missing -l skip-xcode-archives" >&2
+        return 1
+    fi
+    return 0
+}
 test_completions_include_v56_skip_flags() {
     # v5.6.0 added --skip-browser-tools, --skip-crash-reports, and
     # --skip-user-tool-caches but missed updating the bash/zsh/fish
@@ -586,8 +608,8 @@ assert "size_to_bytes is case-insensitive on unit"             test_size_to_byte
 assert "registry_get_skip_var returns last field"              test_registry_get_skip_var
 assert "registry_get_display returns middle field"             test_registry_get_display
 assert "_init_skip_defaults sets every SKIP_X to false"        test_init_skip_defaults_sets_every_skip_to_false
-assert "CATEGORY_REGISTRY has 33 entries (1-28 + 3a/3b + 29/30/31)"  test_registry_has_33_entries
-assert "CATEGORY_REGISTRY has new SKIP_BROWSER_TOOLS/CRASH_REPORTS/USER_TOOL_CACHES" test_registry_has_new_categories
+assert "CATEGORY_REGISTRY has 34 entries (1-28 + 3a/3b + 29/30/31 + 34)"  test_registry_has_34_entries
+assert "CATEGORY_REGISTRY has new SKIP_BROWSER_TOOLS/CRASH_REPORTS/USER_TOOL_CACHES/XCODE_ARCHIVES" test_registry_has_new_categories
 assert "No literal '\$HOME/' in user paths (security audit)"            test_no_literal_home_in_user_paths
 assert "Every 'find ... -delete' has -type filter or [ ! -L ] guard"    test_find_delete_has_type_or_symlink_guard
 assert "USER_HOME derivation uses SUDO_USER with getent fallback"        test_user_home_derivation_uses_sudo_user
@@ -597,6 +619,7 @@ assert '--json output block includes the "details" object'              test_jso
 assert "scripts/release.sh supports --check mode"                       test_release_sh_check_mode
 assert ".github/workflows/release-check.yml exists"                      test_release_check_workflow_exists
 assert "Completions include the 3 v5.6.0 --skip-X flags"                 test_completions_include_v56_skip_flags
+assert "Completions include the v5.8.0 --skip-xcode-archives flag"         test_completions_include_xcode_archives_skip_flag
 assert "load_config_file case statement covers every registry SKIP_X"     test_config_loader_covers_every_registry_skip_x
 assert "Interactive menu digit handler covers 1-N (no silent swallow)"    test_interactive_menu_handles_all_digit_ranges
 

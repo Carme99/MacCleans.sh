@@ -26,6 +26,7 @@ _mac_cleans() {
         '--skip-spotify[Skip Spotify cache]'
         '--skip-claude[Skip Claude cache]'
         '--skip-xcode[Skip Xcode Derived Data]'
+        '--skip-xcode-archives[Skip Xcode Archives (release builds + dSYMs)]'
         '--skip-browsers[Skip browser cache (Chrome, Firefox, Edge)]'
         '--skip-npm[Skip npm/Yarn cache]'
         '--skip-pip[Skip Python pip cache]'
