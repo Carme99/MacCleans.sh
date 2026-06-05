@@ -219,11 +219,20 @@ test_find_delete_has_type_or_symlink_guard() {
     # be preceded (within the immediately surrounding block) by a
     # `[ ! -L ]` parent guard. The check is structural: we look at the
     # find -delete line itself for `-type`, and at the prior 5 lines for
-    # `[ ! -L`.
+    # `[ ! -L ]`.
     #
     # We use a python helper because bash + multi-line + alternation is
     # painful. The script is well under 4000 lines so the perf cost is
     # trivial.
+    #
+    # Recognised safe patterns (any one of these is enough):
+    #   - Same line: `find ... -type f ... -delete` or `-type d`
+    #   - Within the prior 5 lines: `[ ! -L "$X" ]`, `[ ! -L $X ]`,
+    #     `[ ! -L "${X}" ]`, etc. (any quoting style on the path arg)
+    #   - Inside the `safe_clear_directory` function body (excluded —
+    #     it has its own internal symlink check)
+    #   - System-path finds (no `$VAR` interpolation) for paths the
+    #     system owns: /private/var/tmp, /private/tmp
     python3 - "$SCRIPT_PATH" <<'PY'
 import re
 import sys
@@ -232,19 +241,35 @@ script_path = sys.argv[1]
 with open(script_path) as f:
     lines = f.readlines()
 
-# Find every line that contains `find ... -delete` and isn't inside the
-# `safe_clear_directory` helper body (which is allowed to have multiple
-# forms by design).
 violations = []
 in_safe_clear = False
 brace_depth = 0
+
+# Symlink-guard regex. Accepts any of the common quoting styles for
+# the path argument: "$X", "${X}", $X, or `${X}`. Tabs / multiple
+# spaces between `[`, `!`, `-L` and the path are allowed.
+SYM_GUARD_RE = re.compile(
+    r'\[\s*!\s*-L\s+'            # [ ! -L
+    r'(?:'                         # path arg, any of:
+    r'"\$[\w]+"'                  #   "$X"
+    r'|\$\{[\w]+\}'               #   ${X}
+    r'|"\$?\{?[\w]+\}?"'          #   "$X" / "${X}" / "$X" / "X"
+    r'|\$[\w]+'                   #   $X
+    r')'
+    r'\s*\]'                      # closing ]
+)
+
+# safe_clear_directory body detection. Whitespace between tokens is
+# flexible to allow for refactoring.
+def is_safe_clear_def(line):
+    return bool(re.search(
+        r'^safe_clear_directory\s*\(\s*\)\s*\{',
+        line))
+
 for i, line in enumerate(lines):
     n = i + 1
 
-    # Track whether we're inside safe_clear_directory's function body.
-    # The function definition starts with `safe_clear_directory() {` and
-    # ends at the matching closing `}`.
-    if re.search(r'^safe_clear_directory\s*\(\s*\)\s*\{', line):
+    if is_safe_clear_def(line):
         in_safe_clear = True
         brace_depth = 1
         continue
@@ -254,31 +279,24 @@ for i, line in enumerate(lines):
             in_safe_clear = False
         continue
 
-    # Look for `find ... -delete` on this line.
     if not re.search(r'\bfind\b.+\-delete\b', line):
         continue
 
-    # Skip comment lines. `find -delete` mentioned in a comment is
-    # documentation, not a real call.
+    # Skip comment lines.
     stripped = line.lstrip()
     if stripped.startswith('#'):
         continue
 
-    # Same-line type filter is enough.
-    if re.search(r'-(?:type\s+[fd]|type\s+[fd]\b)', line):
-        continue
+    # Same-line type filter.
     if '-type f' in line or '-type d' in line:
         continue
 
-    # Otherwise, look at the 5 preceding lines for a `[ ! -L "$X" ]`
-    # parent guard. The guard is a common idiom and may span an `if`
-    # statement boundary.
+    # Otherwise, look at the 5 preceding lines for a [ ! -L ] guard.
     context = ''.join(lines[max(0, i-5):i+1])
-    if re.search(r'\[\s*!\s*-L\s+"\$', context):
+    if SYM_GUARD_RE.search(context):
         continue
 
-    # System-path finds (no `$VAR` interpolation) are out of scope for
-    # this test — the system owns /private/var/tmp and /private/tmp.
+    # System-path finds.
     if '/private/var/tmp' in line or '/private/tmp' in line:
         continue
 
@@ -298,19 +316,17 @@ test_user_home_derivation_uses_sudo_user() {
     # SUDO_USER is unset. We verify both by reading the relevant
     # source block from the script.
     #
-    # Specifically, the block at "Get and validate actual user" must
-    # contain:
-    #   1. `if [ -n "${SUDO_USER:-}" ]` (or equivalent) to detect sudo
-    #   2. `getent passwd "$SUDO_USER"` (or passwd lookup) to find the
-    #      home dir, since $HOME is unreliable under sudo
-    #   3. A fallback to `USER_HOME="$HOME"` when SUDO_USER is empty
+    # The block is bounded by a stable marker comment
+    # ("AUDIT_MARKER: end of sudo_user_derivation_block") so the test
+    # doesn't depend on a closing `fi` line being at column 0 (which
+    # would silently break if someone un-indented the inner `fi`).
     #
     # The audit caught a real bug where the script used $HOME for
     # CONFIG_FILES / LOCKDIR / check_icloud_backup_enabled, missing
     # the user's actual home under sudo. This test makes the derivation
     # pattern the canonical place to look.
     local block
-    block=$(/usr/bin/awk '/^# Get and validate actual user/,/^fi$/' "$SCRIPT_PATH")
+    block=$(/usr/bin/awk '/^# Get and validate actual user/,/^# AUDIT_MARKER: end of sudo_user_derivation_block$/' "$SCRIPT_PATH")
 
     if ! echo "$block" | /usr/bin/grep -qF 'SUDO_USER'; then
         echo "USER_HOME derivation does not check SUDO_USER:" >&2

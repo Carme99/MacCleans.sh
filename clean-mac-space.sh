@@ -612,17 +612,12 @@ cleanup_on_exit() {
 }
 trap cleanup_on_exit EXIT
 
-# Lock directory for preventing parallel runs
-# Use user-protected directory instead of world-writable /tmp.
-# LOCKDIR is reassigned in the post-source-guard setup block, after
-# USER_HOME is derived. The trap cleanup_on_exit (set above) holds
-# the reassignment via parameter expansion guards (`-n "${LOCKDIR:-}"`).
+# Lock directory for preventing parallel runs. Initialised in the
+# post-source-guard setup block (after USER_HOME is derived) so it
+# can use $USER_HOME. The trap cleanup_on_exit (set above) holds
+# the unset value via parameter expansion guards
+# (`${LOCK_OWNED:-0}` and `-n "${LOCKDIR:-}"`).
 # See the security audit PR for context on why $HOME here was a bug.
-LOCKDIR=""
-LOCK_OWNED=0
-MIN_FREE_MB=200
-LOCK_OWNED=0
-MIN_FREE_MB=200
 
 # Acquire exclusive lock atomically using mkdir
 # Uses atomic mkdir for lock acquisition to avoid TOCTOU race conditions
@@ -1118,6 +1113,10 @@ else
     ACTUAL_USER=$(whoami)
     USER_HOME="$HOME"
 fi
+# AUDIT_MARKER: end of sudo_user_derivation_block
+# Used by tests/run-tests.sh::test_user_home_derivation_uses_sudo_user
+# as a stable end-anchor for the block extraction. Don't move this
+# marker; if you need to refactor the block above, update the test.
 
 # Resolve symlinks in USER_HOME to prevent operating on wrong directory
 if [ -L "$USER_HOME" ]; then
@@ -1161,6 +1160,8 @@ CONFIG_FILES=(
 # user (a non-sudo run of the script would create a separate lock in
 # the user's real home, defeating the whole concurrency check).
 LOCKDIR="$USER_HOME/.macclean/lock"
+LOCK_OWNED=0
+MIN_FREE_MB=200
 
 # Validate user
 if [ -z "$ACTUAL_USER" ] || [ "$ACTUAL_USER" = "root" ]; then
