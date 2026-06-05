@@ -443,8 +443,23 @@ test_config_loader_covers_every_registry_skip_x() {
     # registry, the --skip-X flags, the section bodies, and the
     # completions, but missed the load_config_file case statement AND
     # maccleans.conf.example. Caught by the v5.7.0 UX review.
+    #
+    # Constrain the extraction to the CATEGORY_REGISTRY=() block (between
+    # the assignment opener and the closing paren). If the registry ever
+    # moves, refactor the extractor first; this test should fail loud
+    # rather than silently miss vars.
+    local registry_block
+    registry_block=$(/usr/bin/awk '
+        /^CATEGORY_REGISTRY=\(/   { in_block=1; next }
+        in_block && /^\)/         { in_block=0 }
+        in_block                  { print }
+    ' "$SCRIPT_PATH")
+    if [ -z "$registry_block" ]; then
+        echo "CATEGORY_REGISTRY=() block not found in $SCRIPT_PATH — test misconfigured" >&2
+        return 1
+    fi
     local registry_skip
-    registry_skip=$(/usr/bin/grep -oE '"[0-9a-z]+\|[^|]+\|SKIP_[A-Z_]+"' "$SCRIPT_PATH" | /usr/bin/sed -E 's/.*\|(SKIP_[A-Z_]+)"/\1/' | /usr/bin/sort -u)
+    registry_skip=$(printf '%s\n' "$registry_block" | /usr/bin/grep -oE '\|SKIP_[A-Z_]+' | /usr/bin/sed -E 's/^\|//' | /usr/bin/sort -u)
     if [ -z "$registry_skip" ]; then
         echo "No SKIP_X vars found in CATEGORY_REGISTRY — test misconfigured" >&2
         return 1
@@ -452,13 +467,11 @@ test_config_loader_covers_every_registry_skip_x() {
     local missing=()
     local var
     while IFS= read -r var; do
-        if ! /usr/bin/grep -qF "${var})" "$SCRIPT_PATH"; then
-            # Use a precise check: a case arm in load_config_file. The
-            # pattern `${var}) SKIP_X=` (or similar) appears in the case
-            # statement. We also accept the FORCE_*/VERBOSE/etc. form.
-            if ! /usr/bin/grep -qE "^\s*${var}\)" "$SCRIPT_PATH"; then
-                missing+=("$var")
-            fi
+        # Anchored match: a case arm starts with optional leading whitespace
+        # then the var name followed by ')'. The FORCE_*/VERBOSE/etc. arms
+        # are non-SKIP keys and are not checked here — only SKIP_X.
+        if ! /usr/bin/grep -qE "^[[:space:]]+${var}\)" "$SCRIPT_PATH"; then
+            missing+=("$var")
         fi
     done <<< "$registry_skip"
     if [ "${#missing[@]}" -gt 0 ]; then
