@@ -4,16 +4,13 @@ All notable changes to MacCleans.sh are documented in this file.
 
 ## [Unreleased]
 
-### Performance
+### Added
 
-- **CocoaPods per-file du loop replaced with a single `du -sh` on the dir** (F-1 from the v5.7.0 perf review). The previous code spawned one `du -sk` per file in `~/Library/Caches/CocoaPods`; a 5,000-file directory took **8.5s** of real time. A single `du -sh` on the dir returns in **<0.01s** — three-orders-of-magnitude win, with identical size accuracy.
-- **Docker `docker system df` called twice — now once** (F-2). The Docker Cache section was running `docker system df` once for the display table and once with `--format '{{.Reclaimable}}'` for the reclaimable estimate. Replaced with a single `--format 'table {{.Type}}\t{{.TotalCount}}\t{{.Size}}\t{{.Reclaimable}}'` call that supplies both. Halves the daemon round-trips.
-- **`safe_clear_directory` 3-pass find collapsed to 2** (F-3). Pass 1 was `find ... -type f -print0` followed by a per-file `rm -f` loop; pass 3 was `find ... -type d -exec rm -rf -- {} +` which subsumes the empty-dir pass 2. Replaced both with `find -type f -delete` + `find -type d -delete`. Benefits every cache-clearing category (Spotify, Claude, browsers, XCode, npm, yarn, pip, Mail, Siri, iCloud Mail, QuickLook, Trash, Gradle, Go, Bun, pnpm, User Tool, Browser Tool caches).
+- **New cleanup category #34: Xcode Archives** — `~/Library/Developer/Xcode/Archives` is typically 5-20GB on a Mac with any iOS/macOS dev history. Archives hold release builds and dSYMs (not regenerated like DerivedData, so the safety story is "you can recover from backup but not otherwise"). Gated by `--force-xcode` (same as the existing DerivedData category #8); an interactive y/N prompt asks for confirmation otherwise. New `SKIP_XCODE_ARCHIVES` config-file key and `--skip-xcode-archives` CLI flag, both auto-derived from `CATEGORY_REGISTRY`. New bash/zsh/fish completion entries. New regression test `test_completions_include_xcode_archives_skip_flag` enforces completion parity.
 
-### Bug Fixes
+### Internal
 
-- **pnpm dry-run now reports the global store size too** (F-6). `~/.pnpm-store` was only sized in the real-run path, so `--dry-run` understated the savings. Moved the size computation outside the dry-run branch so the totals match.
-- **Interactive menu digit handler now covers the full 1-N range** (UX-1 from the v5.7.0 UX review). The previous code only special-cased digits 1-9 plus 10-13; typing 14-N fell through to the catch-all and was silently swallowed — so the menu's "Tip: Numbers 1-30 also work" hint was a lie for half the digits. New handler reads a single `[1-9])` case with a 0.3s lookahead for 2-digit numbers, validated against the registered total. New regression test `test_interactive_menu_handles_all_digit_ranges`.
+- **uv's cache moved from #31 (User Tool Caches) to #10 (Python Tool Caches)** — uv is conceptually a Python package manager, so it belongs with pip. The #10 category is now named "Python Tool Caches (pip + uv)" to match. Users with `SKIP_PIP=true` in their config will now also skip uv; the SKIP flag rename was a discussion point in v5.6.0 (PR #84) and v5.7.0 (RECOMMENDATIONS doc) and is now landed.
 
 ## [5.7.1] - 2026-06-05
 
