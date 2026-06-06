@@ -4,13 +4,29 @@ All notable changes to MacCleans.sh are documented in this file.
 
 ## [Unreleased]
 
+## [5.8.0] - 2026-06-06
+
 ### Added
 
 - **New cleanup category #34: Xcode Archives** — `~/Library/Developer/Xcode/Archives` is typically 5-20GB on a Mac with any iOS/macOS dev history. Archives hold release builds and dSYMs (not regenerated like DerivedData, so the safety story is "you can recover from backup but not otherwise"). Gated by `--force-xcode` (same as the existing DerivedData category #8); an interactive y/N prompt asks for confirmation otherwise. New `SKIP_XCODE_ARCHIVES` config-file key and `--skip-xcode-archives` CLI flag, both auto-derived from `CATEGORY_REGISTRY`. New bash/zsh/fish completion entries. New regression test `test_completions_include_xcode_archives_skip_flag` enforces completion parity.
+- **`--json` `details` object now carries `estimated_bytes` for 27/33 categories** (was 4/33). The remaining 6 are documented special cases (#1 Time Machine has no size, #3 Application Cache has an empty body, #12 Docker only has reclaimable, #13 iOS Simulator computes the freed bytes post-clean, #17 Photos and #18 iCloud Drive have unusual section structures). Users can now pipe `Mac-Clean --json | jq '.details[] | select(.estimated_bytes > 0)'` to surface dominant-cost categories for monitoring/CI use.
+
+### Bug Fixes
+
+- **`load_config_file` now reports partial clean failures correctly** — the v5.6.0 Python Tool Caches section used `... && safe_clear_directory ... 2>/dev/null || true` which silenced the cleanup's failure exit code but still incremented `TOTAL_BYTES_FREED` by the full pre-clean size. Now tracks actual bytes freed per cache and only logs success when the cleanup actually succeeded.
+
+### Performance
+
+- **CocoaPods per-file `du` loop replaced with a single `du -sh`** — 8.5s → <0.01s on a 5,000-file directory (3-orders-of-magnitude win).
+- **Docker `docker system df` called twice → once** — uses a single `--format` call that supplies both the display table and the reclaimable size.
+- **`safe_clear_directory` 3-pass find collapsed to 2** — `find -type f -delete` + `find -type d -delete` (handles all dir cases including non-regular entries, with a verbose-mode fallback to surface undeleted files for troubleshooting).
+- **pnpm dry-run now sizes `~/.pnpm-store` too** — was real-run-only; dry-run understated.
+- **Interactive menu digit handler now covers the full 1-N range** — was a single-digit + 10-13 special case; typing 14+ was silently swallowed. New `[1-9])` case with 0.3s lookahead for 2-digit numbers, validated against the registered total.
 
 ### Internal
 
 - **uv's cache moved from #31 (User Tool Caches) to #10 (Python Tool Caches)** — uv is conceptually a Python package manager, so it belongs with pip. The #10 category is now named "Python Tool Caches (pip + uv)" to match. Users with `SKIP_PIP=true` in their config will now also skip uv; the SKIP flag rename was a discussion point in v5.6.0 (PR #84) and v5.7.0 (RECOMMENDATIONS doc) and is now landed.
+- **Safe-clear error reporting** — when `safe_clear_directory` fails to remove a file or directory (e.g., permission denied), the warning now reports the specific undeleted path when `--verbose` is set.
 
 ## [5.7.1] - 2026-06-05
 
