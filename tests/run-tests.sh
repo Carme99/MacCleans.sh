@@ -153,13 +153,13 @@ test_init_skip_defaults_sets_every_skip_to_false() {
     done
     return $rc
 }
-test_registry_has_34_entries() {
-    # 28 numbered sections (1-28) + 2 sub-numbered (3a Spotify, 3b Claude)
-    # + 3 (29 Browser Testing Tool Caches, 30 Crash Reports,
-    # 31 User Tool Caches) + 1 (34 Xcode Archives) = 34 array entries.
-    # Adding a new category = edit this count, add a line to
-    # CATEGORY_REGISTRY, and write one section body.
-    [ "${#CATEGORY_REGISTRY[@]}" -eq 34 ]
+test_registry_has_at_least_34_entries() {
+    # Lower bound, not equality: the registry grows in feature PRs
+    # (v5.6.0 added 29-31, v5.8.0 added 34), and an exact-count assert
+    # makes every category PR collide on this line. Category PRs add
+    # no count assertion of their own; presence is enforced by the
+    # dynamic registry-walk tests below.
+    [ "${#CATEGORY_REGISTRY[@]}" -ge 34 ]
 }
 test_registry_has_new_categories() {
     # Verify the v5.6.0 3 new entries (29, 30, 31) and the v5.8.0
@@ -608,7 +608,7 @@ assert "size_to_bytes is case-insensitive on unit"             test_size_to_byte
 assert "registry_get_skip_var returns last field"              test_registry_get_skip_var
 assert "registry_get_display returns middle field"             test_registry_get_display
 assert "_init_skip_defaults sets every SKIP_X to false"        test_init_skip_defaults_sets_every_skip_to_false
-assert "CATEGORY_REGISTRY has 34 entries (1-28 + 3a/3b + 29/30/31 + 34)"  test_registry_has_34_entries
+assert "CATEGORY_REGISTRY has at least 34 entries (1-28 + 3a/3b + 29-31 + 34)"  test_registry_has_at_least_34_entries
 assert "CATEGORY_REGISTRY has new SKIP_BROWSER_TOOLS/CRASH_REPORTS/USER_TOOL_CACHES/XCODE_ARCHIVES" test_registry_has_new_categories
 assert "No literal '\$HOME/' in user paths (security audit)"            test_no_literal_home_in_user_paths
 assert "Every 'find ... -delete' has -type filter or [ ! -L ] guard"    test_find_delete_has_type_or_symlink_guard
