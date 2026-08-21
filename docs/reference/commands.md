@@ -270,6 +270,7 @@ sudo Mac-Clean --yes \
   --skip-jetbrains \
   --skip-cargo \
   --skip-nuget \
+  --skip-vscode \
   --skip-system-tmp \
   --clean-system-tmp
 ```
