@@ -493,6 +493,40 @@ test_completions_include_jvm_skip_flag() {
         echo "completions/mac-cleans.fish missing -l skip-jvm" >&2
         return 1
     fi
+}
+
+test_registry_has_cargo_registry_cache() {
+    # v6 adds category #37 "Cargo Registry Cache" wired to SKIP_CARGO.
+    # Registry-walk presence check (like test_registry_has_new_categories),
+    # not a count assert, so parallel category PRs don't collide here.
+    local entry found_cargo=0
+    for entry in "${CATEGORY_REGISTRY[@]}"; do
+        if [ "$(registry_get_skip_var "$entry")" = "SKIP_CARGO" ] && \
+           [ "$(registry_get_display "$entry")" = "Cargo Registry Cache" ]; then
+            found_cargo=1
+            break
+        fi
+    done
+    [ "$found_cargo" -eq 1 ]
+}
+test_completions_include_cargo_skip_flag() {
+    # v6 added --skip-cargo for the new #37 category. Without this
+    # test, a future refactor of the completion files could quietly
+    # drop the new flag (same bug class as the v5.6.0 completions
+    # miss). Mirrors the xcode-archives parity test: bash and zsh
+    # carry the literal --skip-cargo token; fish uses `-l skip-cargo`.
+    if ! /usr/bin/grep -qF -e "--skip-cargo" "$REPO_ROOT/completions/mac-cleans.bash"; then
+        echo "completions/mac-cleans.bash missing --skip-cargo" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qF -e "--skip-cargo" "$REPO_ROOT/completions/_mac-cleans"; then
+        echo "completions/_mac-cleans missing --skip-cargo" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qF -e "-l skip-cargo" "$REPO_ROOT/completions/mac-cleans.fish"; then
+        echo "completions/mac-cleans.fish missing -l skip-cargo" >&2
+        return 1
+    fi
     return 0
 }
 test_completions_include_v56_skip_flags() {
@@ -692,6 +726,8 @@ assert ".github/workflows/release-check.yml exists"                      test_re
 assert "Completions include the 3 v5.6.0 --skip-X flags"                 test_completions_include_v56_skip_flags
 assert "Completions include the v5.8.0 --skip-xcode-archives flag"         test_completions_include_xcode_archives_skip_flag
 assert "Completions include the v6 --skip-jvm flag"                        test_completions_include_jvm_skip_flag
+assert "Completions include the v6 --skip-cargo flag"                     test_completions_include_cargo_skip_flag
+assert "CATEGORY_REGISTRY has Cargo Registry Cache wired to SKIP_CARGO"   test_registry_has_cargo_registry_cache
 assert "load_config_file case statement covers every registry SKIP_X"     test_config_loader_covers_every_registry_skip_x
 assert "Interactive menu digit handler covers 1-N (no silent swallow)"    test_interactive_menu_handles_all_digit_ranges
 assert "CATEGORY_REGISTRY has the #36 JetBrains IDE Caches entry"        test_registry_has_jetbrains_ide_caches

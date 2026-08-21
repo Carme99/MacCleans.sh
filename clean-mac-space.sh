@@ -80,6 +80,8 @@ VERSION="5.8.0"
 #   --skip-user-tool-caches Skip user tool caches in ~/.cache/ (NEW)
 #   --skip-jvm         Skip JVM build cache cleanup (Maven/Ivy/sbt) (NEW)
 #   --skip-jetbrains    Skip JetBrains IDE cache cleanup (NEW)
+
+#   --skip-cargo        Skip Cargo registry cache cleanup (NEW)
 #   --skip-system-tmp   Skip /tmp and /var/tmp cleanup (default: on, opt-in via --clean-system-tmp)
 #   --clean-system-tmp  Opt in to /tmp and /var/tmp cleanup (default off; overrides --skip-system-tmp)
 #   --photos-library    Specify Photos library name or "all" to clean all libraries
@@ -140,6 +142,7 @@ CATEGORY_REGISTRY=(
     "34|Xcode Archives|SKIP_XCODE_ARCHIVES"
     "35|JVM Build Caches|SKIP_JVM"
     "36|JetBrains IDE Caches|SKIP_JETBRAINS"
+    "37|Cargo Registry Cache|SKIP_CARGO"
 )
 
 # Single-field accessors for CATEGORY_REGISTRY entries. Format is
@@ -420,6 +423,7 @@ load_config_file() {
                     SKIP_USER_TOOL_CACHES) SKIP_USER_TOOL_CACHES="$value" ;;
                     SKIP_XCODE_ARCHIVES) SKIP_XCODE_ARCHIVES="$value" ;;
                     SKIP_JVM) SKIP_JVM="$value" ;;
+                    SKIP_CARGO) SKIP_CARGO="$value" ;;
                     FORCE_XCODE) FORCE_XCODE="$value" ;;
                     FORCE_TRASH) FORCE_TRASH="$value" ;;
                     FORCE_ICLOUD_DRIVE) FORCE_ICLOUD_DRIVE="$value" ;;
@@ -3525,6 +3529,66 @@ if run_category "36|JetBrains IDE Caches|SKIP_JETBRAINS"; then
         fi
     else
         log "No JetBrains IDE caches found"
+    fi
+    log_plain ""
+fi
+
+###############################################################################
+# 37. Cargo Registry Cache
+###############################################################################
+if run_category "37|Cargo Registry Cache|SKIP_CARGO"; then
+
+    # Cargo (Rust) keeps two grow-only directories under
+    # ~/.cargo/registry: cache/ holds every downloaded .crate archive
+    # and src/ holds the extracted sources for every dependency ever
+    # built (usually the bigger win). Both regenerate fully: crates
+    # re-download from crates.io and re-extract on the next cargo
+    # build. The only cost is one slow rebuild after cleaning — the
+    # first build recompiles, then incremental caching resumes. The
+    # registry index, ~/.cargo/bin, config.toml, and ~/.rustup are
+    # never touched.
+    # Use $USER_HOME (not $HOME) so the user's home is targeted under
+    # sudo — same convention as every other category in the script.
+    # Deliberately NOT reading $CARGO_HOME: under sudo it may point
+    # at root's home, missing the user's actual registry.
+    CARGO_REGISTRY_BASE="$USER_HOME/.cargo/registry"
+
+    CARGO_BYTES=0
+    CARGO_HIT=0
+
+    for cargo_subdir in cache src; do
+        cargo_dir="$CARGO_REGISTRY_BASE/$cargo_subdir"
+        # Mirror the cleanup guard below: skip symlinks and non-directories
+        # so reported sizes only include paths that will actually be deleted.
+        if [ -L "$cargo_dir" ] || [ ! -d "$cargo_dir" ]; then
+            continue
+        fi
+        if measured=$(measure_cache_dir "$cargo_dir"); then
+            bytes="${measured%%|*}"
+            human="${measured#*|}"
+            CARGO_BYTES=$((CARGO_BYTES + bytes))
+            CARGO_HIT=$((CARGO_HIT + 1))
+            log "Found Cargo registry $cargo_subdir/: $human"
+        fi
+    done
+
+    if [ "$CARGO_HIT" -gt 0 ]; then
+        CARGO_HUMAN=$(bytes_to_human "$CARGO_BYTES")
+        record_category_size "Cargo Registry Cache" "$CARGO_BYTES" "$CARGO_HUMAN"
+        if [ "$DRY_RUN" = true ]; then
+            log "Would clear Cargo registry cache: $CARGO_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + CARGO_BYTES))
+        else
+            log "Clearing Cargo registry cache..."
+            for cargo_subdir in cache src; do
+                cargo_dir="$CARGO_REGISTRY_BASE/$cargo_subdir"
+                [ -d "$cargo_dir" ] && [ ! -L "$cargo_dir" ] && safe_clear_directory "$cargo_dir" 2>/dev/null || true
+            done
+            log_success "Cargo registry cache cleared: $CARGO_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + CARGO_BYTES))
+        fi
+    else
+        log "No Cargo registry cache found"
     fi
     log_plain ""
 fi

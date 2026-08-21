@@ -268,6 +268,7 @@ sudo Mac-Clean --yes \
   --skip-user-tool-caches \
   --skip-jvm \
   --skip-jetbrains \
+  --skip-cargo \
   --skip-system-tmp \
   --clean-system-tmp
 ```

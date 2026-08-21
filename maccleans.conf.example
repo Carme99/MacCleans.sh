@@ -91,3 +91,4 @@ SKIP_XCODE_ARCHIVES=false      # ~/Library/Developer/Xcode/Archives (release bui
 SKIP_USER_TOOL_CACHES=false    # ~/.cache/{uv, giget, opencode, powershell, gh, starship, ...}
 SKIP_JVM=false                 # ~/.m2/repository, ~/.ivy2/cache, ~/.sbt/boot (re-downloaded on next build)
 SKIP_JETBRAINS=false         # ~/Library/Caches/JetBrains (per-version IDE caches; rebuild on next launch)
+SKIP_CARGO=false              # ~/.cargo/registry/{cache,src} (.crate archives + extracted sources)

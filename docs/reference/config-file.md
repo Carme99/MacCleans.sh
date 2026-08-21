@@ -52,6 +52,7 @@ CLI flags override config values. See [how-to/configure.md](../how-to/configure.
 | `SKIP_BUN` | `false` | Skip Bun cache. |
 | `SKIP_PNPM` | `false` | Skip pnpm store. |
 | `SKIP_JVM` | `false` | Skip Maven / Ivy / sbt build caches. |
+| `SKIP_CARGO` | `false` | Skip Cargo registry cache (`~/.cargo/registry/{cache,src}`). |
 | `SKIP_SYSTEM_TMP` | `true` | Skip `/tmp` and `/var/tmp`. **Default-on** for safety; opt in with `--clean-system-tmp` or set `SKIP_SYSTEM_TMP=false`. |
 | `SKIP_JETBRAINS` | `false` | Skip JetBrains IDE caches (`~/Library/Caches/JetBrains`). Settings/plugins in Application Support are never touched. |
 
