@@ -617,6 +617,25 @@ sudo Mac-Clean --yes --skip-jetbrains
 
 ---
 
+### NuGet Package Cache
+
+**Path:** `~/.nuget/packages`
+
+**Typical Size:** 500MB-5GB
+
+**What it does:** Deletes the global-packages folder where NuGet stores downloaded `.nupkg` archives and their extracted contents. Packages are re-downloaded from nuget.org on the next `dotnet restore` or build.
+
+**Risk:** Low-Medium - fully regenerates; the only cost is re-download time and bandwidth.
+
+**When to skip:** If you work offline frequently
+
+```bash
+# Skip NuGet package cache
+sudo Mac-Clean --yes --skip-nuget
+```
+
+---
+
 ## Guides
 
 For deeper understanding of specific categories:
