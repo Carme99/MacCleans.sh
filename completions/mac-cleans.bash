@@ -7,7 +7,7 @@ _mac_cleans() {
     cur="${COMP_WORDS[COMP_CWORD]}"
 
     local -a options=(
-        --dry-run --force --yes --interactive --json --version --help
+        --dry-run --force --yes --interactive --json --version --help --list-categories
         --quiet --no-color --verbose --update
         --threshold --profile --photos-library
         --skip-snapshots --skip-homebrew --skip-spotify --skip-claude

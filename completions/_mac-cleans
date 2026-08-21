@@ -11,6 +11,7 @@ _mac_cleans() {
         '--json[JSON output]'
         '--version[Show version]'
         '--help[Show help]'
+        '--list-categories[Print all cleanup categories and exit]'
         '--quiet[Minimal output (useful for cron)]'
         '--no-color[Disable colored output]'
         '--verbose[Enable verbose debug output]'

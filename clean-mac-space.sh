@@ -43,6 +43,7 @@ VERSION="5.8.0"
 #   --quiet, -q         Minimal output (useful for cron)
 #   --no-color          Disable colored output
 #   --version, -v       Display version information
+#   --list-categories   Print all cleanup categories and exit
 #   --threshold N        Only run if disk usage is above N% (default: 0)
 #   --interactive, -i   Interactive category selection mode
 #   --profile NAME      Use preset profile (conservative, developer, aggressive, minimal)
@@ -161,6 +162,27 @@ registry_get_skip_var() {
 registry_get_display() {
     local rest="${1#*|}"
     printf '%s\n' "${rest%|*}"
+}
+
+# Print every CATEGORY_REGISTRY entry as a table: section id, display
+# name, skip flag (or "-" when the category has no skip flag). Backs the
+# --list-categories flag, which must work without sudo and without
+# touching the disk. Defined above the top-level parse_arguments call
+# and prints via printf directly: the log/log_plain helpers are defined
+# further down and honour QUIET, which an informational dump must not.
+list_categories() {
+    local entry section display skip_var
+    printf '%-4s %-40s %s\n' "ID" "CATEGORY" "SKIP FLAG"
+    printf '%-4s %-40s %s\n' "--" "--------" "---------"
+    for entry in "${CATEGORY_REGISTRY[@]}"; do
+        section="${entry%%|*}"
+        display=$(registry_get_display "$entry")
+        skip_var=$(registry_get_skip_var "$entry")
+        if [ -z "$skip_var" ]; then
+            skip_var="-"
+        fi
+        printf '%-4s %-40s %s\n' "$section" "$display" "$skip_var"
+    done
 }
 
 # Initialize the SKIP_X defaults to false for every entry in the
@@ -485,6 +507,13 @@ parse_arguments() {
                 ;;
             --version|-v)
                 echo "MacCleans v$VERSION"
+                exit 0
+                ;;
+            --list-categories)
+                # Informational only: no sudo, no disk access. Mirrors
+                # the --version arm above -- print and exit before any
+                # environment probing happens.
+                list_categories
                 exit 0
                 ;;
             --interactive|-i)

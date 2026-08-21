@@ -40,6 +40,7 @@ flowchart TD
 | `--threshold N` | Only run if disk > N% |
 | `--help` | Show help |
 | `--version` | Show version |
+| `--list-categories` | Print all cleanup categories and exit |
 
 ---
 
@@ -334,6 +335,18 @@ Show version number and exit.
 
 ```bash
 Mac-Clean --version
+```
+
+---
+
+### --list-categories
+
+Print every cleanup category as a table (section id, display name, skip
+flag) and exit. Informational only: works without sudo and does not
+touch the disk.
+
+```bash
+Mac-Clean --list-categories
 ```
 
 ---
