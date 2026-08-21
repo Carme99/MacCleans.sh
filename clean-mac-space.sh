@@ -2375,6 +2375,18 @@ if run_category "12|Docker Cache|SKIP_DOCKER"; then
                     DOCKER_RECLAIM=$(size_to_bytes "$DOCKER_RECLAIM_SIZE")
                 fi
 
+                # Publish the reclaimable estimate for --json details.
+                # Nesting already guarantees docker is installed, the
+                # daemon answered, and the `docker system df` call
+                # succeeded (non-empty DOCKER_INFO); the numeric guard
+                # below keeps an unexpected size string from poisoning
+                # TOTAL_BYTES_FREED (size_to_bytes maps garbage to 0,
+                # and `2>/dev/null` silences the integer test's
+                # non-numeric complaint under set -e).
+                if [ -n "${DOCKER_RECLAIM:-}" ] && [ "$DOCKER_RECLAIM" -gt 0 ] 2>/dev/null; then
+                    record_category_size "Docker Cache" "$DOCKER_RECLAIM" "$DOCKER_RECLAIM_SIZE"
+                fi
+
                 if [ "$DRY_RUN" = true ]; then
                     log "Would clean Docker cache (dangling images, stopped containers, unused networks)"
                     TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + DOCKER_RECLAIM))

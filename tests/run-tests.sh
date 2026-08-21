@@ -805,6 +805,44 @@ test_user_home_derivation_uses_sudo_user() {
     return 0
 }
 
+
+test_docker_records_category_size() {
+    # Source-text audit (same style as test_user_home_derivation_uses_sudo_user):
+    # the Docker section (#12) must publish its reclaimable estimate via
+    # record_category_size so the --json "details" object gains
+    # estimated_bytes / estimated_human for "Docker Cache" -- closing the
+    # gap documented in CHANGELOG [5.8.0] ("#12 Docker only has
+    # reclaimable"). The call must be guarded by a successful df /
+    # measured condition: docker available, daemon up, non-empty
+    # `docker system df` output, and a parsed byte count > 0. This test
+    # never executes the script and never requires docker.
+    local docker_block
+    docker_block=$(/usr/bin/awk '/run_category "12[|]Docker Cache/ {on=1}
+                               /run_category "13[|]iOS Simulator Data/ {on=0}
+                               on' "$SCRIPT_PATH")
+
+    if [ -z "$docker_block" ]; then
+        echo "Could not extract Docker section from clean-mac-space.sh" >&2
+        return 1
+    fi
+    if ! echo "$docker_block" | /usr/bin/grep -qF 'record_category_size "Docker Cache"'; then
+        echo 'Docker section does not call record_category_size "Docker Cache":' >&2
+        echo "$docker_block" >&2
+        return 1
+    fi
+    if ! echo "$docker_block" | /usr/bin/grep -qE 'DOCKER_RECLAIM.*-gt 0'; then
+        echo "Docker record_category_size call is not guarded by a measured DOCKER_RECLAIM > 0:" >&2
+        echo "$docker_block" >&2
+        return 1
+    fi
+    if ! echo "$docker_block" | /usr/bin/grep -qF 'size_to_bytes'; then
+        echo "Docker section does not convert the reclaimable size with size_to_bytes:" >&2
+        echo "$docker_block" >&2
+        return 1
+    fi
+    return 0
+}
+
 # --- Run -------------------------------------------------------------------
 
 echo "Running smoke tests for clean-mac-space.sh helpers..."
@@ -846,6 +884,7 @@ assert "--list-categories handled in parse_arguments + all completions"      tes
 assert "Interactive menu digit handler covers 1-N (no silent swallow)"    test_interactive_menu_handles_all_digit_ranges
 assert "CATEGORY_REGISTRY has the #36 JetBrains IDE Caches entry"        test_registry_has_jetbrains_ide_caches
 assert "Completions include the v6 --skip-jetbrains flag"                test_completions_include_jetbrains_skip_flag
+assert "Docker section records estimated_bytes via record_category_size (source-text audit)" test_docker_records_category_size
 
 TOTAL=$(( PASS + FAIL ))
 echo ""
