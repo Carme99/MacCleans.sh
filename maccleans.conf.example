@@ -89,3 +89,4 @@ SKIP_BROWSER_TOOLS=false      # ~/.cache/puppeteer, ~/.cache/selenium (browser t
 SKIP_CRASH_REPORTS=false       # ~/Library/Logs/CrashReporter, ~/Library/Application Support/CrashReporter (7-day age threshold)
 SKIP_XCODE_ARCHIVES=false      # ~/Library/Developer/Xcode/Archives (release builds + dSYMs; --force-xcode required on CLI)
 SKIP_USER_TOOL_CACHES=false    # ~/.cache/{uv, giget, opencode, powershell, gh, starship, ...}
+SKIP_JVM=false                 # ~/.m2/repository, ~/.ivy2/cache, ~/.sbt/boot (re-downloaded on next build)

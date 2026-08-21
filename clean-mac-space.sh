@@ -78,6 +78,7 @@ VERSION="5.8.0"
 #   --skip-browser-tools Skip browser testing tool caches (puppeteer, selenium) (NEW)
 #   --skip-crash-reports Skip crash reports cleanup (NEW)
 #   --skip-user-tool-caches Skip user tool caches in ~/.cache/ (NEW)
+#   --skip-jvm         Skip JVM build cache cleanup (Maven/Ivy/sbt) (NEW)
 #   --skip-system-tmp   Skip /tmp and /var/tmp cleanup (default: on, opt-in via --clean-system-tmp)
 #   --clean-system-tmp  Opt in to /tmp and /var/tmp cleanup (default off; overrides --skip-system-tmp)
 #   --photos-library    Specify Photos library name or "all" to clean all libraries
@@ -136,6 +137,7 @@ CATEGORY_REGISTRY=(
     "30|Crash Reports|SKIP_CRASH_REPORTS"
     "31|User Tool Caches|SKIP_USER_TOOL_CACHES"
     "34|Xcode Archives|SKIP_XCODE_ARCHIVES"
+    "35|JVM Build Caches|SKIP_JVM"
 )
 
 # Single-field accessors for CATEGORY_REGISTRY entries. Format is
@@ -414,6 +416,7 @@ load_config_file() {
                     SKIP_CRASH_REPORTS) SKIP_CRASH_REPORTS="$value" ;;
                     SKIP_USER_TOOL_CACHES) SKIP_USER_TOOL_CACHES="$value" ;;
                     SKIP_XCODE_ARCHIVES) SKIP_XCODE_ARCHIVES="$value" ;;
+                    SKIP_JVM) SKIP_JVM="$value" ;;
                     FORCE_XCODE) FORCE_XCODE="$value" ;;
                     FORCE_TRASH) FORCE_TRASH="$value" ;;
                     FORCE_ICLOUD_DRIVE) FORCE_ICLOUD_DRIVE="$value" ;;
@@ -3417,6 +3420,59 @@ if run_category "31|User Tool Caches|SKIP_USER_TOOL_CACHES"; then
         fi
     else
         log "No user tool caches found"
+    fi
+    log_plain ""
+fi
+
+###############################################################################
+# 35. JVM Build Caches
+###############################################################################
+if run_category "35|JVM Build Caches|SKIP_JVM"; then
+
+    # Maven (~/.m2/repository), Ivy (~/.ivy2/cache) and sbt (~/.sbt/boot)
+    # all accumulate per-artifact caches that grow monotonically. Every
+    # artifact is re-downloaded from Maven Central / the configured Ivy
+    # repositories on the next build, and sbt re-populates its boot
+    # directory on the next launch, so deleting them costs bandwidth and
+    # a slower first build — never data. Gradle is deliberately NOT here:
+    # ~/.gradle is already covered by category #24.
+    # Use $USER_HOME (not $HOME) so the user's home is targeted under
+    # sudo — same convention as every other category in the script.
+    M2_REPO_DIR="$USER_HOME/.m2/repository"
+    IVY2_CACHE_DIR="$USER_HOME/.ivy2/cache"
+    SBT_BOOT_DIR="$USER_HOME/.sbt/boot"
+
+    JVM_BYTES=0
+    JVM_HIT=0
+
+    for label_dir in "Maven:$M2_REPO_DIR" "Ivy:$IVY2_CACHE_DIR" "sbt boot:$SBT_BOOT_DIR"; do
+        label="${label_dir%%:*}"
+        dir="${label_dir#*:}"
+        if measured=$(measure_cache_dir "$dir"); then
+            bytes="${measured%%|*}"
+            human="${measured#*|}"
+            JVM_BYTES=$((JVM_BYTES + bytes))
+            JVM_HIT=$((JVM_HIT + 1))
+            log "Found $label cache: $human"
+        fi
+    done
+
+    if [ "$JVM_HIT" -gt 0 ]; then
+        JVM_HUMAN=$(bytes_to_human "$JVM_BYTES")
+        record_category_size "JVM Build Caches" "$JVM_BYTES" "$JVM_HUMAN"
+        if [ "$DRY_RUN" = true ]; then
+            log "Would clear JVM build caches: $JVM_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + JVM_BYTES))
+        else
+            log "Clearing JVM build caches..."
+            [ -d "$M2_REPO_DIR" ] && [ ! -L "$M2_REPO_DIR" ] && safe_clear_directory "$M2_REPO_DIR" 2>/dev/null || true
+            [ -d "$IVY2_CACHE_DIR" ] && [ ! -L "$IVY2_CACHE_DIR" ] && safe_clear_directory "$IVY2_CACHE_DIR" 2>/dev/null || true
+            [ -d "$SBT_BOOT_DIR" ] && [ ! -L "$SBT_BOOT_DIR" ] && safe_clear_directory "$SBT_BOOT_DIR" 2>/dev/null || true
+            log_success "JVM build caches cleared: $JVM_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + JVM_BYTES))
+        fi
+    else
+        log "No JVM build caches found"
     fi
     log_plain ""
 fi
