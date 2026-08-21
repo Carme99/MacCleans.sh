@@ -40,6 +40,7 @@ Complete reference of all cleanup categories in MacCleans.
 | JetBrains IDE Caches | 1-10GB | High | `--skip-jetbrains` |
 | Cargo Registry Cache | 500MB-5GB | Low | `--skip-cargo` |
 | NuGet Package Cache | 500MB-5GB | Medium | `--skip-nuget` |
+| VS Code Cache | 200MB-2GB | Medium | `--skip-vscode` |
 | System Cache | 100MB-1GB | Low | (always safe) |
 | User Cache | 100MB-1GB | Low | (always safe) |
 

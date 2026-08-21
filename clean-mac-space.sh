@@ -83,6 +83,7 @@ VERSION="5.8.0"
 
 #   --skip-cargo        Skip Cargo registry cache cleanup (NEW)
 #   --skip-nuget        Skip NuGet package cache cleanup (NEW)
+#   --skip-vscode       Skip VS Code cache cleanup (NEW)
 #   --skip-system-tmp   Skip /tmp and /var/tmp cleanup (default: on, opt-in via --clean-system-tmp)
 #   --clean-system-tmp  Opt in to /tmp and /var/tmp cleanup (default off; overrides --skip-system-tmp)
 #   --photos-library    Specify Photos library name or "all" to clean all libraries
@@ -145,6 +146,7 @@ CATEGORY_REGISTRY=(
     "36|JetBrains IDE Caches|SKIP_JETBRAINS"
     "37|Cargo Registry Cache|SKIP_CARGO"
     "38|NuGet Package Cache|SKIP_NUGET"
+    "39|VS Code Cache|SKIP_VSCODE"
 )
 
 # Single-field accessors for CATEGORY_REGISTRY entries. Format is
@@ -427,6 +429,7 @@ load_config_file() {
                     SKIP_JVM) SKIP_JVM="$value" ;;
                     SKIP_CARGO) SKIP_CARGO="$value" ;;
                     SKIP_NUGET) SKIP_NUGET="$value" ;;
+                    SKIP_VSCODE) SKIP_VSCODE="$value" ;;
                     FORCE_XCODE) FORCE_XCODE="$value" ;;
                     FORCE_TRASH) FORCE_TRASH="$value" ;;
                     FORCE_ICLOUD_DRIVE) FORCE_ICLOUD_DRIVE="$value" ;;
@@ -3430,6 +3433,64 @@ if run_category "31|User Tool Caches|SKIP_USER_TOOL_CACHES"; then
         fi
     else
         log "No user tool caches found"
+    fi
+    log_plain ""
+fi
+
+
+###############################################################################
+# 39. VS Code Cache
+###############################################################################
+if run_category "39|VS Code Cache|SKIP_VSCODE"; then
+
+    # VS Code writes renderer/GPU/service-worker caches under
+    # "Application Support/Code" plus a macOS-level cache under
+    # ~/Library/Caches. All of them rebuild automatically on the next
+    # VS Code launch, so clearing them is safe.
+    # STRICTLY OUT OF SCOPE (user data, never touched by this category):
+    #   - Application Support/Code/User             (settings.json,
+    #     keybindings, snippets, tasks)
+    #   - Application Support/Code/workspaceStorage (per-workspace state)
+    #   - ~/.vscode                                 (extensions)
+    # Use $USER_HOME throughout; paths contain spaces and are quoted.
+    VSCODE_DIRS=(
+        "$USER_HOME/Library/Application Support/Code/Cache"
+        "$USER_HOME/Library/Application Support/Code/CachedData"
+        "$USER_HOME/Library/Application Support/Code/Code Cache"
+        "$USER_HOME/Library/Application Support/Code/GPUCache"
+        "$USER_HOME/Library/Application Support/Code/Service Worker/CacheStorage"
+        "$USER_HOME/Library/Caches/com.microsoft.VSCode"
+    )
+
+    VSCODE_BYTES=0
+    VSCODE_HIT=0
+
+    for vscode_dir in "${VSCODE_DIRS[@]}"; do
+        if measured=$(measure_cache_dir "$vscode_dir"); then
+            bytes="${measured%%|*}"
+            human="${measured#*|}"
+            VSCODE_BYTES=$((VSCODE_BYTES + bytes))
+            VSCODE_HIT=$((VSCODE_HIT + 1))
+            log "Found VS Code cache: $human ($vscode_dir)"
+        fi
+    done
+
+    if [ "$VSCODE_HIT" -gt 0 ]; then
+        VSCODE_HUMAN=$(bytes_to_human "$VSCODE_BYTES")
+        record_category_size "VS Code Cache" "$VSCODE_BYTES" "$VSCODE_HUMAN"
+        if [ "$DRY_RUN" = true ]; then
+            log "Would clear VS Code caches: $VSCODE_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + VSCODE_BYTES))
+        else
+            log "Clearing VS Code caches..."
+            for vscode_dir in "${VSCODE_DIRS[@]}"; do
+                [ -d "$vscode_dir" ] && [ ! -L "$vscode_dir" ] && safe_clear_directory "$vscode_dir" 2>/dev/null || true
+            done
+            log_success "VS Code caches cleared: $VSCODE_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + VSCODE_BYTES))
+        fi
+    else
+        log "No VS Code caches found"
     fi
     log_plain ""
 fi
