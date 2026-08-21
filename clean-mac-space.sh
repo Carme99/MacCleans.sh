@@ -3558,6 +3558,11 @@ if run_category "37|Cargo Registry Cache|SKIP_CARGO"; then
 
     for cargo_subdir in cache src; do
         cargo_dir="$CARGO_REGISTRY_BASE/$cargo_subdir"
+        # Mirror the cleanup guard below: skip symlinks and non-directories
+        # so reported sizes only include paths that will actually be deleted.
+        if [ -L "$cargo_dir" ] || [ ! -d "$cargo_dir" ]; then
+            continue
+        fi
         if measured=$(measure_cache_dir "$cargo_dir"); then
             bytes="${measured%%|*}"
             human="${measured#*|}"

@@ -561,7 +561,7 @@ sudo Mac-Clean --yes --skip-user-tool-caches
 
 **Typical Size:** High — 500MB-5GB on an active Rust machine (`src/` alone often dwarfs `cache/`)
 
-**What it does:** Cargo keeps every downloaded `.crate` archive in `registry/cache/` and the extracted sources for every dependency ever built in `registry/src/`. Both grow forever and are never pruned by cargo itself.
+**What it does:** Cargo keeps every downloaded `.crate` archive in `registry/cache/` and the extracted sources for every dependency ever built in `registry/src/`. Both grow forever and are never pruned by Cargo itself.
 
 **What it doesn't delete:** The registry index (`~/.cargo/registry/index`), installed binaries (`~/.cargo/bin`), `~/.cargo/config.toml`, and anything under `~/.rustup`.
 
