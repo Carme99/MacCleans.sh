@@ -3489,9 +3489,13 @@ if run_category "36|JetBrains IDE Caches|SKIP_JETBRAINS"; then
     # CLion, RubyMine, PhpStorm, Android Studio, ...) writes per-version
     # cache directories under ~/Library/Caches/JetBrains. Old versions'
     # caches are never cleaned up after an upgrade and routinely
-    # accumulate several GB. The caches (indexes, compiled output,
-    # local history metadata) rebuild automatically on the next IDE
-    # launch.
+    # accumulate several GB. The caches (indexes, compiled output)
+    # rebuild automatically on the next IDE launch.
+    #
+    # WARNING: IDE Local History lives INSIDE this tree
+    # (<product><version>/LocalHistory) and is PERMANENTLY LOST when
+    # the cache tree is deleted — it does NOT rebuild. Settings and
+    # plugins in Application Support are unaffected.
     #
     # STRICTLY OUT OF SCOPE — never touched by this category:
     #   ~/Library/Application Support/JetBrains  (config + plugins;

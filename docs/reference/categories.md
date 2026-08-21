@@ -582,11 +582,13 @@ sudo Mac-Clean --dry-run --skip-homebrew --skip-npm --skip-pip --skip-jvm
 
 **Typical Size:** 1-10GB (High — per-version cache directories accumulate across IDE upgrades and are never cleaned up automatically)
 
-**What it does:** Every JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, GoLand, CLion, RubyMine, PhpStorm, Android Studio, ...) writes per-version cache directories under `~/Library/Caches/JetBrains`. Old versions' caches survive upgrades indefinitely. MacCleans clears the whole Caches tree; the next IDE launch rebuilds whatever indexes it needs.
+**What it does:** Every JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, GoLand, CLion, RubyMine, PhpStorm, Android Studio, ...) writes per-version cache directories under `~/Library/Caches/JetBrains`. Old versions' caches survive upgrades indefinitely. MacCleans clears the whole Caches tree; the caches themselves (indexes, compiled output) rebuild on the next IDE launch.
 
 **Note:** Strictly out of scope: `~/Library/Application Support/JetBrains` (IDE settings + installed plugins — deleting it loses your configuration), `~/Library/Logs/JetBrains`, and VS Code-style extension directories. Only the Caches tree is touched.
 
-**Risk:** High - the caches themselves rebuild safely on the next launch, but a first launch after clearing re-indexes every open project (5-30 minutes of CPU per project). Skip this category if you cannot afford the re-index time.
+**Warning:** IDE Local History lives inside the Caches tree (`<product><version>/LocalHistory`) and is **permanently lost** when it is deleted — it does not rebuild. Your settings and plugins under `~/Library/Application Support/JetBrains` are unaffected.
+
+**Risk:** High - the caches themselves rebuild on the next launch, but a first launch after clearing re-indexes every open project (5-30 minutes of CPU per project). Skip this category if you cannot afford the re-index time.
 
 ```bash
 # Skip JetBrains IDE caches
