@@ -453,6 +453,45 @@ test_completions_include_v56_skip_flags() {
     done
     return 0
 }
+test_list_categories_flag_is_handled() {
+    # v6 adds a --list-categories informational flag: prints every
+    # CATEGORY_REGISTRY entry and exits 0 without sudo or disk access.
+    # Source-text assertions only — executing the script has side
+    # effects, so we verify wiring instead:
+    #   (a) parse_arguments handles the flag in its case statement,
+    #       adjacent to the other early-exit information flags;
+    #   (b) all 3 completion files offer the flag (the same bug class
+    #       test_completions_include_v56_skip_flags guards).
+    # (a) The case arm must exist inside parse_arguments.
+    local fn_block
+    fn_block=$(/usr/bin/awk '
+        /^parse_arguments\(\)/   { in_fn=1 }
+        in_fn && /^}/             { exit }
+        in_fn                     { print }
+    ' "$SCRIPT_PATH")
+    if [ -z "$fn_block" ]; then
+        echo "parse_arguments() block not found in $SCRIPT_PATH - test misconfigured" >&2
+        return 1
+    fi
+    if ! printf '%s\n' "$fn_block" | /usr/bin/grep -qF -e "--list-categories"; then
+        echo "parse_arguments does not handle --list-categories" >&2
+        return 1
+    fi
+    # (b) bash + zsh use the literal token; fish uses `-l list-categories`.
+    if ! /usr/bin/grep -qF -e "--list-categories" "$REPO_ROOT/completions/mac-cleans.bash"; then
+        echo "completions/mac-cleans.bash missing --list-categories" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qF -e "--list-categories" "$REPO_ROOT/completions/_mac-cleans"; then
+        echo "completions/_mac-cleans missing --list-categories" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qF -e "-l list-categories" "$REPO_ROOT/completions/mac-cleans.fish"; then
+        echo "completions/mac-cleans.fish missing -l list-categories" >&2
+        return 1
+    fi
+    return 0
+}
 test_config_loader_covers_every_registry_skip_x() {
     # load_config_file's case statement must have a SKIP_X arm for every
     # SKIP_X var declared in CATEGORY_REGISTRY. Otherwise a user's
@@ -621,6 +660,7 @@ assert ".github/workflows/release-check.yml exists"                      test_re
 assert "Completions include the 3 v5.6.0 --skip-X flags"                 test_completions_include_v56_skip_flags
 assert "Completions include the v5.8.0 --skip-xcode-archives flag"         test_completions_include_xcode_archives_skip_flag
 assert "load_config_file case statement covers every registry SKIP_X"     test_config_loader_covers_every_registry_skip_x
+assert "--list-categories handled in parse_arguments + all completions"      test_list_categories_flag_is_handled
 assert "Interactive menu digit handler covers 1-N (no silent swallow)"    test_interactive_menu_handles_all_digit_ranges
 
 TOTAL=$(( PASS + FAIL ))

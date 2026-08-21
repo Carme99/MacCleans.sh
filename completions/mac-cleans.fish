@@ -4,6 +4,7 @@
 
 complete -c mac-cleans -s h -l help -d 'Show help'
 complete -c mac-cleans -l version -d 'Show version'
+complete -c mac-cleans -l list-categories -d 'Print all cleanup categories and exit'
 complete -c mac-cleans -l dry-run -d 'Dry run - show what would be deleted'
 complete -c mac-cleans -s f -l force -d 'Skip all confirmations'
 complete -c mac-cleans -s y -l yes -d 'Skip confirmations (except Xcode)'
