@@ -82,6 +82,7 @@ VERSION="5.8.0"
 #   --skip-jetbrains    Skip JetBrains IDE cache cleanup (NEW)
 
 #   --skip-cargo        Skip Cargo registry cache cleanup (NEW)
+#   --skip-nuget        Skip NuGet package cache cleanup (NEW)
 #   --skip-system-tmp   Skip /tmp and /var/tmp cleanup (default: on, opt-in via --clean-system-tmp)
 #   --clean-system-tmp  Opt in to /tmp and /var/tmp cleanup (default off; overrides --skip-system-tmp)
 #   --photos-library    Specify Photos library name or "all" to clean all libraries
@@ -143,6 +144,7 @@ CATEGORY_REGISTRY=(
     "35|JVM Build Caches|SKIP_JVM"
     "36|JetBrains IDE Caches|SKIP_JETBRAINS"
     "37|Cargo Registry Cache|SKIP_CARGO"
+    "38|NuGet Package Cache|SKIP_NUGET"
 )
 
 # Single-field accessors for CATEGORY_REGISTRY entries. Format is
@@ -424,6 +426,7 @@ load_config_file() {
                     SKIP_XCODE_ARCHIVES) SKIP_XCODE_ARCHIVES="$value" ;;
                     SKIP_JVM) SKIP_JVM="$value" ;;
                     SKIP_CARGO) SKIP_CARGO="$value" ;;
+                    SKIP_NUGET) SKIP_NUGET="$value" ;;
                     FORCE_XCODE) FORCE_XCODE="$value" ;;
                     FORCE_TRASH) FORCE_TRASH="$value" ;;
                     FORCE_ICLOUD_DRIVE) FORCE_ICLOUD_DRIVE="$value" ;;
@@ -3589,6 +3592,41 @@ if run_category "37|Cargo Registry Cache|SKIP_CARGO"; then
         fi
     else
         log "No Cargo registry cache found"
+    fi
+    log_plain ""
+fi
+
+# 38. NuGet Package Cache
+###############################################################################
+if run_category "38|NuGet Package Cache|SKIP_NUGET"; then
+
+    # NuGet is the .NET package manager. The global-packages folder at
+    # ~/.nuget/packages holds every version of every package ever
+    # restored on the machine and routinely grows to multiple GB on
+    # active .NET dev boxes. It contains no user data: `dotnet restore`
+    # re-downloads any needed package from nuget.org (or a configured
+    # private feed) into this folder automatically, so deleting it is
+    # safe — the next restore/build just takes longer.
+    # Use $USER_HOME (not $HOME) so the user's home is targeted under
+    # sudo — same convention as every other category in the script.
+    NUGET_DIR="$USER_HOME/.nuget/packages"
+
+    if measured=$(measure_cache_dir "$NUGET_DIR"); then
+        NUGET_BYTES="${measured%%|*}"
+        NUGET_HUMAN="${measured#*|}"
+        record_category_size "NuGet Package Cache" "$NUGET_BYTES" "$NUGET_HUMAN"
+        log "Found NuGet package cache: $NUGET_HUMAN"
+        if [ "$DRY_RUN" = true ]; then
+            log "Would clear NuGet package cache: $NUGET_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + NUGET_BYTES))
+        else
+            log "Clearing NuGet package cache..."
+            [ -d "$NUGET_DIR" ] && [ ! -L "$NUGET_DIR" ] && safe_clear_directory "$NUGET_DIR" 2>/dev/null || true
+            log_success "NuGet package cache cleared: $NUGET_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + NUGET_BYTES))
+        fi
+    else
+        log "No NuGet package cache found"
     fi
     log_plain ""
 fi

@@ -92,3 +92,4 @@ SKIP_USER_TOOL_CACHES=false    # ~/.cache/{uv, giget, opencode, powershell, gh, 
 SKIP_JVM=false                 # ~/.m2/repository, ~/.ivy2/cache, ~/.sbt/boot (re-downloaded on next build)
 SKIP_JETBRAINS=false         # ~/Library/Caches/JetBrains (per-version IDE caches; rebuild on next launch)
 SKIP_CARGO=false              # ~/.cargo/registry/{cache,src} (.crate archives + extracted sources)
+SKIP_NUGET=false              # ~/.nuget/packages (NuGet global-packages folder; re-downloaded on next dotnet restore)
