@@ -36,7 +36,7 @@ Complete reference of all cleanup categories in MacCleans.
 | Browser Testing Tool Caches | 500MB-2GB | Low | `--skip-browser-tools` |
 | Crash Reports | 100MB-1GB | Low | `--skip-crash-reports` |
 | User Tool Caches | 500MB-2GB | Low | `--skip-user-tool-caches` |
-| JVM Build Caches | Medium | Low | `--skip-jvm` |
+| JVM Build Caches | 500MB-5GB | Medium | `--skip-jvm` |
 | System Cache | 100MB-1GB | Low | (always safe) |
 | User Cache | 100MB-1GB | Low | (always safe) |
 
@@ -550,6 +550,27 @@ sudo Mac-Clean --yes --skip-crash-reports
 ```bash
 # Skip user tool caches
 sudo Mac-Clean --yes --skip-user-tool-caches
+```
+
+---
+
+### JVM Build Caches
+
+**Paths:** `~/.m2/repository` (Maven), `~/.ivy2/cache` (Ivy), `~/.sbt/boot` (sbt)
+
+**Typical Size:** 500MB-5GB
+
+**What it does:** Deletes downloaded Maven artifacts and dependencies, Ivy-resolved modules, and the sbt boot directory. Everything is re-downloaded from Maven Central or your configured Ivy repositories on the next build; sbt re-populates its boot directory on the next launch.
+
+**Note:** Gradle is covered separately by category #24 Gradle Cache.
+
+**Risk:** Medium - regenerates but first build after cleaning is slower
+
+**When to skip:** If you work offline or on flaky internet
+
+```bash
+# Skip JVM build caches
+sudo Mac-Clean --dry-run --skip-homebrew --skip-npm --skip-pip --skip-jvm
 ```
 
 ---
