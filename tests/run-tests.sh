@@ -195,6 +195,25 @@ test_registry_has_jvm_build_caches() {
     [ "$found_jvm" -eq 1 ]
 }
 
+test_registry_has_jetbrains_ide_caches() {
+    # Verify the v6 #36 entry exists with the right display name and
+    # skip_var wiring. Walks CATEGORY_REGISTRY like
+    # test_registry_has_new_categories does, so it survives renumbering.
+    local entry found_jb display
+    found_jb=0
+    for entry in "${CATEGORY_REGISTRY[@]}"; do
+        if [ "$(registry_get_skip_var "$entry")" = "SKIP_JETBRAINS" ]; then
+            found_jb=1
+            display=$(registry_get_display "$entry")
+            [ "$display" = "JetBrains IDE Caches" ] || {
+                echo "SKIP_JETBRAINS entry has display '$display', expected 'JetBrains IDE Caches'" >&2
+                return 1
+            }
+        fi
+    done
+    [ "$found_jb" -eq 1 ]
+}
+
 # --- Security audit tests (added 2026-06-05) -------------------------------
 #
 # These tests codify the three rules from the security audit pass:
@@ -420,6 +439,25 @@ test_release_check_workflow_exists() {
     return 0
 }
 
+
+test_completions_include_jetbrains_skip_flag() {
+    # v6 added --skip-jetbrains for the new #36 category. Mirrors
+    # test_completions_include_xcode_archives_skip_flag: bash and zsh
+    # use the literal --skip-foo token; fish uses `-l skip-foo`.
+    if ! /usr/bin/grep -qF -e "--skip-jetbrains" "$REPO_ROOT/completions/mac-cleans.bash"; then
+        echo "completions/mac-cleans.bash missing --skip-jetbrains" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qF -e "--skip-jetbrains" "$REPO_ROOT/completions/_mac-cleans"; then
+        echo "completions/_mac-cleans missing --skip-jetbrains" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qF -e "-l skip-jetbrains" "$REPO_ROOT/completions/mac-cleans.fish"; then
+        echo "completions/mac-cleans.fish missing -l skip-jetbrains" >&2
+        return 1
+    fi
+    return 0
+}
 test_completions_include_xcode_archives_skip_flag() {
     # v5.8.0 added --skip-xcode-archives for the new #34 category.
     # Without this test, a future refactor of the completion files
@@ -656,6 +694,8 @@ assert "Completions include the v5.8.0 --skip-xcode-archives flag"         test_
 assert "Completions include the v6 --skip-jvm flag"                        test_completions_include_jvm_skip_flag
 assert "load_config_file case statement covers every registry SKIP_X"     test_config_loader_covers_every_registry_skip_x
 assert "Interactive menu digit handler covers 1-N (no silent swallow)"    test_interactive_menu_handles_all_digit_ranges
+assert "CATEGORY_REGISTRY has the #36 JetBrains IDE Caches entry"        test_registry_has_jetbrains_ide_caches
+assert "Completions include the v6 --skip-jetbrains flag"                test_completions_include_jetbrains_skip_flag
 
 TOTAL=$(( PASS + FAIL ))
 echo ""

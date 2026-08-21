@@ -48,6 +48,7 @@ complete -c mac-cleans -l skip-browser-tools -d 'Skip browser testing tool cache
 complete -c mac-cleans -l skip-crash-reports -d 'Skip crash reports cleanup'
 complete -c mac-cleans -l skip-user-tool-caches -d 'Skip user tool caches in ~/.cache/'
 complete -c mac-cleans -l skip-jvm -d 'Skip JVM build caches (Maven/Ivy/sbt)'
+complete -c mac-cleans -l skip-jetbrains -d 'Skip JetBrains IDE caches (IntelliJ, PyCharm, ...)'
 complete -c mac-cleans -l skip-system-tmp -d 'Skip /tmp and /var/tmp (default: on)'
 complete -c mac-cleans -l clean-system-tmp -d 'Opt in to /tmp and /var/tmp cleanup'
 

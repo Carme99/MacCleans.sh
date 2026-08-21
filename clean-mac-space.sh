@@ -79,6 +79,7 @@ VERSION="5.8.0"
 #   --skip-crash-reports Skip crash reports cleanup (NEW)
 #   --skip-user-tool-caches Skip user tool caches in ~/.cache/ (NEW)
 #   --skip-jvm         Skip JVM build cache cleanup (Maven/Ivy/sbt) (NEW)
+#   --skip-jetbrains    Skip JetBrains IDE cache cleanup (NEW)
 #   --skip-system-tmp   Skip /tmp and /var/tmp cleanup (default: on, opt-in via --clean-system-tmp)
 #   --clean-system-tmp  Opt in to /tmp and /var/tmp cleanup (default off; overrides --skip-system-tmp)
 #   --photos-library    Specify Photos library name or "all" to clean all libraries
@@ -138,6 +139,7 @@ CATEGORY_REGISTRY=(
     "31|User Tool Caches|SKIP_USER_TOOL_CACHES"
     "34|Xcode Archives|SKIP_XCODE_ARCHIVES"
     "35|JVM Build Caches|SKIP_JVM"
+    "36|JetBrains IDE Caches|SKIP_JETBRAINS"
 )
 
 # Single-field accessors for CATEGORY_REGISTRY entries. Format is
@@ -414,6 +416,7 @@ load_config_file() {
                     SKIP_SYSTEM_TMP) SKIP_SYSTEM_TMP="$value" ;;
                     SKIP_BROWSER_TOOLS) SKIP_BROWSER_TOOLS="$value" ;;
                     SKIP_CRASH_REPORTS) SKIP_CRASH_REPORTS="$value" ;;
+                    SKIP_JETBRAINS) SKIP_JETBRAINS="$value" ;;
                     SKIP_USER_TOOL_CACHES) SKIP_USER_TOOL_CACHES="$value" ;;
                     SKIP_XCODE_ARCHIVES) SKIP_XCODE_ARCHIVES="$value" ;;
                     SKIP_JVM) SKIP_JVM="$value" ;;
@@ -3473,6 +3476,55 @@ if run_category "35|JVM Build Caches|SKIP_JVM"; then
         fi
     else
         log "No JVM build caches found"
+    fi
+    log_plain ""
+fi
+
+###############################################################################
+# 36. JetBrains IDE Caches
+###############################################################################
+if run_category "36|JetBrains IDE Caches|SKIP_JETBRAINS"; then
+
+    # Every JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, GoLand,
+    # CLion, RubyMine, PhpStorm, Android Studio, ...) writes per-version
+    # cache directories under ~/Library/Caches/JetBrains. Old versions'
+    # caches are never cleaned up after an upgrade and routinely
+    # accumulate several GB. The caches (indexes, compiled output)
+    # rebuild automatically on the next IDE launch.
+    #
+    # WARNING: IDE Local History lives INSIDE this tree
+    # (<product><version>/LocalHistory) and is PERMANENTLY LOST when
+    # the cache tree is deleted — it does NOT rebuild. Settings and
+    # plugins in Application Support are unaffected.
+    #
+    # STRICTLY OUT OF SCOPE — never touched by this category:
+    #   ~/Library/Application Support/JetBrains  (config + plugins;
+    #     deleting it loses IDE settings and installed plugins)
+    #   ~/Library/Logs/JetBrains                 (diagnostic logs)
+    #   ~/.vscode-style extension directories    (not JetBrains-owned)
+    # Only the Caches tree is cleared.
+    #
+    # Use $USER_HOME (not $HOME) so the user's home is targeted under
+    # sudo — same convention as every other category in the script.
+    JETBRAINS_CACHE_DIR="$USER_HOME/Library/Caches/JetBrains"
+
+    if measured=$(measure_cache_dir "$JETBRAINS_CACHE_DIR"); then
+        JETBRAINS_BYTES="${measured%%|*}"
+        JETBRAINS_HUMAN="${measured#*|}"
+        record_category_size "JetBrains IDE Caches" "$JETBRAINS_BYTES" "$JETBRAINS_HUMAN"
+        log "Found JetBrains IDE caches: $JETBRAINS_HUMAN"
+
+        if [ "$DRY_RUN" = true ]; then
+            log "Would clear JetBrains IDE caches: $JETBRAINS_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + JETBRAINS_BYTES))
+        else
+            log "Clearing JetBrains IDE caches..."
+            [ -d "$JETBRAINS_CACHE_DIR" ] && [ ! -L "$JETBRAINS_CACHE_DIR" ] && safe_clear_directory "$JETBRAINS_CACHE_DIR" 2>/dev/null || true
+            log_success "JetBrains IDE caches cleared: $JETBRAINS_HUMAN"
+            TOTAL_BYTES_FREED=$((TOTAL_BYTES_FREED + JETBRAINS_BYTES))
+        fi
+    else
+        log "No JetBrains IDE caches found"
     fi
     log_plain ""
 fi

@@ -52,6 +52,7 @@ _mac_cleans() {
         '--skip-crash-reports[Skip crash reports cleanup]'
         '--skip-user-tool-caches[Skip user tool caches in ~/.cache/]'
         '--skip-jvm[Skip JVM build caches (Maven/Ivy/sbt)]'
+        '--skip-jetbrains[Skip JetBrains IDE caches (IntelliJ, PyCharm, ...)]'
         '--skip-system-tmp[Skip /tmp and /var/tmp (default: on)]'
         '--clean-system-tmp[Opt in to /tmp and /var/tmp cleanup]'
     )
