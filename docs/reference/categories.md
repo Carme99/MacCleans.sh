@@ -36,6 +36,7 @@ Complete reference of all cleanup categories in MacCleans.
 | Browser Testing Tool Caches | 500MB-2GB | Low | `--skip-browser-tools` |
 | Crash Reports | 100MB-1GB | Low | `--skip-crash-reports` |
 | User Tool Caches | 500MB-2GB | Low | `--skip-user-tool-caches` |
+| JVM Build Caches | Medium | Low | `--skip-jvm` |
 | System Cache | 100MB-1GB | Low | (always safe) |
 | User Cache | 100MB-1GB | Low | (always safe) |
 

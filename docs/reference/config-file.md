@@ -51,6 +51,7 @@ CLI flags override config values. See [how-to/configure.md](../how-to/configure.
 | `SKIP_GO` | `false` | Skip Go module cache. |
 | `SKIP_BUN` | `false` | Skip Bun cache. |
 | `SKIP_PNPM` | `false` | Skip pnpm store. |
+| `SKIP_JVM` | `false` | Skip Maven / Ivy / sbt build caches. |
 | `SKIP_SYSTEM_TMP` | `true` | Skip `/tmp` and `/var/tmp`. **Default-on** for safety; opt in with `--clean-system-tmp` or set `SKIP_SYSTEM_TMP=false`. |
 
 ## String values

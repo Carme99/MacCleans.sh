@@ -51,6 +51,7 @@ _mac_cleans() {
         '--skip-browser-tools[Skip browser testing tool caches (puppeteer, selenium)]'
         '--skip-crash-reports[Skip crash reports cleanup]'
         '--skip-user-tool-caches[Skip user tool caches in ~/.cache/]'
+        '--skip-jvm[Skip JVM build caches (Maven/Ivy/sbt)]'
         '--skip-system-tmp[Skip /tmp and /var/tmp (default: on)]'
         '--clean-system-tmp[Opt in to /tmp and /var/tmp cleanup]'
     )

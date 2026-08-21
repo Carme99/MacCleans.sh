@@ -179,6 +179,21 @@ test_registry_has_new_categories() {
     done
     [ "$found_bt" -eq 1 ] && [ "$found_cr" -eq 1 ] && [ "$found_uc" -eq 1 ] && [ "$found_xa" -eq 1 ]
 }
+test_registry_has_jvm_build_caches() {
+    # v6 adds entry 35 (JVM Build Caches / SKIP_JVM). Registry-walk
+    # style, mirroring test_registry_has_new_categories: assert the
+    # entry exists with the right display name and skip_var wiring.
+    local entry found_jvm
+    found_jvm=0
+    for entry in "${CATEGORY_REGISTRY[@]}"; do
+        if [ "$(registry_get_skip_var "$entry")" = "SKIP_JVM" ] \
+            && [ "$(registry_get_display "$entry")" = "JVM Build Caches" ]; then
+            found_jvm=1
+            break
+        fi
+    done
+    [ "$found_jvm" -eq 1 ]
+}
 
 # --- Security audit tests (added 2026-06-05) -------------------------------
 #
@@ -424,6 +439,24 @@ test_completions_include_xcode_archives_skip_flag() {
     fi
     return 0
 }
+test_completions_include_jvm_skip_flag() {
+    # v6 adds --skip-jvm for the new #35 category. Mirrors
+    # test_completions_include_xcode_archives_skip_flag: bash and zsh
+    # carry the literal --skip-jvm token; fish uses `-l skip-jvm`.
+    if ! /usr/bin/grep -qF -e "--skip-jvm" "$REPO_ROOT/completions/mac-cleans.bash"; then
+        echo "completions/mac-cleans.bash missing --skip-jvm" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qF -e "--skip-jvm" "$REPO_ROOT/completions/_mac-cleans"; then
+        echo "completions/_mac-cleans missing --skip-jvm" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qF -e "-l skip-jvm" "$REPO_ROOT/completions/mac-cleans.fish"; then
+        echo "completions/mac-cleans.fish missing -l skip-jvm" >&2
+        return 1
+    fi
+    return 0
+}
 test_completions_include_v56_skip_flags() {
     # v5.6.0 added --skip-browser-tools, --skip-crash-reports, and
     # --skip-user-tool-caches but missed updating the bash/zsh/fish
@@ -620,6 +653,7 @@ assert "scripts/release.sh supports --check mode"                       test_rel
 assert ".github/workflows/release-check.yml exists"                      test_release_check_workflow_exists
 assert "Completions include the 3 v5.6.0 --skip-X flags"                 test_completions_include_v56_skip_flags
 assert "Completions include the v5.8.0 --skip-xcode-archives flag"         test_completions_include_xcode_archives_skip_flag
+assert "Completions include the v6 --skip-jvm flag"                        test_completions_include_jvm_skip_flag
 assert "load_config_file case statement covers every registry SKIP_X"     test_config_loader_covers_every_registry_skip_x
 assert "Interactive menu digit handler covers 1-N (no silent swallow)"    test_interactive_menu_handles_all_digit_ranges
 
