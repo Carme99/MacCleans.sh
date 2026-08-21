@@ -38,6 +38,7 @@ Complete reference of all cleanup categories in MacCleans.
 | User Tool Caches | 500MB-2GB | Low | `--skip-user-tool-caches` |
 | JVM Build Caches | 500MB-5GB | Medium | `--skip-jvm` |
 | JetBrains IDE Caches | 1-10GB | High | `--skip-jetbrains` |
+| Cargo Registry Cache | 500MB-5GB | Low | `--skip-cargo` |
 | System Cache | 100MB-1GB | Low | (always safe) |
 | User Cache | 100MB-1GB | Low | (always safe) |
 
@@ -551,6 +552,24 @@ sudo Mac-Clean --yes --skip-crash-reports
 ```bash
 # Skip user tool caches
 sudo Mac-Clean --yes --skip-user-tool-caches
+```
+
+---
+### Cargo Registry Cache
+
+**Paths:** `~/.cargo/registry/cache`, `~/.cargo/registry/src`
+
+**Typical Size:** High — 500MB-5GB on an active Rust machine (`src/` alone often dwarfs `cache/`)
+
+**What it does:** Cargo keeps every downloaded `.crate` archive in `registry/cache/` and the extracted sources for every dependency ever built in `registry/src/`. Both grow forever and are never pruned by cargo itself.
+
+**What it doesn't delete:** The registry index (`~/.cargo/registry/index`), installed binaries (`~/.cargo/bin`), `~/.cargo/config.toml`, and anything under `~/.rustup`.
+
+**Risk:** Low - crates re-download from crates.io and re-extract on the next `cargo build`. The first build after cleaning recompiles from scratch (slow once), then incremental caching resumes as normal.
+
+```bash
+# Skip Cargo registry cache
+sudo Mac-Clean --yes --skip-cargo
 ```
 
 ---
