@@ -4,6 +4,19 @@ All notable changes to MacCleans.sh are documented in this file.
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-08-21
+
+### Added
+
+- **New cleanup category #35: JVM Build Caches** — clears `~/.m2/repository` (Maven), `~/.ivy2/cache` (Ivy), and `~/.sbt/boot` (sbt). Typically 500MB-5GB; everything re-downloads from Maven Central on the next build. Gradle remains covered separately by category #24. Gated by `--skip-jvm` / `SKIP_JVM`.
+- **New cleanup category #36: JetBrains IDE Caches** — clears per-version cache directories under `~/Library/Caches/JetBrains` (IntelliJ IDEA, PyCharm, WebStorm, GoLand, CLion, RubyMine, PhpStorm, Android Studio). Typically 1-10GB across IDE upgrades and never cleaned automatically. Strictly out of scope: `~/Library/Application Support/JetBrains` (IDE settings + plugins) and `~/Library/Logs/JetBrains`. Note that clearing the Caches tree also drops JetBrains Local History (uncommitted-change history); the first launch after cleaning re-indexes open projects. Gated by `--skip-jetbrains` / `SKIP_JETBRAINS`.
+- **New cleanup category #37: Cargo Registry Cache** — clears `~/.cargo/registry/cache/` (downloaded .crate archives) and `~/.cargo/registry/src/` (extracted sources). The registry index, `~/.cargo/bin`, `config.toml`, and `~/.rustup` are never touched; crates re-download and re-extract on the next cargo build. Gated by `--skip-cargo` / `SKIP_CARGO`.
+- **New cleanup category #38: NuGet Package Cache** — clears the NuGet package caches. Packages re-download from nuget.org on the next restore/build. Gated by `--skip-nuget` / `SKIP_NUGET`.
+- **New cleanup category #39: VS Code Cache** — clears VS Code's regenerable cache directories (CachedData, Code Cache, GPUCache, logs, service Worker CacheStorage). Workspace storage, user settings, keybindings, snippets, and extensions are strictly out of scope. Gated by `--skip-vscode` / `SKIP_VSCODE`.
+- **New `--list-categories` flag** — prints the full category table (ID, name, skip flag) derived directly from `CATEGORY_REGISTRY`, so it can never drift from the registry. Informational only: no sudo, no disk access.
+- **`--json` `details` now carries `estimated_bytes` for the Docker section (#12)** — closes the last documented gap in machine-readable size reporting alongside the existing special cases (Time Machine, iOS Simulator, Photos, iCloud Drive).
+- **Five new regression tests** covering each new category's registry wiring and completion parity (`test_registry_has_{jvm,jetbrains,cargo,nuget,vscode}…`, `test_completions_include_…_skip_flag`), plus a lower-bound relaxation of the registry-count assert so parallel category additions can't collide.
+
 ## [5.8.0] - 2026-06-06
 
 ### Added

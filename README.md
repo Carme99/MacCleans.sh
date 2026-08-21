@@ -61,7 +61,7 @@ sudo Mac-Clean --yes
 
 | | | |
 |----------|----------|----------|
-| Safe by design | 32 categories | Interactive mode |
+| Safe by design | 39 categories | Interactive mode |
 | Profile presets | JSON output | CI/CD ready |
 
 ---
