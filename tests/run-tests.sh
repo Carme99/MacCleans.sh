@@ -214,6 +214,21 @@ test_registry_has_jetbrains_ide_caches() {
     [ "$found_jb" -eq 1 ]
 }
 
+test_registry_has_vscode_cache() {
+    # Verify the v6.0 entry (39 VS Code Cache) exists with the right
+    # display name and skip_var wiring.
+    local entry found_vs
+    found_vs=0
+    for entry in "${CATEGORY_REGISTRY[@]}"; do
+        if [ "$(registry_get_skip_var "$entry")" = "SKIP_VSCODE" ] && [ "$(registry_get_display "$entry")" = "VS Code Cache" ]; then
+            found_vs=1
+            break
+        fi
+    done
+    [ "$found_vs" -eq 1 ]
+
+}
+
 # --- Security audit tests (added 2026-06-05) -------------------------------
 #
 # These tests codify the three rules from the security audit pass:
@@ -564,6 +579,24 @@ test_completions_include_nuget_skip_flag() {
         echo "completions/mac-cleans.fish missing -l skip-nuget" >&2
         return 1
     fi
+}
+
+test_completions_include_vscode_skip_flag() {
+    # v6.0 added --skip-vscode for the new #39 category. Without this
+    # test, a future refactor of the completion files could quietly
+    # drop the new flag (same bug class as the xcode-archives test).
+    if ! /usr/bin/grep -qF -e "--skip-vscode" "$REPO_ROOT/completions/mac-cleans.bash"; then
+        echo "completions/mac-cleans.bash missing --skip-vscode" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qF -e "--skip-vscode" "$REPO_ROOT/completions/_mac-cleans"; then
+        echo "completions/_mac-cleans missing --skip-vscode" >&2
+        return 1
+    fi
+    if ! /usr/bin/grep -qF -e "-l skip-vscode" "$REPO_ROOT/completions/mac-cleans.fish"; then
+        echo "completions/mac-cleans.fish missing -l skip-vscode" >&2
+        return 1
+    fi
     return 0
 }
 test_completions_include_v56_skip_flags() {
@@ -764,9 +797,11 @@ assert "Completions include the 3 v5.6.0 --skip-X flags"                 test_co
 assert "Completions include the v5.8.0 --skip-xcode-archives flag"         test_completions_include_xcode_archives_skip_flag
 assert "CATEGORY_REGISTRY has Cargo Registry Cache wired to SKIP_CARGO"   test_registry_has_cargo_registry_cache
 assert "CATEGORY_REGISTRY has NuGet Package Cache entry (SKIP_NUGET)"      test_registry_has_nuget_package_cache
+assert "CATEGORY_REGISTRY has the v6.0 VS Code Cache entry"                test_registry_has_vscode_cache
 assert "Completions include the v6 --skip-jvm flag"                        test_completions_include_jvm_skip_flag
 assert "Completions include the v6 --skip-cargo flag"                     test_completions_include_cargo_skip_flag
 assert "Completions include the v6 --skip-nuget flag"                      test_completions_include_nuget_skip_flag
+assert "Completions include the v6.0 --skip-vscode flag"                   test_completions_include_vscode_skip_flag
 assert "load_config_file case statement covers every registry SKIP_X"     test_config_loader_covers_every_registry_skip_x
 assert "Interactive menu digit handler covers 1-N (no silent swallow)"    test_interactive_menu_handles_all_digit_ranges
 assert "CATEGORY_REGISTRY has the #36 JetBrains IDE Caches entry"        test_registry_has_jetbrains_ide_caches

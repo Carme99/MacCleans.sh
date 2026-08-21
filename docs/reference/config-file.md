@@ -54,6 +54,7 @@ CLI flags override config values. See [how-to/configure.md](../how-to/configure.
 | `SKIP_JVM` | `false` | Skip Maven / Ivy / sbt build caches. |
 | `SKIP_CARGO` | `false` | Skip Cargo registry cache (`~/.cargo/registry/{cache,src}`). |
 | `SKIP_NUGET` | `false` | Skip NuGet package cache (`~/.nuget/packages`). Packages re-download on the next `dotnet restore`. |
+| `SKIP_VSCODE` | `false` | Skip VS Code renderer/GPU/service-worker caches plus `~/Library/Caches/com.microsoft.VSCode`. Settings (`Code/User`) and extensions (`~/.vscode`) are never touched. |
 | `SKIP_SYSTEM_TMP` | `true` | Skip `/tmp` and `/var/tmp`. **Default-on** for safety; opt in with `--clean-system-tmp` or set `SKIP_SYSTEM_TMP=false`. |
 | `SKIP_JETBRAINS` | `false` | Skip JetBrains IDE caches (`~/Library/Caches/JetBrains`). Settings/plugins in Application Support are never touched. |
 

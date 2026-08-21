@@ -22,6 +22,7 @@ _mac_cleans() {
         --skip-cargo
         --skip-gradle --skip-go --skip-bun --skip-pnpm --skip-nuget
         --skip-browser-tools --skip-crash-reports --skip-user-tool-caches
+        --skip-vscode
         --skip-system-tmp --clean-system-tmp
     )
 

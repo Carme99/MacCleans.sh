@@ -55,6 +55,7 @@ _mac_cleans() {
         '--skip-jetbrains[Skip JetBrains IDE caches (IntelliJ, PyCharm, ...)]'
         '--skip-cargo[Skip Cargo registry cache]'
         '--skip-nuget[Skip NuGet package cache]'
+        '--skip-vscode[Skip VS Code cache]'
         '--skip-system-tmp[Skip /tmp and /var/tmp (default: on)]'
         '--clean-system-tmp[Opt in to /tmp and /var/tmp cleanup]'
     )
