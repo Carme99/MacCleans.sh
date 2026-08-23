@@ -53,7 +53,7 @@ sudo Mac-Clean --yes
 | Browser Testing Tool Caches | 500MB-2GB | Re-downloaded on next test |
 | Crash Reports | 100MB-1GB | Old crash dumps (>7 days) |
 | User Tool Caches | 500MB-2GB | `~/.cache/` redownloads on demand |
-| +20 more | | [See all categories](docs/reference/categories.md) |
+| +26 more (incl. JVM, JetBrains, Cargo, NuGet, VS Code caches) | | [See all categories](docs/reference/categories.md) |
 
 ---
 

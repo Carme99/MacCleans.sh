@@ -125,7 +125,7 @@ sudo Mac-Clean --dry-run --json
 **Example output:**
 ```json
 {
-  "version": "5.7.0",
+  "version": "6.0.0",
   "timestamp": "2026-06-05T18:30:00Z",
   "dry_run": true,
   "results": {
@@ -183,9 +183,12 @@ sudo Mac-Clean --dry-run --json | jq '[.results.categories.details | to_entries[
 
 Note: `estimated_bytes` / `estimated_human` are populated only for
 categories whose section body calls `record_category_size`. As of
-v5.7.0, that's categories #29 (Browser Testing Tool Caches), #30
-(Crash Reports), and #31 (User Tool Caches). Other categories still
-appear in `details` with just `status` and `skip_flag`.
+v6.0.0 most categories report them — including Docker (#12), which
+previously had no estimate. A few special cases still appear in
+`details` with just `status` and `skip_flag` (for example Time
+Machine Local Snapshots, Photos Library, iCloud Drive, and Xcode
+Archives); Docker and iOS Simulator report a size only when one can
+be measured.
 
 ---
 
@@ -267,6 +270,7 @@ sudo Mac-Clean --yes \
   --skip-browser-tools \
   --skip-crash-reports \
   --skip-user-tool-caches \
+  --skip-xcode-archives \
   --skip-jvm \
   --skip-jetbrains \
   --skip-cargo \

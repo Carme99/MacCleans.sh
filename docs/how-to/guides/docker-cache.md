@@ -233,23 +233,25 @@ docker system prune -a --volumes
 **MacCleans equivalent**:
 ```bash
 sudo ./clean-mac-space.sh --profile aggressive
-# Includes Docker cleanup (safe version - no volumes by default)
+# Includes Docker cleanup (safe version — named volumes are never touched)
 ```
 
 ## Safe Docker Cleanup (MacCleans Approach)
 
-MacCleans uses this command:
+MacCleans uses these commands:
 
 ```bash
-docker system prune -af --volumes
+docker container prune -f
+docker image prune -f
 ```
 
-**Flags explained**:
-- `-a`: Remove all unused images (not just dangling)
-- `-f`: Force (no confirmation prompt)
-- `--volumes`: Remove unused volumes
+**What each does**:
+- `container prune`: Removes stopped containers
+- `image prune`: Removes dangling images (untagged intermediate layers)
 
-**Why it's safer**: MacCleans only runs if Docker command exists + user didn't skip
+**What it never touches**: Named volumes are preserved — MacCleans prints a reminder and leaves `docker volume prune` to you. Build cache and unused networks are also left alone.
+
+**Why it's safer**: MacCleans only runs if Docker is installed, the daemon is answering, and you didn't pass `--skip-docker`
 
 **How to skip it**:
 ```bash
@@ -598,9 +600,8 @@ A: `-a` removes all unused images, not just "dangling" ones (untagged). More agg
 
 **Q: Why is my Docker.raw file so large?**
 A: Docker Desktop on Mac uses a VM. The disk image grows but doesn't auto-shrink. Run cleanup or resize in settings.
-
 **Q: Should I exclude volumes from MacCleans cleanup?**
-A: MacCleans includes `--volumes` but only deletes **unused** volumes. Still, review with `docker volume ls` first.
+A: No need — MacCleans never touches volumes. It prunes only stopped containers and dangling images; run `docker volume prune` manually if you want to reclaim volume space.
 
 **Q: How do I shrink Docker.raw after cleanup?**
 A: Docker Desktop → Preferences → Resources → Disk image size → Click "Optimize disk image"

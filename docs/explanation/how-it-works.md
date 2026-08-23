@@ -36,8 +36,8 @@ sequenceDiagram
 ```
 
 The script is one bash file (`clean-mac-space.sh`) with a top-level
-`CATEGORY_REGISTRY` array of 30 entries (1-28 numbered + 3a Spotify + 3b
-Claude). Every consumer — default skip-flag init, the section body dispatcher,
+`CATEGORY_REGISTRY` array of 39 entries (1-31 numbered + 3a Spotify + 3b
+Claude Desktop + 34-39 for the newer dev-tool caches). Every consumer — default skip-flag init, the section body dispatcher,
 `--skip-X` argument parsing, config validation, the interactive menu — reads
 from that one array. Adding a category = one new line in the registry + one
 new section body.

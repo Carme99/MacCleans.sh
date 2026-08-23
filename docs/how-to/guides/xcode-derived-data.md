@@ -105,8 +105,8 @@ Corrupted index or stale build artifacts can cause bizarre behavior. Clean slate
 
 **How to clean**:
 ```bash
-# MacCleans
-sudo ./clean-mac-space.sh --profile developer --skip-all-but-xcode
+# MacCleans cleans Derived Data by default (preview first with --dry-run)
+sudo ./clean-mac-space.sh --dry-run
 
 # Or manually
 rm -rf ~/Library/Developer/Xcode/DerivedData

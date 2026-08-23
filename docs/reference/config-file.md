@@ -51,6 +51,10 @@ CLI flags override config values. See [how-to/configure.md](../how-to/configure.
 | `SKIP_GO` | `false` | Skip Go module cache. |
 | `SKIP_BUN` | `false` | Skip Bun cache. |
 | `SKIP_PNPM` | `false` | Skip pnpm store. |
+| `SKIP_BROWSER_TOOLS` | `false` | Skip browser testing tool caches (`~/.cache/puppeteer`, `~/.cache/selenium`). |
+| `SKIP_CRASH_REPORTS` | `false` | Skip crash report cleanup (deletes dumps older than 7 days). |
+| `SKIP_XCODE_ARCHIVES` | `false` | Skip Xcode archives (`~/Library/Developer/Xcode/Archives`; release builds + dSYMs, not regenerated). Deletion also requires `FORCE_XCODE`. |
+| `SKIP_USER_TOOL_CACHES` | `false` | Skip CLI tool caches under `~/.cache` (uv, giget, gh, starship, etc.). |
 | `SKIP_JVM` | `false` | Skip Maven / Ivy / sbt build caches. |
 | `SKIP_CARGO` | `false` | Skip Cargo registry cache (`~/.cargo/registry/{cache,src}`). |
 | `SKIP_NUGET` | `false` | Skip NuGet package cache (`~/.nuget/packages`). Packages re-download on the next `dotnet restore`. |
@@ -77,7 +81,7 @@ These exist to bypass per-operation safety gates without enabling global `--forc
 
 | Key | Default | Effect |
 |---|---|---|
-| `FORCE_XCODE` | `false` | Allow Xcode derived data deletion without `--force`. |
+| `FORCE_XCODE` | `false` | Allow Xcode derived data and Xcode archives deletion without `--force`. |
 | `FORCE_TRASH` | `false` | Allow trash emptying without `--force`. |
 | `FORCE_ICLOUD_DRIVE` | `false` | Allow iCloud Drive offline files deletion (bypasses sync). |
 | `FORCE_IOS_BACKUPS` | `false` | Allow iOS device backups deletion (requires iCloud backup enabled). |
