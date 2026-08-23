@@ -8,7 +8,7 @@ A 30-second walkthrough of running MacCleans for the first time. You'll preview 
 sudo Mac-Clean --dry-run
 ```
 
-You'll see each of the 30 cleanup categories in turn. `--dry-run` is harmless — no files are touched. It also pre-flight checks disk space, sudo, iCloud config, and skips anything you've disabled.
+You'll see each of the 39 cleanup categories in turn. `--dry-run` is harmless — no files are touched. It also pre-flight checks disk space, sudo, iCloud config, and skips anything you've disabled.
 
 ```text
 ================================================
@@ -52,7 +52,7 @@ Sample `--json` output:
 
 ```json
 {
-  "version": "5.7.0",
+  "version": "6.0.0",
   "timestamp": "2026-06-05T18:30:00Z",
   "dry_run": true,
   "results": {

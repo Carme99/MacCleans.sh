@@ -66,10 +66,19 @@ SKIP_GRADLE=false
 SKIP_GO=false
 SKIP_BUN=false
 SKIP_PNPM=false
+SKIP_BROWSER_TOOLS=false
+SKIP_CRASH_REPORTS=false
+SKIP_USER_TOOL_CACHES=false
+SKIP_XCODE_ARCHIVES=false
+SKIP_JVM=false
+SKIP_JETBRAINS=false
+SKIP_CARGO=false
+SKIP_NUGET=false
+SKIP_VSCODE=false
 SKIP_SYSTEM_TMP=true
 ```
 
-A complete, commented-out example is also available at the repo root as [`maccleans.conf.example`](../maccleans.conf.example) — copy it to one of the locations above and edit.
+A complete, commented-out example is also available at the repo root as [`maccleans.conf.example`](../../maccleans.conf.example) — copy it to one of the locations above and edit.
 
 ## All Configuration Options
 
@@ -110,6 +119,15 @@ Set to `true` to skip a category during cleanup.
 | `SKIP_ICLOUD_MAIL` | iCloud Mail cache |
 | `SKIP_PHOTOS_LIBRARY` | Photos library cache |
 | `SKIP_ICLOUD_DRIVE` | iCloud Drive offline files |
+| `SKIP_BROWSER_TOOLS` | Browser testing tool caches |
+| `SKIP_CRASH_REPORTS` | Crash reports |
+| `SKIP_USER_TOOL_CACHES` | User tool caches (`~/.cache/...`) |
+| `SKIP_XCODE_ARCHIVES` | Xcode archives (requires `--force-xcode`) |
+| `SKIP_JVM` | JVM build caches (Maven, Ivy, sbt) |
+| `SKIP_JETBRAINS` | JetBrains IDE caches |
+| `SKIP_CARGO` | Cargo registry cache |
+| `SKIP_NUGET` | NuGet package cache |
+| `SKIP_VSCODE` | VS Code cache |
 | `SKIP_QUICKLOOK` | QuickLook thumbnails |
 | `SKIP_DIAGNOSTICS` | Diagnostic reports |
 | `SKIP_IOS_BACKUPS` | iOS device backups |

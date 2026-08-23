@@ -127,7 +127,7 @@ It's completely offline and private.
 ### Q: Can I audit the code?
 
 **A:** Yes! The entire script is open-source. You can:
-- Read the source code: [clean-mac-space.sh](clean-mac-space.sh)
+- Read the source code: [clean-mac-space.sh](../../clean-mac-space.sh)
 - Review on GitHub: [Carme99/MacCleans.sh](https://github.com/Carme99/MacCleans.sh)
 - Run ShellCheck on it yourself
 - Inspect every command before running

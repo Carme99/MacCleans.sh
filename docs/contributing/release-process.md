@@ -95,5 +95,5 @@ Say PR #83 is a `fix:` for a Photos Library edge case:
 |---|---|---|
 | `scripts/release.sh` refuses to run | Not on `main` | `git checkout main` |
 | Workflow fails with "couldn't compute sha256" | Tarball URL changed or GITHUB_REF_NAME is wrong | Check the [release workflow debugging notes](https://github.com/Carme99/MacCleans.sh/blob/main/.github/workflows/release.yml) |
-| Homebrew tap formula is wrong after release | Token (`HOMEBREW_TAP_TOKEN`) lost or rotated | See [CONTRIBUTING.md § One-time setup for the maintainer](../CONTRIBUTING.md#one-time-setup-for-the-maintainer) |
+| Homebrew tap formula is wrong after release | Token (`HOMEBREW_TAP_TOKEN`) lost or rotated | See [CONTRIBUTING.md § One-time setup for the maintainer](../../CONTRIBUTING.md#one-time-setup-for-the-maintainer) |
 | Want to undo a release | Tag was pushed but the tap/release is bad | Delete tag locally + on origin, fix the issue, re-tag. `git push origin :refs/tags/v5.5.3` to delete remotely. |

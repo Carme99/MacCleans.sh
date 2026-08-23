@@ -57,6 +57,8 @@ sudo Mac-Clean --profile developer --yes
 - Docker
 - Browser caches
 - iOS Simulator
+- Dev-tool caches (JVM build, JetBrains IDEs, Cargo, NuGet, VS Code)
+- Browser testing tool caches
 - iOS/iPadOS Update Files
 - Everything else
 

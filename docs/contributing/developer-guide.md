@@ -6,7 +6,7 @@ Interested in contributing to MacCleans? This guide covers everything you need t
 
 ```mermaid
 sequenceDiagram
-    participant CR as CATEGORY_REGISTRY (30 entries)
+    participant CR as CATEGORY_REGISTRY (39 entries)
     participant ID as registry_get_skip_var
     participant ID2 as registry_get_display
     participant Init as _init_skip_defaults
@@ -100,7 +100,7 @@ There is intentionally **no `tests/` directory and no `npm test`** — MacCleans
 10. **Disk / size helpers** — `safe_du`, `size_to_bytes`, `bytes_to_human`, `check_disk_space`, `check_minimum_disk_space` (lines ~846-925)
 11. **Health checks** — `perform_health_checks` (line 1031)
 12. **Profile loader** — `load_profile` (line 1071)
-13. **Category cleanup sections** — 30 top-level procedural blocks, numbered #1 through #28 continuously plus 3a (Spotify Cache) and 3b (Claude Desktop Cache) sub-numbered; 30 total entries in `CATEGORY_REGISTRY` (the F-2 numbering gap that was noted in the v5.2.0 review was fixed in v5.4.0; the root-cause refactor into a `CATEGORY_REGISTRY` + `run_category` dispatcher is F-5, shipped in v5.5.0)
+13. **Category cleanup sections** — 39 registry entries, numbered #1 through #31 continuously (including 3a Spotify Cache and 3b Claude Desktop Cache sub-numbered) plus #34–#39 (Xcode Archives, JVM, JetBrains, Cargo, NuGet, VS Code); 39 total entries in `CATEGORY_REGISTRY` (the F-2 numbering gap that was noted in the v5.2.0 review was fixed in v5.4.0; the root-cause refactor into a `CATEGORY_REGISTRY` + `run_category` dispatcher is F-5, shipped in v5.5.0; the count test is a lower-bound assert since v6.0.0 so parallel category additions can't collide)
 14. **JSON output** (the trailing `# Deliver results as JSON` block)
 
 ## Adding a New Category

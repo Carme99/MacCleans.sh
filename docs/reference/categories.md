@@ -36,6 +36,7 @@ Complete reference of all cleanup categories in MacCleans.
 | Browser Testing Tool Caches | 500MB-2GB | Low | `--skip-browser-tools` |
 | Crash Reports | 100MB-1GB | Low | `--skip-crash-reports` |
 | User Tool Caches | 500MB-2GB | Low | `--skip-user-tool-caches` |
+| Xcode Archives | 5-20GB | High | `--skip-xcode-archives` |
 | JVM Build Caches | 500MB-5GB | Medium | `--skip-jvm` |
 | JetBrains IDE Caches | 1-10GB | High | `--skip-jetbrains` |
 | Cargo Registry Cache | 500MB-5GB | Low | `--skip-cargo` |
@@ -557,6 +558,30 @@ sudo Mac-Clean --yes --skip-user-tool-caches
 ```
 
 ---
+
+### Xcode Archives
+
+**Path:** `~/Library/Developer/Xcode/Archives`
+
+**Typical Size:** 5-20GB on a Mac with any iOS/macOS development history
+
+**What it does:** Deletes archived app builds (`.xcarchive` bundles). Each archive holds a release build plus its dSYMs.
+
+**What it doesn't do:** Unlike DerivedData, archives are NOT regenerated. Recovery requires a backup.
+
+**Risk:** High - release builds and debug symbols cannot be re-created once deleted
+
+**When to skip:** Unless you are certain you won't need any archived builds
+
+**Requires:** `--force-xcode` to delete without the interactive prompt (same gate as Xcode Derived Data)
+
+```bash
+# Skip Xcode Archives
+sudo Mac-Clean --yes --skip-xcode-archives
+```
+
+---
+
 ### Cargo Registry Cache
 
 **Paths:** `~/.cargo/registry/cache`, `~/.cargo/registry/src`
@@ -633,6 +658,28 @@ sudo Mac-Clean --yes --skip-jetbrains
 ```bash
 # Skip NuGet package cache
 sudo Mac-Clean --yes --skip-nuget
+```
+
+---
+
+### VS Code Cache
+
+**Paths:**
+- `~/Library/Application Support/Code/Cache`, `CachedData`, `Code Cache`, `GPUCache`
+- `~/Library/Application Support/Code/Service Worker/CacheStorage`
+- `~/Library/Caches/com.microsoft.VSCode`
+
+**Typical Size:** 200MB-2GB
+
+**What it does:** VS Code's regenerable caches: renderer bytecode caches, GPU cache, service-worker cache storage, and the macOS-level app cache. Everything rebuilds automatically on the next launch.
+
+**What it doesn't delete:** Settings (`Code/User`), extensions (`~/.vscode`), and per-workspace state (`workspaceStorage`).
+
+**Risk:** Medium - safe to delete, but the first launch afterwards is slower while caches rebuild
+
+```bash
+# Skip VS Code cache
+sudo Mac-Clean --yes --skip-vscode
 ```
 
 ---

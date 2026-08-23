@@ -137,6 +137,27 @@ Cache files are like keeping frequently-used ingredients in your kitchen instead
 - Development containers need recreation
 - Production: Always pull from registry anyway
 
+#### Language & IDE Tool Caches
+**Locations**:
+- JVM builds: `~/.m2/repository`, `~/.ivy2/cache`, `~/.sbt/boot`
+- JetBrains IDEs: `~/Library/Caches/JetBrains`
+- Cargo: `~/.cargo/registry`
+- NuGet: `~/.nuget/packages`
+- VS Code: `~/Library/Caches/com.microsoft.VSCode`
+
+**What they store**:
+- Downloaded package archives and extracted sources
+- Per-version IDE indexes and caches
+- Editor GPU/service-worker caches
+
+**Size**: 500MB - 10GB+ combined for polyglot developers
+
+**Safe to delete?** ✅ Yes
+
+**Impact of deletion**:
+- Next build or restore re-downloads dependencies from the registry
+- IDEs rebuild their caches on next launch
+
 ### 5. Mail Cache
 
 **Location**: `~/Library/Caches/com.apple.mail`

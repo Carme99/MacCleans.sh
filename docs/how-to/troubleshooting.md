@@ -410,7 +410,7 @@ du -sh ~/.npm/
 
 **Solution 2**: Use number shortcuts instead of arrows
 ```bash
-# Press 1-13 to toggle categories
+# Press 1-36 to toggle categories
 # Press 'd' when done
 ```
 
