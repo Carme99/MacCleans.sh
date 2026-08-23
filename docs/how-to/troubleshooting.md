@@ -7,7 +7,7 @@ flowchart TD
     Start([Script error or<br/>unexpected behavior]) --> Q1{Error message?}
     Q1 -->|permission denied| P1[Run with sudo]
     Q1 -->|command not found| P2["Check \$PATH includes<br/>/usr/local/bin or install path"]
-    Q1 -->|lock file exists| P3[Remove the lock file in<br/>/tmp or wait for prior run]
+    Q1 -->|lock file exists| P3["Remove the stale lock file in<br/>~/.macclean/lock or wait for a prior run"]
     Q1 -->|disk space error| P4[Free space OR lower --threshold]
     Q1 -->|symlink warning| P5["Inspect the symlink target<br/>(symlink-swap defense)"]
     Q1 -->|script crashed silently| P6[Run with --verbose --no-color]
